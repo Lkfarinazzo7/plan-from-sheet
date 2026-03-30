@@ -1,0 +1,229 @@
+import { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { MonthYearPicker } from '@/components/MonthYearPicker';
+import { useReceitas, useCreateReceita, useDeleteReceita, useVendedores, useOperadoras } from '@/hooks/useFinancialData';
+import { formatCurrency, formatDate, getCurrentMonthYear } from '@/lib/format';
+import { Plus, Trash2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+
+export default function Receitas() {
+  const { month: curMonth, year: curYear } = getCurrentMonthYear();
+  const [month, setMonth] = useState(curMonth);
+  const [year, setYear] = useState(curYear);
+  const [open, setOpen] = useState(false);
+  const [filterVendedor, setFilterVendedor] = useState<string>('all');
+  const [filterOperadora, setFilterOperadora] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+
+  const { data: receitas = [], isLoading } = useReceitas(month, year);
+  const { data: vendedores = [] } = useVendedores();
+  const { data: operadoras = [] } = useOperadoras();
+  const createReceita = useCreateReceita();
+  const deleteReceita = useDeleteReceita();
+  const { toast } = useToast();
+
+  const [form, setForm] = useState({
+    data: new Date().toISOString().split('T')[0],
+    descricao: '',
+    categoria: 'Bancária',
+    operadora_id: '',
+    valor: '',
+    comissao: '',
+    vendedor_id: '',
+    status: 'Aguardando',
+  });
+
+  const filtered = receitas.filter(r => {
+    if (filterVendedor !== 'all' && r.vendedor_id !== filterVendedor) return false;
+    if (filterOperadora !== 'all' && r.operadora_id !== filterOperadora) return false;
+    if (filterStatus !== 'all' && r.status !== filterStatus) return false;
+    return true;
+  });
+
+  const total = filtered.reduce((acc, r) => acc + Number(r.valor), 0);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await createReceita.mutateAsync({
+        ...form,
+        valor: parseFloat(form.valor),
+        comissao: parseFloat(form.comissao || '0'),
+      });
+      setOpen(false);
+      setForm({ data: new Date().toISOString().split('T')[0], descricao: '', categoria: 'Bancária', operadora_id: '', valor: '', comissao: '', vendedor_id: '', status: 'Aguardando' });
+      toast({ title: 'Receita cadastrada com sucesso!' });
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <h2 className="text-2xl font-bold">Receitas</h2>
+        <div className="flex items-center gap-3">
+          <MonthYearPicker month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button><Plus className="h-4 w-4 mr-1" /> Nova Receita</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader><DialogTitle>Nova Receita</DialogTitle></DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Data</label>
+                    <Input type="date" value={form.data} onChange={e => setForm({ ...form, data: e.target.value })} required />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Categoria</label>
+                    <Select value={form.categoria} onValueChange={v => setForm({ ...form, categoria: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Bancária">Bancária</SelectItem>
+                        <SelectItem value="Vida">Vida</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Descrição</label>
+                  <Input value={form.descricao} onChange={e => setForm({ ...form, descricao: e.target.value })} required />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Operadora</label>
+                    <Select value={form.operadora_id} onValueChange={v => setForm({ ...form, operadora_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent>
+                        {operadoras.map(o => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Vendedor</label>
+                    <Select value={form.vendedor_id} onValueChange={v => setForm({ ...form, vendedor_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent>
+                        {vendedores.map(v => <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Valor (R$)</label>
+                    <Input type="number" step="0.01" min="0" value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} required />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Comissão (R$)</label>
+                    <Input type="number" step="0.01" min="0" value={form.comissao} onChange={e => setForm({ ...form, comissao: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Status</label>
+                    <Select value={form.status} onValueChange={v => setForm({ ...form, status: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Recebido">Recebido</SelectItem>
+                        <SelectItem value="Aguardando">Aguardando</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button type="submit" className="w-full" disabled={createReceita.isPending}>
+                  {createReceita.isPending ? 'Salvando...' : 'Cadastrar Receita'}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3">
+        <Select value={filterVendedor} onValueChange={setFilterVendedor}>
+          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Vendedor" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos vendedores</SelectItem>
+            {vendedores.map(v => <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterOperadora} onValueChange={setFilterOperadora}>
+          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Operadora" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas operadoras</SelectItem>
+            {operadoras.map(o => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos status</SelectItem>
+            <SelectItem value="Recebido">Recebido</SelectItem>
+            <SelectItem value="Aguardando">Aguardando</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Table */}
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>Descrição</TableHead>
+                <TableHead>Categoria</TableHead>
+                <TableHead>Operadora</TableHead>
+                <TableHead>Vendedor</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
+                <TableHead className="text-right">Comissão</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+              ) : filtered.length === 0 ? (
+                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Nenhuma receita encontrada</TableCell></TableRow>
+              ) : (
+                filtered.map(r => (
+                  <TableRow key={r.id}>
+                    <TableCell>{formatDate(r.data)}</TableCell>
+                    <TableCell className="max-w-[200px] truncate">{r.descricao}</TableCell>
+                    <TableCell>{r.categoria}</TableCell>
+                    <TableCell>{(r.operadoras as any)?.nome}</TableCell>
+                    <TableCell>{(r.vendedores as any)?.nome}</TableCell>
+                    <TableCell className="text-right font-medium text-success">{formatCurrency(Number(r.valor))}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(Number(r.comissao))}</TableCell>
+                    <TableCell>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${r.status === 'Recebido' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
+                        {r.status}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteReceita.mutate(r.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <div className="text-right text-sm text-muted-foreground">
+        Total: <span className="font-bold text-foreground">{formatCurrency(total)}</span> ({filtered.length} registros)
+      </div>
+    </div>
+  );
+}
