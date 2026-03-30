@@ -14,7 +14,182 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      categorias_despesa: {
+        Row: {
+          created_at: string
+          id: string
+          nome: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nome: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome?: string
+        }
+        Relationships: []
+      }
+      despesas: {
+        Row: {
+          categoria_id: string
+          created_at: string
+          data: string
+          descricao: string
+          id: string
+          recorrente: boolean
+          responsavel: string | null
+          status: string
+          tipo: string
+          updated_at: string
+          user_id: string
+          valor: number
+        }
+        Insert: {
+          categoria_id: string
+          created_at?: string
+          data: string
+          descricao: string
+          id?: string
+          recorrente?: boolean
+          responsavel?: string | null
+          status?: string
+          tipo: string
+          updated_at?: string
+          user_id: string
+          valor?: number
+        }
+        Update: {
+          categoria_id?: string
+          created_at?: string
+          data?: string
+          descricao?: string
+          id?: string
+          recorrente?: boolean
+          responsavel?: string | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+          user_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "despesas_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_despesa"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      operadoras: {
+        Row: {
+          ativa: boolean
+          created_at: string
+          id: string
+          nome: string
+        }
+        Insert: {
+          ativa?: boolean
+          created_at?: string
+          id?: string
+          nome: string
+        }
+        Update: {
+          ativa?: boolean
+          created_at?: string
+          id?: string
+          nome?: string
+        }
+        Relationships: []
+      }
+      receitas: {
+        Row: {
+          categoria: string
+          comissao: number
+          created_at: string
+          data: string
+          descricao: string
+          id: string
+          operadora_id: string
+          status: string
+          updated_at: string
+          user_id: string
+          valor: number
+          vendedor_id: string
+        }
+        Insert: {
+          categoria: string
+          comissao?: number
+          created_at?: string
+          data: string
+          descricao: string
+          id?: string
+          operadora_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+          valor?: number
+          vendedor_id: string
+        }
+        Update: {
+          categoria?: string
+          comissao?: number
+          created_at?: string
+          data?: string
+          descricao?: string
+          id?: string
+          operadora_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+          valor?: number
+          vendedor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receitas_operadora_id_fkey"
+            columns: ["operadora_id"]
+            isOneToOne: false
+            referencedRelation: "operadoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receitas_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendedores: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
