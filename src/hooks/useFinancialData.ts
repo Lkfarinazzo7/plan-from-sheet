@@ -69,15 +69,32 @@ export function useDespesas(month?: number, year?: number) {
   });
 }
 
+export function useComissoes(month?: number, year?: number) {
+  return useQuery({
+    queryKey: ['comissoes', month, year],
+    queryFn: async () => {
+      let query = supabase.from('comissoes').select('*, vendedores(nome)').order('data', { ascending: false });
+      if (month !== undefined && year !== undefined) {
+        const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+        const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+        query = query.gte('data', startDate).lte('data', endDate);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
 export function useCreateReceita() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (receita: {
       data: string; descricao: string; categoria: string; operadora_id: string;
-      valor: number; comissao: number; vendedor_id: string; status: string;
+      valor: number; vendedor_id: string; status: string;
     }) => {
-      const { error } = await supabase.from('receitas').insert({ ...receita, user_id: user!.id });
+      const { error } = await supabase.from('receitas').insert({ ...receita, comissao: 0, user_id: user!.id });
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['receitas'] }),
@@ -140,6 +157,44 @@ export function useDeleteDespesa() {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['despesas'] }),
+  });
+}
+
+export function useCreateComissao() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (comissao: {
+      data: string; descricao: string; vendedor_id: string;
+      valor_proposta: number; valor_recebido: number;
+      comissao_vendedor: number; comissao_supervisor: number; status: string;
+    }) => {
+      const { error } = await supabase.from('comissoes').insert({ ...comissao, user_id: user!.id });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['comissoes'] }),
+  });
+}
+
+export function useUpdateComissao() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string; [key: string]: any }) => {
+      const { error } = await supabase.from('comissoes').update(updates).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['comissoes'] }),
+  });
+}
+
+export function useDeleteComissao() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('comissoes').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['comissoes'] }),
   });
 }
 

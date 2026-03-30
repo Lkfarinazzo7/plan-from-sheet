@@ -3,10 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useReceitas, useDespesas, useVendedores } from '@/hooks/useFinancialData';
 import { formatCurrency, getCurrentMonthYear } from '@/lib/format';
-import { ArrowUpCircle, ArrowDownCircle, Wallet, TrendingUp } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, Wallet, Clock, AlertTriangle, CreditCard } from 'lucide-react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from 'recharts';
 
 const PIE_COLORS = [
@@ -28,7 +27,10 @@ export default function Dashboard() {
   const totalReceitas = receitas.reduce((acc, r) => acc + Number(r.valor), 0);
   const totalDespesas = despesas.reduce((acc, d) => acc + Number(d.valor), 0);
   const saldo = totalReceitas - totalDespesas;
-  const totalComissoes = receitas.reduce((acc, r) => acc + Number(r.comissao), 0);
+
+  const receitasAReceber = receitas.filter(r => r.status === 'Aguardando').reduce((acc, r) => acc + Number(r.valor), 0);
+  const despesasAPagar = despesas.filter(d => d.status === 'A pagar').reduce((acc, d) => acc + Number(d.valor), 0);
+  const despesasAtrasadas = despesas.filter(d => d.status === 'Atrasado').reduce((acc, d) => acc + Number(d.valor), 0);
 
   // Despesas por categoria
   const despesasPorCategoria = despesas.reduce((acc, d) => {
@@ -46,16 +48,8 @@ export default function Dashboard() {
       nome: v.nome,
       contratos: vendorReceitas.length,
       faturamento: vendorReceitas.reduce((acc, r) => acc + Number(r.valor), 0),
-      comissao: vendorReceitas.reduce((acc, r) => acc + Number(r.comissao), 0),
     };
   }).sort((a, b) => b.faturamento - a.faturamento);
-
-  // Bar chart: últimos 6 meses
-  const barData = Array.from({ length: 6 }, (_, i) => {
-    const m = new Date(year, month - 5 + i, 1);
-    const mName = m.toLocaleDateString('pt-BR', { month: 'short' });
-    return { name: mName, mes: m.getMonth(), ano: m.getFullYear() };
-  });
 
   return (
     <div className="space-y-6">
@@ -65,7 +59,7 @@ export default function Dashboard() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -105,10 +99,32 @@ export default function Dashboard() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Comissões</p>
-                <p className="text-2xl font-bold text-warning">{formatCurrency(totalComissoes)}</p>
+                <p className="text-sm text-muted-foreground">Receitas a Receber</p>
+                <p className="text-2xl font-bold text-warning">{formatCurrency(receitasAReceber)}</p>
               </div>
-              <TrendingUp className="h-8 w-8 text-warning opacity-60" />
+              <Clock className="h-8 w-8 text-warning opacity-60" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Despesas a Pagar</p>
+                <p className="text-2xl font-bold text-warning">{formatCurrency(despesasAPagar)}</p>
+              </div>
+              <CreditCard className="h-8 w-8 text-warning opacity-60" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Despesas Atrasadas</p>
+                <p className="text-2xl font-bold text-destructive">{formatCurrency(despesasAtrasadas)}</p>
+              </div>
+              <AlertTriangle className="h-8 w-8 text-destructive opacity-60" />
             </div>
           </CardContent>
         </Card>
@@ -151,7 +167,7 @@ export default function Dashboard() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{v.nome}</p>
                       <p className="text-sm text-muted-foreground">
-                        {v.contratos} contratos · Comissão: {formatCurrency(v.comissao)}
+                        {v.contratos} contratos
                       </p>
                     </div>
                     <span className="text-sm font-semibold text-success">{formatCurrency(v.faturamento)}</span>

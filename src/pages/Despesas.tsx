@@ -7,36 +7,40 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useDespesas, useCreateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas } from '@/hooks/useFinancialData';
+import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
-import { Plus, Trash2, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, RotateCcw, Pencil } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+
+const emptyForm = {
+  data: new Date().toISOString().split('T')[0],
+  descricao: '',
+  categoria_id: '',
+  tipo: 'Fixo',
+  valor: '',
+  responsavel: '',
+  recorrente: false,
+  status: 'A pagar',
+};
 
 export default function Despesas() {
   const { month: curMonth, year: curYear } = getCurrentMonthYear();
   const [month, setMonth] = useState(curMonth);
   const [year, setYear] = useState(curYear);
   const [open, setOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [filterCategoria, setFilterCategoria] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
   const { data: despesas = [], isLoading } = useDespesas(month, year);
   const { data: categorias = [] } = useCategoriasDespesa();
   const createDespesa = useCreateDespesa();
+  const updateDespesa = useUpdateDespesa();
   const deleteDespesa = useDeleteDespesa();
   const generateRecurring = useGenerateRecurringDespesas();
   const { toast } = useToast();
 
-  const [form, setForm] = useState({
-    data: new Date().toISOString().split('T')[0],
-    descricao: '',
-    categoria_id: '',
-    tipo: 'Fixo',
-    valor: '',
-    responsavel: '',
-    recorrente: false,
-    status: 'A pagar',
-  });
+  const [form, setForm] = useState(emptyForm);
 
   const filtered = despesas.filter(d => {
     if (filterCategoria !== 'all' && d.categoria_id !== filterCategoria) return false;
@@ -46,17 +50,41 @@ export default function Despesas() {
 
   const total = filtered.reduce((acc, d) => acc + Number(d.valor), 0);
 
+  const openNew = () => {
+    setEditId(null);
+    setForm(emptyForm);
+    setOpen(true);
+  };
+
+  const openEdit = (d: any) => {
+    setEditId(d.id);
+    setForm({
+      data: d.data,
+      descricao: d.descricao,
+      categoria_id: d.categoria_id,
+      tipo: d.tipo,
+      valor: String(d.valor),
+      responsavel: d.responsavel || '',
+      recorrente: d.recorrente,
+      status: d.status,
+    });
+    setOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createDespesa.mutateAsync({
-        ...form,
-        valor: parseFloat(form.valor),
-        responsavel: form.responsavel || undefined,
-      });
+      const payload = { ...form, valor: parseFloat(form.valor), responsavel: form.responsavel || undefined };
+      if (editId) {
+        await updateDespesa.mutateAsync({ id: editId, ...payload });
+        toast({ title: 'Despesa atualizada com sucesso!' });
+      } else {
+        await createDespesa.mutateAsync(payload);
+        toast({ title: 'Despesa cadastrada com sucesso!' });
+      }
       setOpen(false);
-      setForm({ data: new Date().toISOString().split('T')[0], descricao: '', categoria_id: '', tipo: 'Fixo', valor: '', responsavel: '', recorrente: false, status: 'A pagar' });
-      toast({ title: 'Despesa cadastrada com sucesso!' });
+      setEditId(null);
+      setForm(emptyForm);
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     }
@@ -76,6 +104,8 @@ export default function Despesas() {
     }
   };
 
+  const isPending = createDespesa.isPending || updateDespesa.isPending;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -85,12 +115,12 @@ export default function Despesas() {
           <Button variant="outline" onClick={handleGenerateRecurring} disabled={generateRecurring.isPending}>
             <RotateCcw className="h-4 w-4 mr-1" /> Gerar Recorrentes
           </Button>
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditId(null); }}>
             <DialogTrigger asChild>
-              <Button><Plus className="h-4 w-4 mr-1" /> Nova Despesa</Button>
+              <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Nova Despesa</Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
-              <DialogHeader><DialogTitle>Nova Despesa</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>{editId ? 'Editar Despesa' : 'Nova Despesa'}</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
@@ -148,8 +178,8 @@ export default function Despesas() {
                     <label className="text-sm">Recorrente</label>
                   </div>
                 </div>
-                <Button type="submit" className="w-full" disabled={createDespesa.isPending}>
-                  {createDespesa.isPending ? 'Salvando...' : 'Cadastrar Despesa'}
+                <Button type="submit" className="w-full" disabled={isPending}>
+                  {isPending ? 'Salvando...' : editId ? 'Salvar Alterações' : 'Cadastrar Despesa'}
                 </Button>
               </form>
             </DialogContent>
@@ -219,9 +249,14 @@ export default function Despesas() {
                     </TableCell>
                     <TableCell>{d.recorrente ? '✓' : ''}</TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteDespesa.mutate(d.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(d)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteDespesa.mutate(d.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

@@ -32,6 +32,59 @@ export type Database = {
         }
         Relationships: []
       }
+      comissoes: {
+        Row: {
+          comissao_supervisor: number
+          comissao_vendedor: number
+          created_at: string
+          data: string
+          descricao: string
+          id: string
+          status: string
+          updated_at: string
+          user_id: string
+          valor_proposta: number
+          valor_recebido: number
+          vendedor_id: string
+        }
+        Insert: {
+          comissao_supervisor?: number
+          comissao_vendedor?: number
+          created_at?: string
+          data: string
+          descricao?: string
+          id?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+          valor_proposta?: number
+          valor_recebido?: number
+          vendedor_id: string
+        }
+        Update: {
+          comissao_supervisor?: number
+          comissao_vendedor?: number
+          created_at?: string
+          data?: string
+          descricao?: string
+          id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+          valor_proposta?: number
+          valor_recebido?: number
+          vendedor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comissoes_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       despesas: {
         Row: {
           categoria_id: string
