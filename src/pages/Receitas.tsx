@@ -1,21 +1,32 @@
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useReceitas, useCreateReceita, useDeleteReceita, useVendedores, useOperadoras } from '@/hooks/useFinancialData';
+import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear } from '@/lib/format';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Pencil } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+
+const emptyForm = {
+  data: new Date().toISOString().split('T')[0],
+  descricao: '',
+  categoria: 'Bancária',
+  operadora_id: '',
+  valor: '',
+  vendedor_id: '',
+  status: 'Aguardando',
+};
 
 export default function Receitas() {
   const { month: curMonth, year: curYear } = getCurrentMonthYear();
   const [month, setMonth] = useState(curMonth);
   const [year, setYear] = useState(curYear);
   const [open, setOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [filterVendedor, setFilterVendedor] = useState<string>('all');
   const [filterOperadora, setFilterOperadora] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -24,19 +35,11 @@ export default function Receitas() {
   const { data: vendedores = [] } = useVendedores();
   const { data: operadoras = [] } = useOperadoras();
   const createReceita = useCreateReceita();
+  const updateReceita = useUpdateReceita();
   const deleteReceita = useDeleteReceita();
   const { toast } = useToast();
 
-  const [form, setForm] = useState({
-    data: new Date().toISOString().split('T')[0],
-    descricao: '',
-    categoria: 'Bancária',
-    operadora_id: '',
-    valor: '',
-    comissao: '',
-    vendedor_id: '',
-    status: 'Aguardando',
-  });
+  const [form, setForm] = useState(emptyForm);
 
   const filtered = receitas.filter(r => {
     if (filterVendedor !== 'all' && r.vendedor_id !== filterVendedor) return false;
@@ -47,21 +50,46 @@ export default function Receitas() {
 
   const total = filtered.reduce((acc, r) => acc + Number(r.valor), 0);
 
+  const openNew = () => {
+    setEditId(null);
+    setForm(emptyForm);
+    setOpen(true);
+  };
+
+  const openEdit = (r: any) => {
+    setEditId(r.id);
+    setForm({
+      data: r.data,
+      descricao: r.descricao,
+      categoria: r.categoria,
+      operadora_id: r.operadora_id,
+      valor: String(r.valor),
+      vendedor_id: r.vendedor_id,
+      status: r.status,
+    });
+    setOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createReceita.mutateAsync({
-        ...form,
-        valor: parseFloat(form.valor),
-        comissao: parseFloat(form.comissao || '0'),
-      });
+      const payload = { ...form, valor: parseFloat(form.valor) };
+      if (editId) {
+        await updateReceita.mutateAsync({ id: editId, ...payload });
+        toast({ title: 'Receita atualizada com sucesso!' });
+      } else {
+        await createReceita.mutateAsync(payload);
+        toast({ title: 'Receita cadastrada com sucesso!' });
+      }
       setOpen(false);
-      setForm({ data: new Date().toISOString().split('T')[0], descricao: '', categoria: 'Bancária', operadora_id: '', valor: '', comissao: '', vendedor_id: '', status: 'Aguardando' });
-      toast({ title: 'Receita cadastrada com sucesso!' });
+      setEditId(null);
+      setForm(emptyForm);
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     }
   };
+
+  const isPending = createReceita.isPending || updateReceita.isPending;
 
   return (
     <div className="space-y-6">
@@ -69,12 +97,12 @@ export default function Receitas() {
         <h2 className="text-2xl font-bold">Receitas</h2>
         <div className="flex items-center gap-3">
           <MonthYearPicker month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditId(null); }}>
             <DialogTrigger asChild>
-              <Button><Plus className="h-4 w-4 mr-1" /> Nova Receita</Button>
+              <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Nova Receita</Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
-              <DialogHeader><DialogTitle>Nova Receita</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>{editId ? 'Editar Receita' : 'Nova Receita'}</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
@@ -116,14 +144,10 @@ export default function Receitas() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-sm font-medium">Valor (R$)</label>
                     <Input type="number" step="0.01" min="0" value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} required />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium">Comissão (R$)</label>
-                    <Input type="number" step="0.01" min="0" value={form.comissao} onChange={e => setForm({ ...form, comissao: e.target.value })} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-sm font-medium">Status</label>
@@ -136,8 +160,8 @@ export default function Receitas() {
                     </Select>
                   </div>
                 </div>
-                <Button type="submit" className="w-full" disabled={createReceita.isPending}>
-                  {createReceita.isPending ? 'Salvando...' : 'Cadastrar Receita'}
+                <Button type="submit" className="w-full" disabled={isPending}>
+                  {isPending ? 'Salvando...' : editId ? 'Salvar Alterações' : 'Cadastrar Receita'}
                 </Button>
               </form>
             </DialogContent>
@@ -183,16 +207,15 @@ export default function Receitas() {
                 <TableHead>Operadora</TableHead>
                 <TableHead>Vendedor</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
-                <TableHead className="text-right">Comissão</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Nenhuma receita encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nenhuma receita encontrada</TableCell></TableRow>
               ) : (
                 filtered.map(r => (
                   <TableRow key={r.id}>
@@ -202,16 +225,20 @@ export default function Receitas() {
                     <TableCell>{(r.operadoras as any)?.nome}</TableCell>
                     <TableCell>{(r.vendedores as any)?.nome}</TableCell>
                     <TableCell className="text-right font-medium text-success">{formatCurrency(Number(r.valor))}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(Number(r.comissao))}</TableCell>
                     <TableCell>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${r.status === 'Recebido' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
                         {r.status}
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteReceita.mutate(r.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteReceita.mutate(r.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
