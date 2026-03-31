@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Receitas from "./pages/Receitas";
 import Despesas from "./pages/Despesas";
 import Comissoes from "./pages/Comissoes";
+import Cadastros from "./pages/Cadastros";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="/receitas" element={<ProtectedRoute><Receitas /></ProtectedRoute>} />
             <Route path="/despesas" element={<ProtectedRoute><Despesas /></ProtectedRoute>} />
             <Route path="/comissoes" element={<ProtectedRoute><Comissoes /></ProtectedRoute>} />
+            <Route path="/cadastros" element={<ProtectedRoute><Cadastros /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

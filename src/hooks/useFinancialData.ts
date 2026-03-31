@@ -204,6 +204,158 @@ export function useDeleteComissao() {
   });
 }
 
+// ===== Cadastros CRUD Hooks =====
+
+export function useAllVendedores() {
+  return useQuery({
+    queryKey: ['vendedores', 'all'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('vendedores').select('*').order('nome');
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useCreateVendedor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (nome: string) => {
+      const { error } = await supabase.from('vendedores').insert({ nome });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendedores'] });
+    },
+  });
+}
+
+export function useUpdateVendedor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string; nome?: string; ativo?: boolean }) => {
+      const { error } = await supabase.from('vendedores').update(updates).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendedores'] });
+    },
+  });
+}
+
+export function useAllOperadoras() {
+  return useQuery({
+    queryKey: ['operadoras', 'all'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('operadoras').select('*').order('nome');
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useCreateOperadora() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (nome: string) => {
+      const { error } = await supabase.from('operadoras').insert({ nome });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['operadoras'] });
+    },
+  });
+}
+
+export function useUpdateOperadora() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string; nome?: string; ativa?: boolean }) => {
+      const { error } = await supabase.from('operadoras').update(updates).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['operadoras'] });
+    },
+  });
+}
+
+export function useCreateCategoriaDespesa() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (nome: string) => {
+      const { error } = await supabase.from('categorias_despesa').insert({ nome });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categorias_despesa'] });
+    },
+  });
+}
+
+export function useUpdateCategoriaDespesa() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, nome }: { id: string; nome: string }) => {
+      const { error } = await supabase.from('categorias_despesa').update({ nome }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categorias_despesa'] });
+    },
+  });
+}
+
+export function useDeleteCategoriaDespesa() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('categorias_despesa').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categorias_despesa'] });
+    },
+  });
+}
+
+export function useSupervisores() {
+  return useQuery({
+    queryKey: ['supervisores'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('supervisores').select('*').order('nome');
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useCreateSupervisor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (nome: string) => {
+      const { error } = await supabase.from('supervisores').insert({ nome });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supervisores'] });
+    },
+  });
+}
+
+export function useUpdateSupervisor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string; nome?: string; ativo?: boolean }) => {
+      const { error } = await supabase.from('supervisores').update(updates).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supervisores'] });
+    },
+  });
+}
+
 export function useGenerateRecurringDespesas() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
