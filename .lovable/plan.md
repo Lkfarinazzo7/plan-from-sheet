@@ -1,47 +1,44 @@
 
-# Sistema Financeiro - Corretora de Seguros
 
-## Visão Geral
-Sistema web para substituir a planilha financeira da corretora, com dashboard visual, controle de receitas/despesas, gestão de comissões por vendedor e despesas recorrentes automáticas. Acesso apenas para o gestor/admin com autenticação.
+# Ajustes no Dashboard: Filtro por Período e Rankings de Comissões
 
-## Funcionalidades
+## O que muda
 
-### 1. Autenticação
-- Login com email e senha para o gestor
+### 1. Botão de período personalizado no Dashboard
+- Adicionar um botão "Período" ao lado do seletor de mês/ano existente
+- Ao clicar, abre um popover com dois campos de data (início e fim) para selecionar um intervalo personalizado
+- Quando um período personalizado estiver ativo, o seletor de mês fica desabilitado e aparece o intervalo selecionado
+- Botão para limpar o filtro e voltar ao modo mensal
 
-### 2. Dashboard Principal
-- Cards resumo: Faturamento, Despesas, Saldo do mês atual
-- Gráfico de barras comparando Faturamento vs Despesas por mês
-- Gráfico de pizza com despesas por categoria (Marketing, Salário, Escritório, etc.)
-- Ranking de desempenho por vendedor (contratos fechados e retorno financeiro)
-- Filtro por período (mês/ano)
+### 2. Rankings puxando da tabela de comissões (não receitas)
+- Substituir a query de receitas por comissões no cálculo dos rankings
+- Criar hook `useComissoes` com suporte a date range (startDate/endDate) além de month/year
 
-### 3. Gestão de Receitas (Propostas/Contratos)
-- Cadastro de propostas com: data, descrição, categoria (Bancária/Vida), operadora (Amil, Sulamérica, Porto Seguro, MedSênior, Assim Saúde), valor, vendedor responsável, status (Recebido/Aguardando)
-- Lista com filtros por mês, vendedor, operadora e status
-- Totais automáticos por vendedor e por mês
+### 3. Dois rankings separados
+- **Ranking por Valor de Contrato (Proposta)**: nome do vendedor, quantidade de contratos, valor total de propostas, ticket medio
+- **Ranking por Valor Recebido**: nome do vendedor, quantidade de contratos com recebimento, valor total recebido, ticket medio
 
-### 4. Gestão de Despesas
-- Cadastro com: data, descrição, categoria, tipo (Fixo/Variável), valor, responsável, recorrente (sim/não), status (Pago/A pagar/Atrasado)
-- Categorias pré-definidas: Salário, Comissão, Marketing, Escritório, Transporte, Insumos, Impostos, Seguro, Ferramentas, Administrativo, Contabilidade, RH
-- Lista com filtros por mês, categoria e status
+## Arquivos alterados
 
-### 5. Despesas Recorrentes Automáticas
-- Marcar despesas como recorrentes no cadastro
-- Botão para gerar automaticamente as despesas recorrentes do próximo mês
-- Possibilidade de editar valores antes de confirmar
+### `src/hooks/useFinancialData.ts`
+- Adicionar versão de `useComissoes`, `useReceitas` e `useDespesas` que aceite date range (startDate, endDate strings) como alternativa a month/year
+- Isso permite que o Dashboard passe datas exatas quando o usuario selecionar periodo personalizado
 
-### 6. Controle de Comissões
-- Visualização de comissões por vendedor por mês
-- Separação entre contratos fechados (valor de comissão na venda) e retorno financeiro (valor total da proposta)
-- Totais automáticos com comparativo mensal
+### `src/pages/Dashboard.tsx`
+- Adicionar estado para modo de filtro: "mensal" ou "periodo"
+- Adicionar botão "Periodo" com popover contendo dois date inputs
+- Quando em modo periodo, passar startDate/endDate para os hooks ao inves de month/year
+- Remover o ranking atual baseado em receitas
+- Adicionar dois cards de ranking:
+  1. "Ranking por Valor de Contrato" - usa `comissoes.valor_proposta`, mostra qtd contratos, total, ticket medio
+  2. "Ranking por Valor Recebido" - usa `comissoes.valor_recebido`, mostra qtd contratos, total, ticket medio
 
-### 7. Banco de Dados (Lovable Cloud)
-- Tabelas: receitas, despesas, vendedores, categorias_despesa, operadoras
-- RLS para segurança dos dados
+### `src/components/MonthYearPicker.tsx`
+- Sem alteracoes, o botao de periodo sera adicionado diretamente no Dashboard
 
-## Design
-- Interface em português (PT-BR)
-- Valores em formato brasileiro (R$)
-- Layout limpo e profissional com sidebar de navegação
-- Cores: tons de azul/cinza para o tema principal, verde para receitas, vermelho para despesas
+## Detalhes tecnicos
+- O hook `useComissoes` sera adaptado para aceitar `startDate`/`endDate` opcionais como alternativa a month/year
+- Os hooks `useReceitas` e `useDespesas` tambem serao adaptados da mesma forma
+- O popover de periodo usa dois `<Input type="date" />` para simplicidade
+- Os rankings calculam ticket medio como `total / quantidade`
+
