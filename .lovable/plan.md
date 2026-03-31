@@ -1,44 +1,42 @@
 
 
-# Ajustes no Dashboard: Filtro por Período e Rankings de Comissões
+# Aba de Cadastros
 
-## O que muda
+## O que sera feito
 
-### 1. Botão de período personalizado no Dashboard
-- Adicionar um botão "Período" ao lado do seletor de mês/ano existente
-- Ao clicar, abre um popover com dois campos de data (início e fim) para selecionar um intervalo personalizado
-- Quando um período personalizado estiver ativo, o seletor de mês fica desabilitado e aparece o intervalo selecionado
-- Botão para limpar o filtro e voltar ao modo mensal
+Criar uma nova pagina **Cadastros** (`/cadastros`) com abas internas para gerenciar:
 
-### 2. Rankings puxando da tabela de comissões (não receitas)
-- Substituir a query de receitas por comissões no cálculo dos rankings
-- Criar hook `useComissoes` com suporte a date range (startDate/endDate) além de month/year
+1. **Vendedores** - Listar, adicionar, editar nome, ativar/desativar
+2. **Operadoras** - Listar, adicionar, editar nome, ativar/desativar
+3. **Categorias de Despesa** - Listar, adicionar, editar nome, remover
+4. **Supervisores** - Necessita nova tabela no banco de dados. Listar, adicionar, editar, ativar/desativar
 
-### 3. Dois rankings separados
-- **Ranking por Valor de Contrato (Proposta)**: nome do vendedor, quantidade de contratos, valor total de propostas, ticket medio
-- **Ranking por Valor Recebido**: nome do vendedor, quantidade de contratos com recebimento, valor total recebido, ticket medio
+## Banco de Dados
 
-## Arquivos alterados
+- Criar tabela `supervisores` com campos: `id`, `nome`, `ativo`, `created_at`, `updated_at`
+- RLS: acesso para usuarios autenticados (mesmo padrao das demais tabelas de referencia)
 
-### `src/hooks/useFinancialData.ts`
-- Adicionar versão de `useComissoes`, `useReceitas` e `useDespesas` que aceite date range (startDate, endDate strings) como alternativa a month/year
-- Isso permite que o Dashboard passe datas exatas quando o usuario selecionar periodo personalizado
+## Arquivos
 
-### `src/pages/Dashboard.tsx`
-- Adicionar estado para modo de filtro: "mensal" ou "periodo"
-- Adicionar botão "Periodo" com popover contendo dois date inputs
-- Quando em modo periodo, passar startDate/endDate para os hooks ao inves de month/year
-- Remover o ranking atual baseado em receitas
-- Adicionar dois cards de ranking:
-  1. "Ranking por Valor de Contrato" - usa `comissoes.valor_proposta`, mostra qtd contratos, total, ticket medio
-  2. "Ranking por Valor Recebido" - usa `comissoes.valor_recebido`, mostra qtd contratos, total, ticket medio
+### Novo: `src/pages/Cadastros.tsx`
+- Pagina com componente `Tabs` (shadcn) contendo 4 abas: Vendedores, Operadoras, Categorias, Supervisores
+- Cada aba mostra uma tabela com os registros e botoes para Adicionar, Editar e Ativar/Desativar (ou Remover para categorias)
+- Dialogs inline para adicionar/editar
 
-### `src/components/MonthYearPicker.tsx`
-- Sem alteracoes, o botao de periodo sera adicionado diretamente no Dashboard
+### Editado: `src/hooks/useFinancialData.ts`
+- Adicionar hooks CRUD para supervisores (`useSupervisores`, `useCreateSupervisor`, `useUpdateSupervisor`)
+- Adicionar hooks de mutacao para vendedores (`useCreateVendedor`, `useUpdateVendedor`)
+- Adicionar hooks de mutacao para operadoras (`useCreateOperadora`, `useUpdateOperadora`)
+- Adicionar hooks de mutacao para categorias (`useCreateCategoriaDespesa`, `useUpdateCategoriaDespesa`, `useDeleteCategoriaDespesa`)
 
-## Detalhes tecnicos
-- O hook `useComissoes` sera adaptado para aceitar `startDate`/`endDate` opcionais como alternativa a month/year
-- Os hooks `useReceitas` e `useDespesas` tambem serao adaptados da mesma forma
-- O popover de periodo usa dois `<Input type="date" />` para simplicidade
-- Os rankings calculam ticket medio como `total / quantidade`
+### Editado: `src/App.tsx`
+- Adicionar rota `/cadastros` apontando para a nova pagina
+
+### Editado: `src/components/AppSidebar.tsx`
+- Adicionar item "Cadastros" no menu com icone `Settings` ou `ClipboardList`
+
+### Migracao SQL
+- `CREATE TABLE public.supervisores (id uuid primary key default gen_random_uuid(), nome text not null, ativo boolean not null default true, created_at timestamptz not null default now(), updated_at timestamptz not null default now());`
+- RLS policy para authenticated users
+- Trigger de updated_at
 
