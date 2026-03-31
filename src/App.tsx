@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Receitas from "./pages/Receitas";
 import Despesas from "./pages/Despesas";
 import Comissoes from "./pages/Comissoes";
+import Cadastros from "./pages/Cadastros";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
