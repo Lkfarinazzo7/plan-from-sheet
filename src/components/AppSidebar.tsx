@@ -21,6 +21,7 @@ const menuItems = [
   { title: 'Receitas', url: '/receitas', icon: ArrowUpCircle },
   { title: 'Despesas', url: '/despesas', icon: ArrowDownCircle },
   { title: 'Comissões', url: '/comissoes', icon: Users },
+  { title: 'Cadastros', url: '/cadastros', icon: ClipboardList },
 ];
 
 export function AppSidebar() {
