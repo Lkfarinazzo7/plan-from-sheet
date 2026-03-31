@@ -54,15 +54,17 @@ export function useReceitas(month?: number, year?: number, startDate?: string, e
   });
 }
 
-export function useDespesas(month?: number, year?: number) {
+export function useDespesas(month?: number, year?: number, startDate?: string, endDate?: string) {
   return useQuery({
-    queryKey: ['despesas', month, year],
+    queryKey: ['despesas', month, year, startDate, endDate],
     queryFn: async () => {
       let query = supabase.from('despesas').select('*, categorias_despesa(nome)').order('data', { ascending: false });
-      if (month !== undefined && year !== undefined) {
-        const startDate = new Date(year, month, 1).toISOString().split('T')[0];
-        const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+      if (startDate && endDate) {
         query = query.gte('data', startDate).lte('data', endDate);
+      } else if (month !== undefined && year !== undefined) {
+        const sd = new Date(year, month, 1).toISOString().split('T')[0];
+        const ed = new Date(year, month + 1, 0).toISOString().split('T')[0];
+        query = query.gte('data', sd).lte('data', ed);
       }
       const { data, error } = await query;
       if (error) throw error;
