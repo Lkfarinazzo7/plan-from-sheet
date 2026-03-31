@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useReceitas, useDespesas, useVendedores } from '@/hooks/useFinancialData';
+import { useReceitas, useDespesas, useComissoes, useVendedores } from '@/hooks/useFinancialData';
 import { formatCurrency, getCurrentMonthYear } from '@/lib/format';
-import { ArrowUpCircle, ArrowDownCircle, Wallet, Clock, AlertTriangle, CreditCard } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, Wallet, Clock, AlertTriangle, CreditCard, CalendarRange, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from 'recharts';
@@ -19,9 +22,30 @@ export default function Dashboard() {
   const { month: curMonth, year: curYear } = getCurrentMonthYear();
   const [month, setMonth] = useState(curMonth);
   const [year, setYear] = useState(curYear);
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+  const [activeRange, setActiveRange] = useState<{ start: string; end: string } | null>(null);
 
-  const { data: receitas = [] } = useReceitas(month, year);
-  const { data: despesas = [] } = useDespesas(month, year);
+  const isCustom = !!activeRange;
+
+  const { data: receitas = [] } = useReceitas(
+    isCustom ? undefined : month,
+    isCustom ? undefined : year,
+    activeRange?.start,
+    activeRange?.end
+  );
+  const { data: despesas = [] } = useDespesas(
+    isCustom ? undefined : month,
+    isCustom ? undefined : year,
+    activeRange?.start,
+    activeRange?.end
+  );
+  const { data: comissoes = [] } = useComissoes(
+    isCustom ? undefined : month,
+    isCustom ? undefined : year,
+    activeRange?.start,
+    activeRange?.end
+  );
   const { data: vendedores = [] } = useVendedores();
 
   const totalReceitas = receitas.reduce((acc, r) => acc + Number(r.valor), 0);
@@ -38,24 +62,89 @@ export default function Dashboard() {
     acc[cat] = (acc[cat] || 0) + Number(d.valor);
     return acc;
   }, {} as Record<string, number>);
-
   const pieData = Object.entries(despesasPorCategoria).map(([name, value]) => ({ name, value }));
 
-  // Ranking vendedores
-  const vendedorStats = vendedores.map(v => {
-    const vendorReceitas = receitas.filter(r => r.vendedor_id === v.id);
-    return {
-      nome: v.nome,
-      contratos: vendorReceitas.length,
-      faturamento: vendorReceitas.reduce((acc, r) => acc + Number(r.valor), 0),
-    };
-  }).sort((a, b) => b.faturamento - a.faturamento);
+  // Rankings from comissoes
+  const vendedorMap = new Map(vendedores.map(v => [v.id, v.nome]));
+
+  const vendedorContrato = Object.values(
+    comissoes.reduce((acc, c) => {
+      const nome = (c.vendedores as any)?.nome || vendedorMap.get(c.vendedor_id) || 'Desconhecido';
+      if (!acc[nome]) acc[nome] = { nome, contratos: 0, total: 0 };
+      acc[nome].contratos += 1;
+      acc[nome].total += Number(c.valor_proposta);
+      return acc;
+    }, {} as Record<string, { nome: string; contratos: number; total: number }>)
+  ).sort((a, b) => b.total - a.total);
+
+  const vendedorRecebimento = Object.values(
+    comissoes.reduce((acc, c) => {
+      const nome = (c.vendedores as any)?.nome || vendedorMap.get(c.vendedor_id) || 'Desconhecido';
+      if (!acc[nome]) acc[nome] = { nome, contratos: 0, total: 0 };
+      acc[nome].contratos += 1;
+      acc[nome].total += Number(c.valor_recebido);
+      return acc;
+    }, {} as Record<string, { nome: string; contratos: number; total: number }>)
+  ).sort((a, b) => b.total - a.total);
+
+  const applyRange = () => {
+    if (customStart && customEnd) {
+      setActiveRange({ start: customStart, end: customEnd });
+    }
+  };
+
+  const clearRange = () => {
+    setActiveRange(null);
+    setCustomStart('');
+    setCustomEnd('');
+  };
+
+  const formatDateBR = (d: string) => {
+    const [y, m, day] = d.split('-');
+    return `${day}/${m}/${y}`;
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-2xl font-bold">Dashboard</h2>
-        <MonthYearPicker month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
+        <div className="flex items-center gap-2">
+          {!isCustom && (
+            <MonthYearPicker month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
+          )}
+          {isCustom && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-medium">{formatDateBR(activeRange.start)} — {formatDateBR(activeRange.end)}</span>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={clearRange}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1">
+                <CalendarRange className="h-4 w-4" />
+                Período
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto space-y-3" align="end">
+              <p className="text-sm font-medium">Selecionar período</p>
+              <div className="space-y-2">
+                <div>
+                  <label className="text-xs text-muted-foreground">Início</label>
+                  <Input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Fim</label>
+                  <Input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} />
+                </div>
+              </div>
+              <Button size="sm" className="w-full" onClick={applyRange} disabled={!customStart || !customEnd}>
+                Aplicar
+              </Button>
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -130,7 +219,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Charts */}
+      {/* Charts & Rankings */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -149,33 +238,59 @@ export default function Dashboard() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-muted-foreground text-center py-12">Sem despesas neste mês</p>
+              <p className="text-muted-foreground text-center py-12">Sem despesas neste período</p>
             )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Ranking de Vendedores</CardTitle>
+            <CardTitle className="text-base">Ranking por Valor de Contrato</CardTitle>
           </CardHeader>
           <CardContent>
-            {vendedorStats.length > 0 ? (
+            {vendedorContrato.length > 0 ? (
               <div className="space-y-4">
-                {vendedorStats.map((v, i) => (
+                {vendedorContrato.map((v, i) => (
                   <div key={v.nome} className="flex items-center gap-4">
                     <span className="text-lg font-bold text-muted-foreground w-6">{i + 1}.</span>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{v.nome}</p>
                       <p className="text-sm text-muted-foreground">
-                        {v.contratos} contratos
+                        {v.contratos} contratos · Ticket médio: {formatCurrency(v.contratos > 0 ? v.total / v.contratos : 0)}
                       </p>
                     </div>
-                    <span className="text-sm font-semibold text-success">{formatCurrency(v.faturamento)}</span>
+                    <span className="text-sm font-semibold text-success">{formatCurrency(v.total)}</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-muted-foreground text-center py-12">Sem dados de vendedores</p>
+              <p className="text-muted-foreground text-center py-12">Sem comissões neste período</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">Ranking por Valor Recebido</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {vendedorRecebimento.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {vendedorRecebimento.map((v, i) => (
+                  <div key={v.nome} className="flex items-center gap-4">
+                    <span className="text-lg font-bold text-muted-foreground w-6">{i + 1}.</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{v.nome}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {v.contratos} contratos · Ticket médio: {formatCurrency(v.contratos > 0 ? v.total / v.contratos : 0)}
+                      </p>
+                    </div>
+                    <span className="text-sm font-semibold text-success">{formatCurrency(v.total)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-center py-12">Sem comissões neste período</p>
             )}
           </CardContent>
         </Card>
