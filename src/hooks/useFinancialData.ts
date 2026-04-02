@@ -400,3 +400,35 @@ export function useGenerateRecurringDespesas() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['despesas'] }),
   });
 }
+
+export function useBulkCreateReceita() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (rows: Array<{
+      data: string; descricao: string; categoria: string; operadora_id: string;
+      valor: number; vendedor_id: string; status: string;
+    }>) => {
+      const payload = rows.map(r => ({ ...r, comissao: 0, user_id: user!.id }));
+      const { error } = await supabase.from('receitas').insert(payload);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['receitas'] }),
+  });
+}
+
+export function useBulkCreateDespesa() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (rows: Array<{
+      data: string; descricao: string; categoria_id: string; tipo: string;
+      valor: number; responsavel?: string; recorrente: boolean; status: string;
+    }>) => {
+      const payload = rows.map(r => ({ ...r, user_id: user!.id }));
+      const { error } = await supabase.from('despesas').insert(payload);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['despesas'] }),
+  });
+}
