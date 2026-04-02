@@ -145,6 +145,9 @@ export default function Receitas() {
         <h2 className="text-2xl font-bold">Receitas</h2>
         <div className="flex items-center gap-3">
           <MonthYearPicker month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4 mr-1" /> Importar Excel
+          </Button>
           <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditId(null); }}>
             <DialogTrigger asChild>
               <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Nova Receita</Button>
