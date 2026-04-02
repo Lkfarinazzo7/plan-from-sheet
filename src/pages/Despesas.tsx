@@ -322,6 +322,15 @@ export default function Despesas() {
       <div className="text-right text-sm text-muted-foreground">
         Total: <span className="font-bold text-foreground">{formatCurrency(total)}</span> ({filtered.length} registros)
       </div>
+
+      <ExcelImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Importar Despesas"
+        expectedColumns={['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor', 'Responsável', 'Recorrente', 'Status']}
+        mapRow={mapDespesaRow}
+        onConfirm={async (rows) => { await bulkCreateDespesa.mutateAsync(rows as any); }}
+      />
     </div>
   );
 }
