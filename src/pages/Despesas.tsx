@@ -162,6 +162,9 @@ export default function Despesas() {
         <h2 className="text-2xl font-bold">Despesas</h2>
         <div className="flex items-center gap-3 flex-wrap">
           <MonthYearPicker month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4 mr-1" /> Importar Excel
+          </Button>
           <Button variant="outline" onClick={handleGenerateRecurring} disabled={generateRecurring.isPending}>
             <RotateCcw className="h-4 w-4 mr-1" /> Gerar Recorrentes
           </Button>
