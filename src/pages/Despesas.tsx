@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,10 +7,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas } from '@/hooks/useFinancialData';
+import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
-import { Plus, Trash2, RotateCcw, Pencil } from 'lucide-react';
+import { Plus, Trash2, RotateCcw, Pencil, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
 
 const emptyForm = {
   data: new Date().toISOString().split('T')[0],
