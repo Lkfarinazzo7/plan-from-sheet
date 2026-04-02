@@ -38,7 +38,54 @@ export default function Receitas() {
   const createReceita = useCreateReceita();
   const updateReceita = useUpdateReceita();
   const deleteReceita = useDeleteReceita();
+  const bulkCreateReceita = useBulkCreateReceita();
   const { toast } = useToast();
+  const [importOpen, setImportOpen] = useState(false);
+
+  const mapReceitaRow = useCallback((row: Record<string, any>): ParsedRow => {
+    const errors: string[] = [];
+    const data = row['Data'];
+    const descricao = row['Descrição'] || row['Descricao'] || '';
+    const categoria = row['Categoria'] || '';
+    const operadoraNome = row['Operadora'] || '';
+    const vendedorNome = row['Vendedor'] || '';
+    const valor = parseFloat(String(row['Valor']).replace(',', '.'));
+    const status = row['Status'] || 'Aguardando';
+
+    if (!data) errors.push('Data obrigatória');
+    if (!descricao) errors.push('Descrição obrigatória');
+    if (isNaN(valor)) errors.push('Valor inválido');
+
+    const operadora = operadoras.find(o => o.nome.toLowerCase() === String(operadoraNome).toLowerCase());
+    if (!operadora && operadoraNome) errors.push(`Operadora "${operadoraNome}" não encontrada`);
+    if (!operadoraNome) errors.push('Operadora obrigatória');
+
+    const vendedor = vendedores.find(v => v.nome.toLowerCase() === String(vendedorNome).toLowerCase());
+    if (!vendedor && vendedorNome) errors.push(`Vendedor "${vendedorNome}" não encontrado`);
+    if (!vendedorNome) errors.push('Vendedor obrigatório');
+
+    let dateStr = '';
+    if (data instanceof Date) {
+      dateStr = data.toISOString().split('T')[0];
+    } else if (typeof data === 'string') {
+      const parts = data.split('/');
+      dateStr = parts.length === 3 ? `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}` : data;
+    }
+
+    return {
+      mapped: {
+        data: dateStr,
+        descricao: String(descricao),
+        categoria: String(categoria) || 'Bancária',
+        operadora_id: operadora?.id || '',
+        vendedor_id: vendedor?.id || '',
+        valor: isNaN(valor) ? 0 : valor,
+        status: ['Recebido', 'Aguardando'].includes(status) ? status : 'Aguardando',
+      },
+      raw: row,
+      errors,
+    };
+  }, [operadoras, vendedores]);
 
   const [form, setForm] = useState(emptyForm);
 
