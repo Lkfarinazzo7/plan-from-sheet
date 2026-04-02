@@ -305,6 +305,10 @@ export default function Receitas() {
         expectedColumns={['Data', 'Descrição', 'Categoria', 'Operadora', 'Vendedor', 'Valor', 'Status']}
         mapRow={mapReceitaRow}
         onConfirm={async (rows) => { await bulkCreateReceita.mutateAsync(rows as any); }}
+        columnAliases={{
+          'Valor': ['Valor Real', 'Valor (R$)'],
+          'Vendedor': ['Responsável', 'Responsavel'],
+        }}
       />
     </div>
   );
