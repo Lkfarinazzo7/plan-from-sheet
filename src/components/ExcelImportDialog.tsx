@@ -1,11 +1,13 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Upload, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Upload, AlertTriangle, CheckCircle, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { autoMapColumns } from '@/lib/importHelpers';
 
 export interface ParsedRow {
   mapped: Record<string, any>;
@@ -20,13 +22,19 @@ interface ExcelImportDialogProps {
   expectedColumns: string[];
   mapRow: (row: Record<string, any>) => ParsedRow;
   onConfirm: (rows: Record<string, any>[]) => Promise<void>;
+  columnAliases?: Record<string, string[]>;
 }
 
-export function ExcelImportDialog({ open, onOpenChange, title, expectedColumns, mapRow, onConfirm }: ExcelImportDialogProps) {
+type Step = 'upload' | 'mapping' | 'preview';
+
+export function ExcelImportDialog({ open, onOpenChange, title, expectedColumns, mapRow, onConfirm, columnAliases }: ExcelImportDialogProps) {
+  const [rawData, setRawData] = useState<Record<string, any>[]>([]);
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
+  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
   const [importing, setImporting] = useState(false);
   const [fileName, setFileName] = useState('');
+  const [step, setStep] = useState<Step>('upload');
   const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -43,10 +51,38 @@ export function ExcelImportDialog({ open, onOpenChange, title, expectedColumns, 
         toast({ title: 'Planilha vazia', variant: 'destructive' });
         return;
       }
-      setHeaders(Object.keys(jsonData[0]));
-      setParsedRows(jsonData.map(mapRow));
+      const detected = Object.keys(jsonData[0]);
+      setHeaders(detected);
+      setRawData(jsonData);
+      const autoMap = autoMapColumns(expectedColumns, detected, columnAliases);
+      setColumnMapping(autoMap);
+      setStep('mapping');
     };
     reader.readAsArrayBuffer(file);
+  };
+
+  // Sample values for each detected column
+  const sampleValues = useMemo(() => {
+    const samples: Record<string, string[]> = {};
+    for (const h of headers) {
+      samples[h] = rawData.slice(0, 3).map(r => String(r[h] ?? '')).filter(Boolean);
+    }
+    return samples;
+  }, [headers, rawData]);
+
+  const confirmMapping = () => {
+    // Re-map raw data using the confirmed column mapping
+    const remappedData = rawData.map(row => {
+      const remapped: Record<string, any> = {};
+      for (const [expected, detected] of Object.entries(columnMapping)) {
+        if (detected) {
+          remapped[expected] = row[detected];
+        }
+      }
+      return remapped;
+    });
+    setParsedRows(remappedData.map(mapRow));
+    setStep('preview');
   };
 
   const validRows = parsedRows.filter(r => r.errors.length === 0);
@@ -67,11 +103,22 @@ export function ExcelImportDialog({ open, onOpenChange, title, expectedColumns, 
     }
   };
 
-  const reset = () => { setParsedRows([]); setFileName(''); setHeaders([]); };
+  const reset = () => {
+    setParsedRows([]);
+    setRawData([]);
+    setFileName('');
+    setHeaders([]);
+    setColumnMapping({});
+    setStep('upload');
+  };
 
   const handleClose = (v: boolean) => {
     if (!v) reset();
     onOpenChange(v);
+  };
+
+  const updateMapping = (expected: string, detected: string) => {
+    setColumnMapping(prev => ({ ...prev, [expected]: detected === '__none__' ? '' : detected }));
   };
 
   return (
@@ -79,7 +126,7 @@ export function ExcelImportDialog({ open, onOpenChange, title, expectedColumns, 
       <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
         <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
 
-        {parsedRows.length === 0 ? (
+        {step === 'upload' && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Colunas esperadas: <strong>{expectedColumns.join(', ')}</strong>
@@ -93,7 +140,55 @@ export function ExcelImportDialog({ open, onOpenChange, title, expectedColumns, 
             </div>
             <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
           </div>
-        ) : (
+        )}
+
+        {step === 'mapping' && (
+          <div className="space-y-4 flex-1 min-h-0 flex flex-col">
+            <p className="text-sm text-muted-foreground">
+              Confirme o mapeamento das colunas da planilha <strong>"{fileName}"</strong> para os campos do sistema:
+            </p>
+            <ScrollArea className="flex-1 max-h-[50vh]">
+              <div className="space-y-3 pr-4">
+                {expectedColumns.map(expected => (
+                  <div key={expected} className="flex items-center gap-3 p-3 border rounded-lg bg-muted/30">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{expected}</p>
+                      <p className="text-xs text-muted-foreground">Campo do sistema</p>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <Select
+                        value={columnMapping[expected] || '__none__'}
+                        onValueChange={(v) => updateMapping(expected, v)}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Selecione a coluna" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— Não mapear —</SelectItem>
+                          {headers.map(h => (
+                            <SelectItem key={h} value={h}>{h}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {columnMapping[expected] && sampleValues[columnMapping[expected]] && (
+                        <p className="text-xs text-muted-foreground mt-1 truncate">
+                          Ex: {sampleValues[columnMapping[expected]].join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={reset}>Voltar</Button>
+              <Button onClick={confirmMapping}>Confirmar Mapeamento</Button>
+            </div>
+          </div>
+        )}
+
+        {step === 'preview' && (
           <div className="space-y-3 flex-1 min-h-0 flex flex-col">
             <div className="flex items-center gap-4 text-sm">
               <span className="flex items-center gap-1 text-success"><CheckCircle className="h-4 w-4" /> {validRows.length} válidos</span>
@@ -115,14 +210,14 @@ export function ExcelImportDialog({ open, onOpenChange, title, expectedColumns, 
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {headers.map(h => <TableHead key={h}>{h}</TableHead>)}
+                    {expectedColumns.map(h => <TableHead key={h}>{h}</TableHead>)}
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {parsedRows.slice(0, 50).map((row, i) => (
                     <TableRow key={i} className={row.errors.length > 0 ? 'bg-destructive/5' : ''}>
-                      {headers.map(h => (
+                      {expectedColumns.map(h => (
                         <TableCell key={h} className="text-xs whitespace-nowrap">{String(row.raw[h] ?? '')}</TableCell>
                       ))}
                       <TableCell>
@@ -139,7 +234,7 @@ export function ExcelImportDialog({ open, onOpenChange, title, expectedColumns, 
             </ScrollArea>
 
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={reset}>Selecionar outro arquivo</Button>
+              <Button variant="outline" onClick={() => setStep('mapping')}>Voltar ao Mapeamento</Button>
               <Button onClick={handleConfirm} disabled={importing || validRows.length === 0}>
                 {importing ? 'Importando...' : `Importar ${validRows.length} registros`}
               </Button>
