@@ -1,60 +1,46 @@
 
 
-# Importação de Planilha Excel nas abas de Receitas e Despesas
+# Corrigir Importacao Excel e Adicionar Confirmacao de Mapeamento
 
-## O que sera feito
+## Problemas Identificados
 
-Adicionar um botao "Importar Excel" em ambas as paginas (Receitas e Despesas) que permite ao usuario fazer upload de um arquivo `.xlsx` e importar os registros em lote para o banco de dados.
+As planilhas reais usam nomes de colunas diferentes do esperado pelo sistema:
 
-## Dependencia
+**Receitas.xlsx**: `Data | Descrição | Categoria | Operadora | Valor Real | Responsável | Status`
+- "Valor Real" em vez de "Valor" (com prefixo "R$")
+- "Responsável" em vez de "Vendedor"
+- Data no formato M/D/YY (ex: `4/2/26`)
 
-- Instalar a biblioteca `xlsx` (SheetJS) para parsing de arquivos Excel no browser
+**Despesas.xlsx**: `Data | Descrição | Categoria | Tipo (Fixo/Variável) | Valor Real | Responsável | Recorrente | Status/Pago`
+- "Tipo (Fixo/Variável)" em vez de "Tipo"
+- "Valor Real" em vez de "Valor" (com "R$")
+- "Status/Pago" em vez de "Status"
+- Data no formato M/D/YY
 
-## Componente compartilhado: `src/components/ExcelImportDialog.tsx`
+## Alteracoes
 
-Dialog reutilizavel que:
-1. Aceita um arquivo `.xlsx` via input file
-2. Faz o parse das linhas usando `xlsx`
-3. Mostra uma previa dos dados em tabela antes de confirmar
-4. Permite ao usuario confirmar a importacao
-5. Recebe como prop uma funcao de mapeamento e uma funcao de insercao
+### 1. `src/components/ExcelImportDialog.tsx`
+- Adicionar etapa intermediaria de **confirmacao de mapeamento** entre upload e preview
+- Apos parse do arquivo, mostrar uma tela onde cada campo esperado tem um dropdown mostrando qual coluna da planilha foi mapeada
+- O usuario confirma que o mapeamento esta correto antes de ver a preview final
+- Botao "Confirmar Mapeamento" para prosseguir
 
-## Logica por aba
+### 2. `src/pages/Receitas.tsx` - mapReceitaRow
+- Aceitar "Valor Real" alem de "Valor"
+- Limpar prefixo "R$" e espacos do valor antes de parsear
+- Aceitar "Responsável" como nome do vendedor (alem de "Vendedor")
+- Melhorar parse de datas para aceitar formato M/D/YY (ex: `4/2/26` → `2026-04-02`)
+- Atualizar `expectedColumns` para refletir os nomes reais
 
-### Despesas
-Colunas esperadas na planilha: **Data, Descrição, Categoria, Tipo, Valor, Responsável, Recorrente, Status**
-- **Categoria**: busca pelo nome na tabela `categorias_despesa` para obter o `categoria_id`. Se nao encontrar, ignora ou cria automaticamente.
-- **Recorrente**: aceita "Sim"/"Não", true/false
-- **Tipo**: "Fixo" ou "Variável"
-- **Status**: "Pago", "A pagar", "Atrasado"
+### 3. `src/pages/Despesas.tsx` - mapDespesaRow
+- Aceitar "Tipo (Fixo/Variável)" alem de "Tipo"
+- Aceitar "Valor Real" alem de "Valor", limpando "R$"
+- Aceitar "Status/Pago" alem de "Status"
+- Melhorar parse de datas para formato M/D/YY
+- Atualizar `expectedColumns` para refletir os nomes reais
 
-### Receitas
-Colunas esperadas na planilha: **Data, Descrição, Categoria, Operadora, Vendedor, Valor, Status**
-- **Operadora**: busca pelo nome na tabela `operadoras` para obter o `operadora_id`
-- **Vendedor**: busca pelo nome na tabela `vendedores` para obter o `vendedor_id`
-- **Categoria**: texto livre ("Bancária" ou "Vida")
-- **Status**: "Recebido" ou "Aguardando"
-
-## Fluxo do usuario
-
-1. Clica em "Importar Excel" (botao ao lado de "Nova Despesa"/"Nova Receita")
-2. Seleciona o arquivo `.xlsx`
-3. Sistema faz parse e mostra previa com quantidade de linhas e erros encontrados (ex: vendedor nao encontrado)
-4. Usuario confirma a importacao
-5. Registros sao inseridos em lote via Supabase
-
-## Arquivos alterados
-
-- **Novo**: `src/components/ExcelImportDialog.tsx` - componente reutilizavel de importacao
-- **Editado**: `src/pages/Despesas.tsx` - adicionar botao e dialog de importacao com mapeamento de campos de despesas
-- **Editado**: `src/pages/Receitas.tsx` - adicionar botao e dialog de importacao com mapeamento de campos de receitas
-- **Editado**: `src/hooks/useFinancialData.ts` - adicionar hooks de insercao em lote (`useBulkCreateDespesa`, `useBulkCreateReceita`)
-- **Editado**: `package.json` - adicionar dependencia `xlsx`
-
-## Detalhes tecnicos
-
-- Usa `FileReader` + `xlsx.read()` para parse client-side (sem necessidade de backend)
-- Insercao em lote via `supabase.from('despesas').insert([...array])` 
-- Busca de categorias/operadoras/vendedores para resolver nomes para IDs antes da insercao
-- Linhas com erros de mapeamento (ex: categoria inexistente) sao destacadas na previa para o usuario decidir se prossegue
+### Detalhes tecnicos
+- Criar funcao helper `parseValorBR(str)` que remove "R$", espacos e trata virgula/ponto
+- Criar funcao helper `parseDateFlexible(value)` que aceita Date objects, DD/MM/YYYY, M/D/YY, YYYY-MM-DD
+- A etapa de confirmacao mostra: Campo Esperado → Coluna Detectada, com possibilidade de ver os primeiros valores de cada coluna
 
