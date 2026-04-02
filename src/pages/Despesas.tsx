@@ -12,6 +12,7 @@ import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@
 import { Plus, Trash2, RotateCcw, Pencil, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
+import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
 
 const emptyForm = {
   data: new Date().toISOString().split('T')[0],
