@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,10 +7,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas } from '@/hooks/useFinancialData';
+import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
-import { Plus, Trash2, RotateCcw, Pencil } from 'lucide-react';
+import { Plus, Trash2, RotateCcw, Pencil, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
 
 const emptyForm = {
   data: new Date().toISOString().split('T')[0],
@@ -38,7 +39,56 @@ export default function Despesas() {
   const updateDespesa = useUpdateDespesa();
   const deleteDespesa = useDeleteDespesa();
   const generateRecurring = useGenerateRecurringDespesas();
+  const bulkCreateDespesa = useBulkCreateDespesa();
   const { toast } = useToast();
+  const [importOpen, setImportOpen] = useState(false);
+
+  const mapDespesaRow = useCallback((row: Record<string, any>): ParsedRow => {
+    const errors: string[] = [];
+    const data = row['Data'];
+    const descricao = row['Descrição'] || row['Descricao'] || '';
+    const categoriaNome = row['Categoria'] || '';
+    const tipo = row['Tipo'] || '';
+    const valor = parseFloat(String(row['Valor']).replace(',', '.'));
+    const responsavel = row['Responsável'] || row['Responsavel'] || '';
+    const recorrenteRaw = row['Recorrente'] || '';
+    const status = row['Status'] || 'A pagar';
+
+    if (!data) errors.push('Data obrigatória');
+    if (!descricao) errors.push('Descrição obrigatória');
+    if (isNaN(valor)) errors.push('Valor inválido');
+
+    const categoria = categorias.find(c => c.nome.toLowerCase() === String(categoriaNome).toLowerCase());
+    if (!categoria && categoriaNome) errors.push(`Categoria "${categoriaNome}" não encontrada`);
+    if (!categoriaNome) errors.push('Categoria obrigatória');
+
+    if (!['Fixo', 'Variável'].includes(tipo)) errors.push('Tipo deve ser "Fixo" ou "Variável"');
+
+    const recorrente = ['sim', 'true', '1', 'yes'].includes(String(recorrenteRaw).toLowerCase());
+
+    let dateStr = '';
+    if (data instanceof Date) {
+      dateStr = data.toISOString().split('T')[0];
+    } else if (typeof data === 'string') {
+      const parts = data.split('/');
+      dateStr = parts.length === 3 ? `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}` : data;
+    }
+
+    return {
+      mapped: {
+        data: dateStr,
+        descricao: String(descricao),
+        categoria_id: categoria?.id || '',
+        tipo: ['Fixo', 'Variável'].includes(tipo) ? tipo : 'Fixo',
+        valor: isNaN(valor) ? 0 : valor,
+        responsavel: responsavel || undefined,
+        recorrente,
+        status: ['Pago', 'A pagar', 'Atrasado'].includes(status) ? status : 'A pagar',
+      },
+      raw: row,
+      errors,
+    };
+  }, [categorias]);
 
   const [form, setForm] = useState(emptyForm);
 
@@ -112,6 +162,9 @@ export default function Despesas() {
         <h2 className="text-2xl font-bold">Despesas</h2>
         <div className="flex items-center gap-3 flex-wrap">
           <MonthYearPicker month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4 mr-1" /> Importar Excel
+          </Button>
           <Button variant="outline" onClick={handleGenerateRecurring} disabled={generateRecurring.isPending}>
             <RotateCcw className="h-4 w-4 mr-1" /> Gerar Recorrentes
           </Button>
@@ -269,6 +322,15 @@ export default function Despesas() {
       <div className="text-right text-sm text-muted-foreground">
         Total: <span className="font-bold text-foreground">{formatCurrency(total)}</span> ({filtered.length} registros)
       </div>
+
+      <ExcelImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Importar Despesas"
+        expectedColumns={['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor', 'Responsável', 'Recorrente', 'Status']}
+        mapRow={mapDespesaRow}
+        onConfirm={async (rows) => { await bulkCreateDespesa.mutateAsync(rows as any); }}
+      />
     </div>
   );
 }

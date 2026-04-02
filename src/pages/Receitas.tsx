@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,10 +6,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras } from '@/hooks/useFinancialData';
+import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear } from '@/lib/format';
-import { Plus, Trash2, Pencil } from 'lucide-react';
+import { Plus, Trash2, Pencil, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
 
 const emptyForm = {
   data: new Date().toISOString().split('T')[0],
@@ -37,7 +38,54 @@ export default function Receitas() {
   const createReceita = useCreateReceita();
   const updateReceita = useUpdateReceita();
   const deleteReceita = useDeleteReceita();
+  const bulkCreateReceita = useBulkCreateReceita();
   const { toast } = useToast();
+  const [importOpen, setImportOpen] = useState(false);
+
+  const mapReceitaRow = useCallback((row: Record<string, any>): ParsedRow => {
+    const errors: string[] = [];
+    const data = row['Data'];
+    const descricao = row['Descrição'] || row['Descricao'] || '';
+    const categoria = row['Categoria'] || '';
+    const operadoraNome = row['Operadora'] || '';
+    const vendedorNome = row['Vendedor'] || '';
+    const valor = parseFloat(String(row['Valor']).replace(',', '.'));
+    const status = row['Status'] || 'Aguardando';
+
+    if (!data) errors.push('Data obrigatória');
+    if (!descricao) errors.push('Descrição obrigatória');
+    if (isNaN(valor)) errors.push('Valor inválido');
+
+    const operadora = operadoras.find(o => o.nome.toLowerCase() === String(operadoraNome).toLowerCase());
+    if (!operadora && operadoraNome) errors.push(`Operadora "${operadoraNome}" não encontrada`);
+    if (!operadoraNome) errors.push('Operadora obrigatória');
+
+    const vendedor = vendedores.find(v => v.nome.toLowerCase() === String(vendedorNome).toLowerCase());
+    if (!vendedor && vendedorNome) errors.push(`Vendedor "${vendedorNome}" não encontrado`);
+    if (!vendedorNome) errors.push('Vendedor obrigatório');
+
+    let dateStr = '';
+    if (data instanceof Date) {
+      dateStr = data.toISOString().split('T')[0];
+    } else if (typeof data === 'string') {
+      const parts = data.split('/');
+      dateStr = parts.length === 3 ? `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}` : data;
+    }
+
+    return {
+      mapped: {
+        data: dateStr,
+        descricao: String(descricao),
+        categoria: String(categoria) || 'Bancária',
+        operadora_id: operadora?.id || '',
+        vendedor_id: vendedor?.id || '',
+        valor: isNaN(valor) ? 0 : valor,
+        status: ['Recebido', 'Aguardando'].includes(status) ? status : 'Aguardando',
+      },
+      raw: row,
+      errors,
+    };
+  }, [operadoras, vendedores]);
 
   const [form, setForm] = useState(emptyForm);
 
@@ -97,6 +145,9 @@ export default function Receitas() {
         <h2 className="text-2xl font-bold">Receitas</h2>
         <div className="flex items-center gap-3">
           <MonthYearPicker month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4 mr-1" /> Importar Excel
+          </Button>
           <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditId(null); }}>
             <DialogTrigger asChild>
               <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Nova Receita</Button>
@@ -251,6 +302,15 @@ export default function Receitas() {
       <div className="text-right text-sm text-muted-foreground">
         Total: <span className="font-bold text-foreground">{formatCurrency(total)}</span> ({filtered.length} registros)
       </div>
+
+      <ExcelImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Importar Receitas"
+        expectedColumns={['Data', 'Descrição', 'Categoria', 'Operadora', 'Vendedor', 'Valor', 'Status']}
+        mapRow={mapReceitaRow}
+        onConfirm={async (rows) => { await bulkCreateReceita.mutateAsync(rows as any); }}
+      />
     </div>
   );
 }
