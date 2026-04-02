@@ -302,6 +302,15 @@ export default function Receitas() {
       <div className="text-right text-sm text-muted-foreground">
         Total: <span className="font-bold text-foreground">{formatCurrency(total)}</span> ({filtered.length} registros)
       </div>
+
+      <ExcelImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Importar Receitas"
+        expectedColumns={['Data', 'Descrição', 'Categoria', 'Operadora', 'Vendedor', 'Valor', 'Status']}
+        mapRow={mapReceitaRow}
+        onConfirm={async (rows) => { await bulkCreateReceita.mutateAsync(rows as any); }}
+      />
     </div>
   );
 }
