@@ -39,7 +39,56 @@ export default function Despesas() {
   const updateDespesa = useUpdateDespesa();
   const deleteDespesa = useDeleteDespesa();
   const generateRecurring = useGenerateRecurringDespesas();
+  const bulkCreateDespesa = useBulkCreateDespesa();
   const { toast } = useToast();
+  const [importOpen, setImportOpen] = useState(false);
+
+  const mapDespesaRow = useCallback((row: Record<string, any>): ParsedRow => {
+    const errors: string[] = [];
+    const data = row['Data'];
+    const descricao = row['Descrição'] || row['Descricao'] || '';
+    const categoriaNome = row['Categoria'] || '';
+    const tipo = row['Tipo'] || '';
+    const valor = parseFloat(String(row['Valor']).replace(',', '.'));
+    const responsavel = row['Responsável'] || row['Responsavel'] || '';
+    const recorrenteRaw = row['Recorrente'] || '';
+    const status = row['Status'] || 'A pagar';
+
+    if (!data) errors.push('Data obrigatória');
+    if (!descricao) errors.push('Descrição obrigatória');
+    if (isNaN(valor)) errors.push('Valor inválido');
+
+    const categoria = categorias.find(c => c.nome.toLowerCase() === String(categoriaNome).toLowerCase());
+    if (!categoria && categoriaNome) errors.push(`Categoria "${categoriaNome}" não encontrada`);
+    if (!categoriaNome) errors.push('Categoria obrigatória');
+
+    if (!['Fixo', 'Variável'].includes(tipo)) errors.push('Tipo deve ser "Fixo" ou "Variável"');
+
+    const recorrente = ['sim', 'true', '1', 'yes'].includes(String(recorrenteRaw).toLowerCase());
+
+    let dateStr = '';
+    if (data instanceof Date) {
+      dateStr = data.toISOString().split('T')[0];
+    } else if (typeof data === 'string') {
+      const parts = data.split('/');
+      dateStr = parts.length === 3 ? `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}` : data;
+    }
+
+    return {
+      mapped: {
+        data: dateStr,
+        descricao: String(descricao),
+        categoria_id: categoria?.id || '',
+        tipo: ['Fixo', 'Variável'].includes(tipo) ? tipo : 'Fixo',
+        valor: isNaN(valor) ? 0 : valor,
+        responsavel: responsavel || undefined,
+        recorrente,
+        status: ['Pago', 'A pagar', 'Atrasado'].includes(status) ? status : 'A pagar',
+      },
+      raw: row,
+      errors,
+    };
+  }, [categorias]);
 
   const [form, setForm] = useState(emptyForm);
 
