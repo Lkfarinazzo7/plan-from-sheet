@@ -12,6 +12,7 @@ import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@
 import { Plus, Trash2, RotateCcw, Pencil, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
+import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
 
 const emptyForm = {
   data: new Date().toISOString().split('T')[0],
@@ -49,7 +50,7 @@ export default function Despesas() {
     const descricao = row['Descrição'] || row['Descricao'] || '';
     const categoriaNome = row['Categoria'] || '';
     const tipo = row['Tipo'] || '';
-    const valor = parseFloat(String(row['Valor']).replace(',', '.'));
+    const valor = parseValorBR(row['Valor']);
     const responsavel = row['Responsável'] || row['Responsavel'] || '';
     const recorrenteRaw = row['Recorrente'] || '';
     const status = row['Status'] || 'A pagar';
@@ -65,14 +66,7 @@ export default function Despesas() {
     if (!['Fixo', 'Variável'].includes(tipo)) errors.push('Tipo deve ser "Fixo" ou "Variável"');
 
     const recorrente = ['sim', 'true', '1', 'yes'].includes(String(recorrenteRaw).toLowerCase());
-
-    let dateStr = '';
-    if (data instanceof Date) {
-      dateStr = data.toISOString().split('T')[0];
-    } else if (typeof data === 'string') {
-      const parts = data.split('/');
-      dateStr = parts.length === 3 ? `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}` : data;
-    }
+    const dateStr = parseDateFlexible(data);
 
     return {
       mapped: {
@@ -330,6 +324,11 @@ export default function Despesas() {
         expectedColumns={['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor', 'Responsável', 'Recorrente', 'Status']}
         mapRow={mapDespesaRow}
         onConfirm={async (rows) => { await bulkCreateDespesa.mutateAsync(rows as any); }}
+        columnAliases={{
+          'Valor': ['Valor Real', 'Valor (R$)'],
+          'Tipo': ['Tipo (Fixo/Variável)', 'Tipo (Fixo/Variavel)'],
+          'Status': ['Status/Pago'],
+        }}
       />
     </div>
   );

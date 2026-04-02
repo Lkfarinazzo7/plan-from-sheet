@@ -11,6 +11,7 @@ import { formatCurrency, formatDate, getCurrentMonthYear } from '@/lib/format';
 import { Plus, Trash2, Pencil, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
+import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
 
 const emptyForm = {
   data: new Date().toISOString().split('T')[0],
@@ -49,7 +50,7 @@ export default function Receitas() {
     const categoria = row['Categoria'] || '';
     const operadoraNome = row['Operadora'] || '';
     const vendedorNome = row['Vendedor'] || '';
-    const valor = parseFloat(String(row['Valor']).replace(',', '.'));
+    const valor = parseValorBR(row['Valor']);
     const status = row['Status'] || 'Aguardando';
 
     if (!data) errors.push('Data obrigatória');
@@ -64,13 +65,7 @@ export default function Receitas() {
     if (!vendedor && vendedorNome) errors.push(`Vendedor "${vendedorNome}" não encontrado`);
     if (!vendedorNome) errors.push('Vendedor obrigatório');
 
-    let dateStr = '';
-    if (data instanceof Date) {
-      dateStr = data.toISOString().split('T')[0];
-    } else if (typeof data === 'string') {
-      const parts = data.split('/');
-      dateStr = parts.length === 3 ? `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}` : data;
-    }
+    const dateStr = parseDateFlexible(data);
 
     return {
       mapped: {
@@ -310,6 +305,10 @@ export default function Receitas() {
         expectedColumns={['Data', 'Descrição', 'Categoria', 'Operadora', 'Vendedor', 'Valor', 'Status']}
         mapRow={mapReceitaRow}
         onConfirm={async (rows) => { await bulkCreateReceita.mutateAsync(rows as any); }}
+        columnAliases={{
+          'Valor': ['Valor Real', 'Valor (R$)'],
+          'Vendedor': ['Responsável', 'Responsavel'],
+        }}
       />
     </div>
   );
