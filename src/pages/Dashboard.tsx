@@ -218,15 +218,17 @@ export default function Dashboard() {
           <CardHeader><CardTitle className="text-base">Receita por Vendedor</CardTitle></CardHeader>
           <CardContent>
             {receitaPorVendedor.length > 0 ? (
-              <ResponsiveContainer width="100%" height={Math.max(200, receitaPorVendedor.length * 45)}>
-                <BarChart data={receitaPorVendedor} layout="vertical" margin={{ left: 80 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" tickFormatter={(v: number) => `R$${(v / 1000).toFixed(0)}k`} />
-                  <YAxis type="category" dataKey="nome" width={75} tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(val: number) => formatCurrency(val)} />
-                  <Bar dataKey="total" name="Receita" fill="hsl(142, 71%, 45%)" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="space-y-4">
+                {receitaPorVendedor.map((v, i) => (
+                  <div key={v.nome} className="flex items-center gap-4">
+                    <span className="text-lg font-bold text-muted-foreground w-6">{i + 1}.</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{v.nome}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-success">{formatCurrency(v.total)}</span>
+                  </div>
+                ))}
+              </div>
             ) : (
               <p className="text-muted-foreground text-center py-12">Sem receitas neste período</p>
             )}
@@ -237,14 +239,17 @@ export default function Dashboard() {
           <CardHeader><CardTitle className="text-base">Receita por Operadora</CardTitle></CardHeader>
           <CardContent>
             {receitaPorOperadora.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie data={receitaPorOperadora} cx="50%" cy="50%" outerRadius={100} dataKey="total" nameKey="nome" label={({ nome, percent }) => `${nome} (${(percent * 100).toFixed(0)}%)`}>
-                    {receitaPorOperadora.map((_, i) => (<Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />))}
-                  </Pie>
-                  <Tooltip formatter={(val: number) => formatCurrency(val)} />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="space-y-4">
+                {receitaPorOperadora.map((v, i) => (
+                  <div key={v.nome} className="flex items-center gap-4">
+                    <span className="text-lg font-bold text-muted-foreground w-6">{i + 1}.</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{v.nome}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-success">{formatCurrency(v.total)}</span>
+                  </div>
+                ))}
+              </div>
             ) : (
               <p className="text-muted-foreground text-center py-12">Sem receitas neste período</p>
             )}
