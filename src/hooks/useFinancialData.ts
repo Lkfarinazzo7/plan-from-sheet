@@ -39,7 +39,7 @@ export function useReceitas(month?: number, year?: number, startDate?: string, e
   return useQuery({
     queryKey: ['receitas', month, year, startDate, endDate],
     queryFn: async () => {
-      let query = supabase.from('receitas').select('*, vendedores(nome), operadoras(nome)').order('data', { ascending: false });
+      let query = supabase.from('receitas').select('*, vendedores(nome), operadoras(nome)').order('data', { ascending: true });
       if (startDate && endDate) {
         query = query.gte('data', startDate).lte('data', endDate);
       } else if (month !== undefined && year !== undefined) {
@@ -58,7 +58,7 @@ export function useDespesas(month?: number, year?: number, startDate?: string, e
   return useQuery({
     queryKey: ['despesas', month, year, startDate, endDate],
     queryFn: async () => {
-      let query = supabase.from('despesas').select('*, categorias_despesa(nome)').order('data', { ascending: false });
+      let query = supabase.from('despesas').select('*, categorias_despesa(nome)').order('data', { ascending: true });
       if (startDate && endDate) {
         query = query.gte('data', startDate).lte('data', endDate);
       } else if (month !== undefined && year !== undefined) {
@@ -430,5 +430,46 @@ export function useBulkCreateDespesa() {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['despesas'] }),
+  });
+}
+
+export function useMonthlyComparison() {
+  return useQuery({
+    queryKey: ['monthly-comparison'],
+    queryFn: async () => {
+      const now = new Date();
+      const startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().split('T')[0];
+      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+      const [receitasRes, despesasRes] = await Promise.all([
+        supabase.from('receitas').select('data, valor').gte('data', startDate).lte('data', endDate),
+        supabase.from('despesas').select('data, valor').gte('data', startDate).lte('data', endDate),
+      ]);
+
+      if (receitasRes.error) throw receitasRes.error;
+      if (despesasRes.error) throw despesasRes.error;
+
+      const months: Record<string, { receitas: number; despesas: number }> = {};
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        months[key] = { receitas: 0, despesas: 0 };
+      }
+
+      for (const r of receitasRes.data || []) {
+        const key = r.data.substring(0, 7);
+        if (months[key]) months[key].receitas += Number(r.valor);
+      }
+      for (const d of despesasRes.data || []) {
+        const key = d.data.substring(0, 7);
+        if (months[key]) months[key].despesas += Number(d.valor);
+      }
+
+      return Object.entries(months).map(([key, val]) => {
+        const [y, m] = key.split('-');
+        const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        return { mes: `${monthNames[parseInt(m) - 1]}/${y.slice(2)}`, ...val };
+      });
+    },
   });
 }
