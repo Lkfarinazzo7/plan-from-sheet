@@ -58,7 +58,7 @@ export function useDespesas(month?: number, year?: number, startDate?: string, e
   return useQuery({
     queryKey: ['despesas', month, year, startDate, endDate],
     queryFn: async () => {
-      let query = supabase.from('despesas').select('*, categorias_despesa(nome)').order('data', { ascending: false });
+      let query = supabase.from('despesas').select('*, categorias_despesa(nome)').order('data', { ascending: true });
       if (startDate && endDate) {
         query = query.gte('data', startDate).lte('data', endDate);
       } else if (month !== undefined && year !== undefined) {
