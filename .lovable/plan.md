@@ -1,46 +1,44 @@
 
 
-# Corrigir Importacao Excel e Adicionar Confirmacao de Mapeamento
+# Ordenacao, Grafico Comparativo e Dashboard de Custos
 
-## Problemas Identificados
+## 1. Ordenar lancamentos por data nas abas Receitas e Despesas
 
-As planilhas reais usam nomes de colunas diferentes do esperado pelo sistema:
+Os hooks `useReceitas` e `useDespesas` ja ordenam por data decrescente (`ascending: false`). Vou alterar para **ascendente** (data mais antiga primeiro) para que os lancamentos fiquem em ordem cronologica. Se preferir decrescente (mais recente primeiro), basta manter — mas o padrao mais intuitivo de "planilha" e crescente.
 
-**Receitas.xlsx**: `Data | Descrição | Categoria | Operadora | Valor Real | Responsável | Status`
-- "Valor Real" em vez de "Valor" (com prefixo "R$")
-- "Responsável" em vez de "Vendedor"
-- Data no formato M/D/YY (ex: `4/2/26`)
+**Arquivos**: `src/hooks/useFinancialData.ts` — alterar `ascending: false` para `ascending: true` nos hooks `useReceitas` e `useDespesas`.
 
-**Despesas.xlsx**: `Data | Descrição | Categoria | Tipo (Fixo/Variável) | Valor Real | Responsável | Recorrente | Status/Pago`
-- "Tipo (Fixo/Variável)" em vez de "Tipo"
-- "Valor Real" em vez de "Valor" (com "R$")
-- "Status/Pago" em vez de "Status"
-- Data no formato M/D/YY
+## 2. Grafico comparativo mensal de Receitas vs Despesas no Dashboard
 
-## Alteracoes
+Adicionar um grafico de barras (BarChart do Recharts, ja instalado) abaixo dos cards de resumo, mostrando os ultimos 6 meses com barras de Receitas (verde) e Despesas (vermelho) lado a lado.
 
-### 1. `src/components/ExcelImportDialog.tsx`
-- Adicionar etapa intermediaria de **confirmacao de mapeamento** entre upload e preview
-- Apos parse do arquivo, mostrar uma tela onde cada campo esperado tem um dropdown mostrando qual coluna da planilha foi mapeada
-- O usuario confirma que o mapeamento esta correto antes de ver a preview final
-- Botao "Confirmar Mapeamento" para prosseguir
+**Dados**: Criar um hook `useMonthlyComparison` que busca receitas e despesas dos ultimos 6 meses (sem filtro de mes — busca pelo range de 6 meses), agrupa por mes/ano e retorna totais mensais.
 
-### 2. `src/pages/Receitas.tsx` - mapReceitaRow
-- Aceitar "Valor Real" alem de "Valor"
-- Limpar prefixo "R$" e espacos do valor antes de parsear
-- Aceitar "Responsável" como nome do vendedor (alem de "Vendedor")
-- Melhorar parse de datas para aceitar formato M/D/YY (ex: `4/2/26` → `2026-04-02`)
-- Atualizar `expectedColumns` para refletir os nomes reais
+**Arquivo**: `src/hooks/useFinancialData.ts` — novo hook `useMonthlyComparison`
+**Arquivo**: `src/pages/Dashboard.tsx` — adicionar BarChart com os dados comparativos
 
-### 3. `src/pages/Despesas.tsx` - mapDespesaRow
-- Aceitar "Tipo (Fixo/Variável)" alem de "Tipo"
-- Aceitar "Valor Real" alem de "Valor", limpando "R$"
-- Aceitar "Status/Pago" alem de "Status"
-- Melhorar parse de datas para formato M/D/YY
-- Atualizar `expectedColumns` para refletir os nomes reais
+## 3. Dashboard de Custos Fixos vs Variaveis
 
-### Detalhes tecnicos
-- Criar funcao helper `parseValorBR(str)` que remove "R$", espacos e trata virgula/ponto
-- Criar funcao helper `parseDateFlexible(value)` que aceita Date objects, DD/MM/YYYY, M/D/YY, YYYY-MM-DD
-- A etapa de confirmacao mostra: Campo Esperado → Coluna Detectada, com possibilidade de ver os primeiros valores de cada coluna
+Adicionar um card/secao no Dashboard (ou abaixo do grafico comparativo) que mostra:
+- Total de custos fixos do periodo
+- Total de custos variaveis do periodo
+- Grafico de pizza ou barras com a divisao Fixo/Variavel
+- Detalhamento por categoria dentro de cada tipo
+
+**Dados**: Ja disponivel nos dados de despesas (campo `tipo` = "Fixo" ou "Variável"). Basta agrupar os dados existentes.
+
+**Arquivo**: `src/pages/Dashboard.tsx` — adicionar secao com cards de custos fixos/variaveis e grafico de pizza por tipo.
+
+## Arquivos alterados
+
+| Arquivo | Alteracao |
+|---|---|
+| `src/hooks/useFinancialData.ts` | Inverter ordenacao para ascendente; novo hook `useMonthlyComparison` |
+| `src/pages/Dashboard.tsx` | Adicionar BarChart comparativo mensal e secao de custos fixos/variaveis |
+
+## Detalhes tecnicos
+
+- `useMonthlyComparison`: faz 2 queries (receitas e despesas) dos ultimos 6 meses, agrupa por `YYYY-MM` client-side
+- BarChart usa `recharts` (ja instalado): barras agrupadas verde/vermelho por mes
+- Custos fixos/variaveis: filtra `despesas` pelo campo `tipo`, mostra 2 cards + PieChart com divisao
 
