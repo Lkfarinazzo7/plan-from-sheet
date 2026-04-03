@@ -1,35 +1,24 @@
 
 
-# Adicionar Margens e Receita por Vendedor/Operadora ao Dashboard
+# Alterar graficos de Receita por Vendedor e por Operadora para mostrar valores
 
 ## O que sera feito
 
-### 1. Margem Bruta e Margem Liquida (cards)
-- **Margem Bruta** = Faturamento - Despesas Variaveis. Percentual = (Margem Bruta / Faturamento) * 100
-- **Margem Liquida** = Faturamento - Total Despesas (fixas + variaveis). Percentual = (Margem Liquida / Faturamento) * 100
-- Adicionar 2 novos cards na grade de resumo mostrando valor absoluto e percentual
+Trocar os graficos atuais por **tabelas/listas rankeadas** que mostram claramente o nome e o valor de cada item, similar aos rankings de comissoes que ja existem no dashboard.
 
-### 2. Receita por Vendedor (grafico de barras ou tabela)
-- Agrupar receitas do periodo pelo `vendedor_id`, resolver nome via join ja existente (receitas faz select com vendedores)
-- Mostrar um BarChart horizontal ou tabela rankeada com nome do vendedor e total de receita
+### 1. Receita por Vendedor (linhas 217-233)
+- Substituir o BarChart horizontal por uma lista rankeada mostrando: posicao, nome do vendedor e valor formatado em R$
+- Mesmo estilo visual dos rankings de comissoes ja existentes no dashboard
 
-### 3. Receita por Operadora (grafico de pizza ou barras)
-- Agrupar receitas do periodo pelo `operadora_id`, resolver nome via join ja existente
-- Mostrar PieChart ou BarChart com distribuicao por operadora
+### 2. Receita por Operadora (linhas 236-252)
+- Substituir o PieChart por uma lista rankeada mostrando: posicao, nome da operadora e valor formatado em R$
+- Mesmo estilo visual
 
 ## Arquivo alterado
 
 ### `src/pages/Dashboard.tsx`
-- Calcular `margemBruta` e `margemLiquida` a partir dos dados ja carregados (receitas, despesas, custosFixos, custosVariaveis)
-- Adicionar 2 cards de margem na grade de resumo (expandir grid para acomodar)
-- Adicionar secao "Receita por Vendedor" com BarChart agrupando receitas por vendedor
-- Adicionar secao "Receita por Operadora" com PieChart agrupando receitas por operadora
-- Importar `useOperadoras` do hook (ja existe) para resolver nomes de operadoras
+- Substituir o bloco do BarChart de vendedores por uma lista com `.map()` mostrando nome + `formatCurrency(total)`
+- Substituir o bloco do PieChart de operadoras por uma lista com `.map()` mostrando nome + `formatCurrency(total)`
 
-Nenhuma alteracao de banco de dados necessaria — todos os dados ja estao disponiveis nos hooks existentes.
-
-## Detalhes tecnicos
-- Receitas ja trazem `vendedores` e `operadoras` via select join nos hooks
-- Margens calculadas client-side a partir dos totais existentes
-- Graficos usam `recharts` (ja instalado)
+Sem alteracoes de banco de dados ou hooks.
 
