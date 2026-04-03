@@ -52,6 +52,32 @@ export default function Dashboard() {
   const despesasAPagar = despesas.filter(d => d.status === 'A pagar').reduce((acc, d) => acc + Number(d.valor), 0);
   const despesasAtrasadas = despesas.filter(d => d.status === 'Atrasado').reduce((acc, d) => acc + Number(d.valor), 0);
 
+  // Margens
+  const margemBruta = totalReceitas - custosVariaveis;
+  const margemBrutaPct = totalReceitas > 0 ? (margemBruta / totalReceitas) * 100 : 0;
+  const margemLiquida = totalReceitas - totalDespesas;
+  const margemLiquidaPct = totalReceitas > 0 ? (margemLiquida / totalReceitas) * 100 : 0;
+
+  // Receita por Vendedor
+  const receitaPorVendedor = Object.values(
+    receitas.reduce((acc, r) => {
+      const nome = (r.vendedores as any)?.nome || 'Desconhecido';
+      if (!acc[nome]) acc[nome] = { nome, total: 0 };
+      acc[nome].total += Number(r.valor);
+      return acc;
+    }, {} as Record<string, { nome: string; total: number }>)
+  ).sort((a, b) => b.total - a.total);
+
+  // Receita por Operadora
+  const receitaPorOperadora = Object.values(
+    receitas.reduce((acc, r) => {
+      const nome = (r.operadoras as any)?.nome || 'Desconhecida';
+      if (!acc[nome]) acc[nome] = { nome, total: 0 };
+      acc[nome].total += Number(r.valor);
+      return acc;
+    }, {} as Record<string, { nome: string; total: number }>)
+  ).sort((a, b) => b.total - a.total);
+
   // Despesas por categoria
   const despesasPorCategoria = despesas.reduce((acc, d) => {
     const cat = (d.categorias_despesa as any)?.nome || 'Outros';
