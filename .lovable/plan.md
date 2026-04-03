@@ -1,44 +1,35 @@
 
 
-# Ordenacao, Grafico Comparativo e Dashboard de Custos
+# Adicionar Margens e Receita por Vendedor/Operadora ao Dashboard
 
-## 1. Ordenar lancamentos por data nas abas Receitas e Despesas
+## O que sera feito
 
-Os hooks `useReceitas` e `useDespesas` ja ordenam por data decrescente (`ascending: false`). Vou alterar para **ascendente** (data mais antiga primeiro) para que os lancamentos fiquem em ordem cronologica. Se preferir decrescente (mais recente primeiro), basta manter — mas o padrao mais intuitivo de "planilha" e crescente.
+### 1. Margem Bruta e Margem Liquida (cards)
+- **Margem Bruta** = Faturamento - Despesas Variaveis. Percentual = (Margem Bruta / Faturamento) * 100
+- **Margem Liquida** = Faturamento - Total Despesas (fixas + variaveis). Percentual = (Margem Liquida / Faturamento) * 100
+- Adicionar 2 novos cards na grade de resumo mostrando valor absoluto e percentual
 
-**Arquivos**: `src/hooks/useFinancialData.ts` — alterar `ascending: false` para `ascending: true` nos hooks `useReceitas` e `useDespesas`.
+### 2. Receita por Vendedor (grafico de barras ou tabela)
+- Agrupar receitas do periodo pelo `vendedor_id`, resolver nome via join ja existente (receitas faz select com vendedores)
+- Mostrar um BarChart horizontal ou tabela rankeada com nome do vendedor e total de receita
 
-## 2. Grafico comparativo mensal de Receitas vs Despesas no Dashboard
+### 3. Receita por Operadora (grafico de pizza ou barras)
+- Agrupar receitas do periodo pelo `operadora_id`, resolver nome via join ja existente
+- Mostrar PieChart ou BarChart com distribuicao por operadora
 
-Adicionar um grafico de barras (BarChart do Recharts, ja instalado) abaixo dos cards de resumo, mostrando os ultimos 6 meses com barras de Receitas (verde) e Despesas (vermelho) lado a lado.
+## Arquivo alterado
 
-**Dados**: Criar um hook `useMonthlyComparison` que busca receitas e despesas dos ultimos 6 meses (sem filtro de mes — busca pelo range de 6 meses), agrupa por mes/ano e retorna totais mensais.
+### `src/pages/Dashboard.tsx`
+- Calcular `margemBruta` e `margemLiquida` a partir dos dados ja carregados (receitas, despesas, custosFixos, custosVariaveis)
+- Adicionar 2 cards de margem na grade de resumo (expandir grid para acomodar)
+- Adicionar secao "Receita por Vendedor" com BarChart agrupando receitas por vendedor
+- Adicionar secao "Receita por Operadora" com PieChart agrupando receitas por operadora
+- Importar `useOperadoras` do hook (ja existe) para resolver nomes de operadoras
 
-**Arquivo**: `src/hooks/useFinancialData.ts` — novo hook `useMonthlyComparison`
-**Arquivo**: `src/pages/Dashboard.tsx` — adicionar BarChart com os dados comparativos
-
-## 3. Dashboard de Custos Fixos vs Variaveis
-
-Adicionar um card/secao no Dashboard (ou abaixo do grafico comparativo) que mostra:
-- Total de custos fixos do periodo
-- Total de custos variaveis do periodo
-- Grafico de pizza ou barras com a divisao Fixo/Variavel
-- Detalhamento por categoria dentro de cada tipo
-
-**Dados**: Ja disponivel nos dados de despesas (campo `tipo` = "Fixo" ou "Variável"). Basta agrupar os dados existentes.
-
-**Arquivo**: `src/pages/Dashboard.tsx` — adicionar secao com cards de custos fixos/variaveis e grafico de pizza por tipo.
-
-## Arquivos alterados
-
-| Arquivo | Alteracao |
-|---|---|
-| `src/hooks/useFinancialData.ts` | Inverter ordenacao para ascendente; novo hook `useMonthlyComparison` |
-| `src/pages/Dashboard.tsx` | Adicionar BarChart comparativo mensal e secao de custos fixos/variaveis |
+Nenhuma alteracao de banco de dados necessaria — todos os dados ja estao disponiveis nos hooks existentes.
 
 ## Detalhes tecnicos
-
-- `useMonthlyComparison`: faz 2 queries (receitas e despesas) dos ultimos 6 meses, agrupa por `YYYY-MM` client-side
-- BarChart usa `recharts` (ja instalado): barras agrupadas verde/vermelho por mes
-- Custos fixos/variaveis: filtra `despesas` pelo campo `tipo`, mostra 2 cards + PieChart com divisao
+- Receitas ja trazem `vendedores` e `operadoras` via select join nos hooks
+- Margens calculadas client-side a partir dos totais existentes
+- Graficos usam `recharts` (ja instalado)
 
