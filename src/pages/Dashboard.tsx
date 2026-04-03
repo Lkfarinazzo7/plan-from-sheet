@@ -52,11 +52,27 @@ export default function Dashboard() {
   const despesasAPagar = despesas.filter(d => d.status === 'A pagar').reduce((acc, d) => acc + Number(d.valor), 0);
   const despesasAtrasadas = despesas.filter(d => d.status === 'Atrasado').reduce((acc, d) => acc + Number(d.valor), 0);
 
+  // Custos fixos vs variáveis
+  const custosFixos = despesas.filter(d => d.tipo === 'Fixo').reduce((acc, d) => acc + Number(d.valor), 0);
+  const custosVariaveis = despesas.filter(d => d.tipo === 'Variável').reduce((acc, d) => acc + Number(d.valor), 0);
+  const custosPieData = [
+    { name: 'Fixo', value: custosFixos },
+    { name: 'Variável', value: custosVariaveis },
+  ].filter(d => d.value > 0);
+
   // Margens
   const margemBruta = totalReceitas - custosVariaveis;
   const margemBrutaPct = totalReceitas > 0 ? (margemBruta / totalReceitas) * 100 : 0;
   const margemLiquida = totalReceitas - totalDespesas;
   const margemLiquidaPct = totalReceitas > 0 ? (margemLiquida / totalReceitas) * 100 : 0;
+
+  // Despesas por categoria
+  const despesasPorCategoria = despesas.reduce((acc, d) => {
+    const cat = (d.categorias_despesa as any)?.nome || 'Outros';
+    acc[cat] = (acc[cat] || 0) + Number(d.valor);
+    return acc;
+  }, {} as Record<string, number>);
+  const pieData = Object.entries(despesasPorCategoria).map(([name, value]) => ({ name, value }));
 
   // Receita por Vendedor
   const receitaPorVendedor = Object.values(
@@ -77,22 +93,6 @@ export default function Dashboard() {
       return acc;
     }, {} as Record<string, { nome: string; total: number }>)
   ).sort((a, b) => b.total - a.total);
-
-  // Despesas por categoria
-  const despesasPorCategoria = despesas.reduce((acc, d) => {
-    const cat = (d.categorias_despesa as any)?.nome || 'Outros';
-    acc[cat] = (acc[cat] || 0) + Number(d.valor);
-    return acc;
-  }, {} as Record<string, number>);
-  const pieData = Object.entries(despesasPorCategoria).map(([name, value]) => ({ name, value }));
-
-  // Custos fixos vs variáveis
-  const custosFixos = despesas.filter(d => d.tipo === 'Fixo').reduce((acc, d) => acc + Number(d.valor), 0);
-  const custosVariaveis = despesas.filter(d => d.tipo === 'Variável').reduce((acc, d) => acc + Number(d.valor), 0);
-  const custosPieData = [
-    { name: 'Fixo', value: custosFixos },
-    { name: 'Variável', value: custosVariaveis },
-  ].filter(d => d.value > 0);
 
   // Rankings from comissoes
   const vendedorMap = new Map(vendedores.map(v => [v.id, v.nome]));
@@ -155,10 +155,12 @@ export default function Dashboard() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Faturamento</p><p className="text-2xl font-bold text-success">{formatCurrency(totalReceitas)}</p></div><ArrowUpCircle className="h-8 w-8 text-success opacity-60" /></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Despesas</p><p className="text-2xl font-bold text-destructive">{formatCurrency(totalDespesas)}</p></div><ArrowDownCircle className="h-8 w-8 text-destructive opacity-60" /></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Saldo</p><p className={`text-2xl font-bold ${saldo >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(saldo)}</p></div><Wallet className="h-8 w-8 text-primary opacity-60" /></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Margem Bruta</p><p className={`text-2xl font-bold ${margemBruta >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(margemBruta)}</p><p className="text-xs text-muted-foreground">{margemBrutaPct.toFixed(1)}%</p></div><TrendingUp className="h-8 w-8 text-success opacity-60" /></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Margem Líquida</p><p className={`text-2xl font-bold ${margemLiquida >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(margemLiquida)}</p><p className="text-xs text-muted-foreground">{margemLiquidaPct.toFixed(1)}%</p></div><TrendingDown className="h-8 w-8 text-primary opacity-60" /></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Receitas a Receber</p><p className="text-2xl font-bold text-warning">{formatCurrency(receitasAReceber)}</p></div><Clock className="h-8 w-8 text-warning opacity-60" /></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Despesas a Pagar</p><p className="text-2xl font-bold text-warning">{formatCurrency(despesasAPagar)}</p></div><CreditCard className="h-8 w-8 text-warning opacity-60" /></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Despesas Atrasadas</p><p className="text-2xl font-bold text-destructive">{formatCurrency(despesasAtrasadas)}</p></div><AlertTriangle className="h-8 w-8 text-destructive opacity-60" /></div></CardContent></Card>
@@ -205,6 +207,46 @@ export default function Dashboard() {
               </ResponsiveContainer>
             ) : (
               <p className="text-muted-foreground text-center py-8">Sem despesas</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Receita por Vendedor e por Operadora */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader><CardTitle className="text-base">Receita por Vendedor</CardTitle></CardHeader>
+          <CardContent>
+            {receitaPorVendedor.length > 0 ? (
+              <ResponsiveContainer width="100%" height={Math.max(200, receitaPorVendedor.length * 45)}>
+                <BarChart data={receitaPorVendedor} layout="vertical" margin={{ left: 80 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" tickFormatter={(v: number) => `R$${(v / 1000).toFixed(0)}k`} />
+                  <YAxis type="category" dataKey="nome" width={75} tick={{ fontSize: 12 }} />
+                  <Tooltip formatter={(val: number) => formatCurrency(val)} />
+                  <Bar dataKey="total" name="Receita" fill="hsl(142, 71%, 45%)" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-muted-foreground text-center py-12">Sem receitas neste período</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Receita por Operadora</CardTitle></CardHeader>
+          <CardContent>
+            {receitaPorOperadora.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie data={receitaPorOperadora} cx="50%" cy="50%" outerRadius={100} dataKey="total" nameKey="nome" label={({ nome, percent }) => `${nome} (${(percent * 100).toFixed(0)}%)`}>
+                    {receitaPorOperadora.map((_, i) => (<Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />))}
+                  </Pie>
+                  <Tooltip formatter={(val: number) => formatCurrency(val)} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-muted-foreground text-center py-12">Sem receitas neste período</p>
             )}
           </CardContent>
         </Card>
