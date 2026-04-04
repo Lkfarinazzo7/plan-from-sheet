@@ -2,6 +2,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
+function toDateStr(year: number, month: number, day: number): string {
+  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
 export function useVendedores() {
   return useQuery({
     queryKey: ['vendedores'],
@@ -43,8 +47,8 @@ export function useReceitas(month?: number, year?: number, startDate?: string, e
       if (startDate && endDate) {
         query = query.gte('data', startDate).lte('data', endDate);
       } else if (month !== undefined && year !== undefined) {
-        const sd = new Date(year, month, 1).toISOString().split('T')[0];
-        const ed = new Date(year, month + 1, 0).toISOString().split('T')[0];
+        const sd = toDateStr(year, month, 1);
+        const ed = toDateStr(year, month, new Date(year, month + 1, 0).getDate());
         query = query.gte('data', sd).lte('data', ed);
       }
       const { data, error } = await query;
@@ -62,8 +66,8 @@ export function useDespesas(month?: number, year?: number, startDate?: string, e
       if (startDate && endDate) {
         query = query.gte('data', startDate).lte('data', endDate);
       } else if (month !== undefined && year !== undefined) {
-        const sd = new Date(year, month, 1).toISOString().split('T')[0];
-        const ed = new Date(year, month + 1, 0).toISOString().split('T')[0];
+        const sd = toDateStr(year, month, 1);
+        const ed = toDateStr(year, month, new Date(year, month + 1, 0).getDate());
         query = query.gte('data', sd).lte('data', ed);
       }
       const { data, error } = await query;
@@ -81,8 +85,8 @@ export function useComissoes(month?: number, year?: number, startDate?: string, 
       if (startDate && endDate) {
         query = query.gte('data', startDate).lte('data', endDate);
       } else if (month !== undefined && year !== undefined) {
-        const sd = new Date(year, month, 1).toISOString().split('T')[0];
-        const ed = new Date(year, month + 1, 0).toISOString().split('T')[0];
+        const sd = toDateStr(year, month, 1);
+        const ed = toDateStr(year, month, new Date(year, month + 1, 0).getDate());
         query = query.gte('data', sd).lte('data', ed);
       }
       const { data, error } = await query;
@@ -363,8 +367,8 @@ export function useGenerateRecurringDespesas() {
     mutationFn: async ({ sourceMonth, sourceYear, targetMonth, targetYear }: {
       sourceMonth: number; sourceYear: number; targetMonth: number; targetYear: number;
     }) => {
-      const startDate = new Date(sourceYear, sourceMonth, 1).toISOString().split('T')[0];
-      const endDate = new Date(sourceYear, sourceMonth + 1, 0).toISOString().split('T')[0];
+      const startDate = toDateStr(sourceYear, sourceMonth, 1);
+      const endDate = toDateStr(sourceYear, sourceMonth, new Date(sourceYear, sourceMonth + 1, 0).getDate());
       
       const { data: recurring, error: fetchError } = await supabase
         .from('despesas')
@@ -379,7 +383,7 @@ export function useGenerateRecurringDespesas() {
       const newDespesas = recurring.map(d => {
         const originalDate = new Date(d.data);
         const day = Math.min(originalDate.getDate(), new Date(targetYear, targetMonth + 1, 0).getDate());
-        const newDate = new Date(targetYear, targetMonth, day).toISOString().split('T')[0];
+        const newDate = toDateStr(targetYear, targetMonth, day);
         return {
           data: newDate,
           descricao: d.descricao,
@@ -438,8 +442,11 @@ export function useMonthlyComparison() {
     queryKey: ['monthly-comparison'],
     queryFn: async () => {
       const now = new Date();
-      const startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().split('T')[0];
-      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+      const startM = now.getMonth() - 5;
+      const startY = now.getFullYear() + Math.floor(startM / 12);
+      const startMonth = ((startM % 12) + 12) % 12;
+      const startDate = toDateStr(startY, startMonth, 1);
+      const endDate = toDateStr(now.getFullYear(), now.getMonth(), new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate());
 
       const [receitasRes, despesasRes] = await Promise.all([
         supabase.from('receitas').select('data, valor').gte('data', startDate).lte('data', endDate),
