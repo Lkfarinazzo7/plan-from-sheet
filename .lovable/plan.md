@@ -1,24 +1,36 @@
 
 
-# Alterar graficos de Receita por Vendedor e por Operadora para mostrar valores
+# Corrigir bug de data aparecendo um dia antes
 
-## O que sera feito
+## Problema
 
-Trocar os graficos atuais por **tabelas/listas rankeadas** que mostram claramente o nome e o valor de cada item, similar aos rankings de comissoes que ja existem no dashboard.
+Quando voce cadastra uma despesa com data `2026-04-08`, o banco armazena corretamente `2026-04-08`. Porem, ao exibir na tela, o sistema faz `new Date("2026-04-08")` que cria a data em UTC (meia-noite UTC). Ao formatar com `Intl.DateTimeFormat('pt-BR')`, ele converte para o fuso horario do Brasil (UTC-3), resultando em `2026-04-07 21:00` -- ou seja, o dia anterior.
 
-### 1. Receita por Vendedor (linhas 217-233)
-- Substituir o BarChart horizontal por uma lista rankeada mostrando: posicao, nome do vendedor e valor formatado em R$
-- Mesmo estilo visual dos rankings de comissoes ja existentes no dashboard
+## Solucao
 
-### 2. Receita por Operadora (linhas 236-252)
-- Substituir o PieChart por uma lista rankeada mostrando: posicao, nome da operadora e valor formatado em R$
-- Mesmo estilo visual
+Alterar a funcao `formatDate` em `src/lib/format.ts` para tratar a string de data como local em vez de UTC. Basta adicionar `T00:00:00` ao final da string ou fazer split manual do `YYYY-MM-DD`.
 
-## Arquivo alterado
+A abordagem mais segura e fazer split manual:
 
-### `src/pages/Dashboard.tsx`
-- Substituir o bloco do BarChart de vendedores por uma lista com `.map()` mostrando nome + `formatCurrency(total)`
-- Substituir o bloco do PieChart de operadoras por uma lista com `.map()` mostrando nome + `formatCurrency(total)`
+```typescript
+export function formatDate(date: string): string {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Intl.DateTimeFormat('pt-BR').format(new Date(y, m - 1, d));
+}
+```
 
-Sem alteracoes de banco de dados ou hooks.
+Tambem corrigir os locais em `useFinancialData.ts` que usam `new Date(year, month, day).toISOString().split('T')[0]` -- quando o fuso local e negativo (Brasil), `toISOString()` pode gerar o dia anterior. Substituir por formatacao manual `YYYY-MM-DD`:
+
+```typescript
+function toDateStr(y: number, m: number, d: number): string {
+  return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+```
+
+## Arquivos alterados
+
+| Arquivo | Alteracao |
+|---|---|
+| `src/lib/format.ts` | Corrigir `formatDate` para usar split manual em vez de `new Date(str)` |
+| `src/hooks/useFinancialData.ts` | Substituir `new Date(...).toISOString().split('T')[0]` por helper de formatacao manual para evitar offsets de timezone |
 
