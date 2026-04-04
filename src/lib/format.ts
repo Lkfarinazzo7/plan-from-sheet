@@ -6,7 +6,8 @@ export function formatCurrency(value: number): string {
 }
 
 export function formatDate(date: string): string {
-  return new Intl.DateTimeFormat('pt-BR').format(new Date(date));
+  const [y, m, d] = date.split('-').map(Number);
+  return new Intl.DateTimeFormat('pt-BR').format(new Date(y, m - 1, d));
 }
 
 export function getMonthName(month: number): string {
