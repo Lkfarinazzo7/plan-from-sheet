@@ -442,8 +442,11 @@ export function useMonthlyComparison() {
     queryKey: ['monthly-comparison'],
     queryFn: async () => {
       const now = new Date();
-      const startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().split('T')[0];
-      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+      const startM = now.getMonth() - 5;
+      const startY = now.getFullYear() + Math.floor(startM / 12);
+      const startMonth = ((startM % 12) + 12) % 12;
+      const startDate = toDateStr(startY, startMonth, 1);
+      const endDate = toDateStr(now.getFullYear(), now.getMonth(), new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate());
 
       const [receitasRes, despesasRes] = await Promise.all([
         supabase.from('receitas').select('data, valor').gte('data', startDate).lte('data', endDate),
