@@ -47,8 +47,8 @@ export function useReceitas(month?: number, year?: number, startDate?: string, e
       if (startDate && endDate) {
         query = query.gte('data', startDate).lte('data', endDate);
       } else if (month !== undefined && year !== undefined) {
-        const sd = new Date(year, month, 1).toISOString().split('T')[0];
-        const ed = new Date(year, month + 1, 0).toISOString().split('T')[0];
+        const sd = toDateStr(year, month, 1);
+        const ed = toDateStr(year, month, new Date(year, month + 1, 0).getDate());
         query = query.gte('data', sd).lte('data', ed);
       }
       const { data, error } = await query;
@@ -66,8 +66,8 @@ export function useDespesas(month?: number, year?: number, startDate?: string, e
       if (startDate && endDate) {
         query = query.gte('data', startDate).lte('data', endDate);
       } else if (month !== undefined && year !== undefined) {
-        const sd = new Date(year, month, 1).toISOString().split('T')[0];
-        const ed = new Date(year, month + 1, 0).toISOString().split('T')[0];
+        const sd = toDateStr(year, month, 1);
+        const ed = toDateStr(year, month, new Date(year, month + 1, 0).getDate());
         query = query.gte('data', sd).lte('data', ed);
       }
       const { data, error } = await query;
@@ -85,8 +85,8 @@ export function useComissoes(month?: number, year?: number, startDate?: string, 
       if (startDate && endDate) {
         query = query.gte('data', startDate).lte('data', endDate);
       } else if (month !== undefined && year !== undefined) {
-        const sd = new Date(year, month, 1).toISOString().split('T')[0];
-        const ed = new Date(year, month + 1, 0).toISOString().split('T')[0];
+        const sd = toDateStr(year, month, 1);
+        const ed = toDateStr(year, month, new Date(year, month + 1, 0).getDate());
         query = query.gte('data', sd).lte('data', ed);
       }
       const { data, error } = await query;
@@ -367,8 +367,8 @@ export function useGenerateRecurringDespesas() {
     mutationFn: async ({ sourceMonth, sourceYear, targetMonth, targetYear }: {
       sourceMonth: number; sourceYear: number; targetMonth: number; targetYear: number;
     }) => {
-      const startDate = new Date(sourceYear, sourceMonth, 1).toISOString().split('T')[0];
-      const endDate = new Date(sourceYear, sourceMonth + 1, 0).toISOString().split('T')[0];
+      const startDate = toDateStr(sourceYear, sourceMonth, 1);
+      const endDate = toDateStr(sourceYear, sourceMonth, new Date(sourceYear, sourceMonth + 1, 0).getDate());
       
       const { data: recurring, error: fetchError } = await supabase
         .from('despesas')
@@ -383,7 +383,7 @@ export function useGenerateRecurringDespesas() {
       const newDespesas = recurring.map(d => {
         const originalDate = new Date(d.data);
         const day = Math.min(originalDate.getDate(), new Date(targetYear, targetMonth + 1, 0).getDate());
-        const newDate = new Date(targetYear, targetMonth, day).toISOString().split('T')[0];
+        const newDate = toDateStr(targetYear, targetMonth, day);
         return {
           data: newDate,
           descricao: d.descricao,
