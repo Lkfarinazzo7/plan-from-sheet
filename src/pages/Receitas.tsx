@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear } from '@/lib/format';
-import { Plus, Trash2, Pencil, Upload } from 'lucide-react';
+import { Plus, Trash2, Pencil, Upload, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
 import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
@@ -278,6 +278,32 @@ export default function Receitas() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="Duplicar"
+                          onClick={async () => {
+                            try {
+                              const today = new Date();
+                              const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                              await createReceita.mutateAsync({
+                                data: todayStr,
+                                descricao: r.descricao,
+                                categoria: r.categoria,
+                                operadora_id: r.operadora_id,
+                                vendedor_id: r.vendedor_id,
+                                valor: r.valor,
+                                status: 'Aguardando',
+                              });
+                              toast({ title: 'Receita duplicada com sucesso!' });
+                            } catch (err: any) {
+                              toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+                            }
+                          }}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}>
                           <Pencil className="h-4 w-4" />
                         </Button>

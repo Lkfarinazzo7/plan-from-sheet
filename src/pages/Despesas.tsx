@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
-import { Plus, Trash2, RotateCcw, Pencil, Upload, Check } from 'lucide-react';
+import { Plus, Trash2, RotateCcw, Pencil, Upload, Check, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
 import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
@@ -33,6 +33,7 @@ export default function Despesas() {
   const [editId, setEditId] = useState<string | null>(null);
   const [filterCategoria, setFilterCategoria] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterPeriodo, setFilterPeriodo] = useState<string>('all');
 
   const { data: despesas = [], isLoading } = useDespesas(month, year);
   const { data: categorias = [] } = useCategoriasDespesa();
@@ -89,6 +90,18 @@ export default function Despesas() {
   const filtered = despesas.filter(d => {
     if (filterCategoria !== 'all' && d.categoria_id !== filterCategoria) return false;
     if (filterStatus !== 'all' && d.status !== filterStatus) return false;
+    if (filterPeriodo !== 'all') {
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      if (filterPeriodo === 'hoje') {
+        if (d.data !== todayStr) return false;
+      } else {
+        const dias = filterPeriodo === 'semana' ? 7 : 15;
+        const limite = new Date(today.getFullYear(), today.getMonth(), today.getDate() - dias);
+        const limiteStr = `${limite.getFullYear()}-${String(limite.getMonth() + 1).padStart(2, '0')}-${String(limite.getDate()).padStart(2, '0')}`;
+        if (d.data < limiteStr) return false;
+      }
+    }
     return true;
   });
 
@@ -252,6 +265,15 @@ export default function Despesas() {
             <SelectItem value="Atrasado">Atrasado</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={filterPeriodo} onValueChange={setFilterPeriodo}>
+          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Período" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todo o mês</SelectItem>
+            <SelectItem value="hoje">Hoje</SelectItem>
+            <SelectItem value="semana">Últimos 7 dias</SelectItem>
+            <SelectItem value="15dias">Últimos 15 dias</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
@@ -315,6 +337,33 @@ export default function Despesas() {
                             <Check className="h-4 w-4" />
                           </Button>
                         )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="Duplicar"
+                          onClick={async () => {
+                            try {
+                              const today = new Date();
+                              const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                              await createDespesa.mutateAsync({
+                                data: todayStr,
+                                descricao: d.descricao,
+                                categoria_id: d.categoria_id,
+                                tipo: d.tipo,
+                                valor: d.valor,
+                                responsavel: d.responsavel || undefined,
+                                recorrente: d.recorrente,
+                                status: 'A pagar',
+                              });
+                              toast({ title: 'Despesa duplicada com sucesso!' });
+                            } catch (err: any) {
+                              toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+                            }
+                          }}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(d)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
