@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
-import { Plus, Trash2, RotateCcw, Pencil, Upload } from 'lucide-react';
+import { Plus, Trash2, RotateCcw, Pencil, Upload, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
 import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
@@ -297,6 +297,24 @@ export default function Despesas() {
                     <TableCell>{d.recorrente ? '✓' : ''}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
+                        {(d.status === 'A pagar' || d.status === 'Atrasado') && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-success hover:text-success"
+                            title="Marcar como Pago"
+                            onClick={async () => {
+                              try {
+                                await updateDespesa.mutateAsync({ id: d.id, status: 'Pago' });
+                                toast({ title: 'Despesa marcada como Paga!' });
+                              } catch (err: any) {
+                                toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+                              }
+                            }}
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(d)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
