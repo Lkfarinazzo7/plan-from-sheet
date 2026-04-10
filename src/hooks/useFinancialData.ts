@@ -115,7 +115,7 @@ export function useUpdateReceita() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string; [key: string]: any }) => {
-      const { error } = await supabase.from('receitas').update(updates).eq('id', id);
+      const { error } = await supabase.from('receitas').update(updates as any).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['receitas'] }),
@@ -152,7 +152,7 @@ export function useUpdateDespesa() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string; [key: string]: any }) => {
-      const { error } = await supabase.from('despesas').update(updates).eq('id', id);
+      const { error } = await supabase.from('despesas').update(updates as any).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['despesas'] }),
@@ -190,7 +190,7 @@ export function useUpdateComissao() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string; [key: string]: any }) => {
-      const { error } = await supabase.from('comissoes').update(updates).eq('id', id);
+      const { error } = await supabase.from('comissoes').update(updates as any).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['comissoes'] }),
