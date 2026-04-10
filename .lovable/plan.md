@@ -1,36 +1,17 @@
 
 
-# Corrigir bug de data aparecendo um dia antes
+# Botao rapido para marcar despesa como Paga
 
-## Problema
+## O que sera feito
 
-Quando voce cadastra uma despesa com data `2026-04-08`, o banco armazena corretamente `2026-04-08`. Porem, ao exibir na tela, o sistema faz `new Date("2026-04-08")` que cria a data em UTC (meia-noite UTC). Ao formatar com `Intl.DateTimeFormat('pt-BR')`, ele converte para o fuso horario do Brasil (UTC-3), resultando em `2026-04-07 21:00` -- ou seja, o dia anterior.
+Adicionar um botao de acao rapida na tabela de despesas que permite alterar o status de "A pagar" ou "Atrasado" para "Pago" com um unico clique, sem precisar abrir o formulario de edicao.
 
-## Solucao
+## Arquivo alterado
 
-Alterar a funcao `formatDate` em `src/lib/format.ts` para tratar a string de data como local em vez de UTC. Basta adicionar `T00:00:00` ao final da string ou fazer split manual do `YYYY-MM-DD`.
+### `src/pages/Despesas.tsx`
+- Na coluna de acoes de cada linha da tabela (onde ja tem os botoes de editar e excluir), adicionar um botao com icone de check (`Check` do lucide-react) que aparece apenas quando o status e "A pagar" ou "Atrasado"
+- Ao clicar, chama `updateDespesa.mutateAsync({ id, status: 'Pago' })` diretamente
+- Mostrar toast de confirmacao apos sucesso
 
-A abordagem mais segura e fazer split manual:
-
-```typescript
-export function formatDate(date: string): string {
-  const [y, m, d] = date.split('-').map(Number);
-  return new Intl.DateTimeFormat('pt-BR').format(new Date(y, m - 1, d));
-}
-```
-
-Tambem corrigir os locais em `useFinancialData.ts` que usam `new Date(year, month, day).toISOString().split('T')[0]` -- quando o fuso local e negativo (Brasil), `toISOString()` pode gerar o dia anterior. Substituir por formatacao manual `YYYY-MM-DD`:
-
-```typescript
-function toDateStr(y: number, m: number, d: number): string {
-  return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-}
-```
-
-## Arquivos alterados
-
-| Arquivo | Alteracao |
-|---|---|
-| `src/lib/format.ts` | Corrigir `formatDate` para usar split manual em vez de `new Date(str)` |
-| `src/hooks/useFinancialData.ts` | Substituir `new Date(...).toISOString().split('T')[0]` por helper de formatacao manual para evitar offsets de timezone |
+O botao tera estilo `variant="ghost"` com cor verde para indicar a acao positiva, consistente com o visual existente.
 
