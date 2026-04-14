@@ -9,7 +9,8 @@ import { Switch } from '@/components/ui/switch';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
-import { Plus, Trash2, RotateCcw, Pencil, Upload, Check, Copy } from 'lucide-react';
+import { Plus, Trash2, RotateCcw, Pencil, Upload, Check, Copy, Download } from 'lucide-react';
+import { exportToExcel } from '@/lib/exportHelpers';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
 import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
@@ -169,6 +170,21 @@ export default function Despesas() {
         <h2 className="text-2xl font-bold">Despesas</h2>
         <div className="flex items-center gap-3 flex-wrap">
           <MonthYearPicker month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
+          <Button variant="outline" onClick={() => {
+            const rows = filtered.map(d => ({
+              Data: formatDate(d.data),
+              Descrição: d.descricao,
+              Categoria: (d.categorias_despesa as any)?.nome || '',
+              Tipo: d.tipo,
+              Responsável: d.responsavel || '',
+              Valor: Number(d.valor),
+              Status: d.status,
+              Recorrente: d.recorrente ? 'Sim' : 'Não',
+            }));
+            exportToExcel(rows, `Despesas_${getMonthName(month)}_${year}`);
+          }}>
+            <Download className="h-4 w-4 mr-1" /> Exportar
+          </Button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-1" /> Importar Excel
           </Button>

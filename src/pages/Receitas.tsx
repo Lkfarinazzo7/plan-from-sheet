@@ -7,8 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita } from '@/hooks/useFinancialData';
-import { formatCurrency, formatDate, getCurrentMonthYear } from '@/lib/format';
-import { Plus, Trash2, Pencil, Upload, Copy } from 'lucide-react';
+import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
+import { Plus, Trash2, Pencil, Upload, Copy, Download } from 'lucide-react';
+import { exportToExcel } from '@/lib/exportHelpers';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
 import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
@@ -140,6 +141,20 @@ export default function Receitas() {
         <h2 className="text-2xl font-bold">Receitas</h2>
         <div className="flex items-center gap-3">
           <MonthYearPicker month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
+          <Button variant="outline" onClick={() => {
+            const rows = filtered.map(r => ({
+              Data: formatDate(r.data),
+              Descrição: r.descricao,
+              Categoria: r.categoria,
+              Operadora: (r.operadoras as any)?.nome || '',
+              Vendedor: (r.vendedores as any)?.nome || '',
+              Valor: Number(r.valor),
+              Status: r.status,
+            }));
+            exportToExcel(rows, `Receitas_${getMonthName(month)}_${year}`);
+          }}>
+            <Download className="h-4 w-4 mr-1" /> Exportar
+          </Button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-1" /> Importar Excel
           </Button>
