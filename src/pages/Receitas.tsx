@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita } from '@/hooks/useFinancialData';
-import { formatCurrency, formatDate, getCurrentMonthYear } from '@/lib/format';
+import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
 import { Plus, Trash2, Pencil, Upload, Copy, Download } from 'lucide-react';
 import { exportToExcel } from '@/lib/exportHelpers';
 import { useToast } from '@/hooks/use-toast';
