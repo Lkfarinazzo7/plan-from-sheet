@@ -35,6 +35,8 @@ export default function Despesas() {
   const [filterCategoria, setFilterCategoria] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterPeriodo, setFilterPeriodo] = useState<string>('all');
+  const [filterTipo, setFilterTipo] = useState<string>('all');
+  const [filterResponsavel, setFilterResponsavel] = useState<string>('all');
 
   const { data: despesas = [], isLoading } = useDespesas(month, year);
   const { data: categorias = [] } = useCategoriasDespesa();
@@ -91,6 +93,8 @@ export default function Despesas() {
   const filtered = despesas.filter(d => {
     if (filterCategoria !== 'all' && d.categoria_id !== filterCategoria) return false;
     if (filterStatus !== 'all' && d.status !== filterStatus) return false;
+    if (filterTipo !== 'all' && d.tipo !== filterTipo) return false;
+    if (filterResponsavel !== 'all' && (d.responsavel || '') !== filterResponsavel) return false;
     if (filterPeriodo !== 'all') {
       const today = new Date();
       const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -288,6 +292,23 @@ export default function Despesas() {
             <SelectItem value="hoje">Hoje</SelectItem>
             <SelectItem value="semana">Últimos 7 dias</SelectItem>
             <SelectItem value="15dias">Últimos 15 dias</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filterTipo} onValueChange={setFilterTipo}>
+          <SelectTrigger className="w-[140px]"><SelectValue placeholder="Tipo" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos tipos</SelectItem>
+            <SelectItem value="Fixo">Fixo</SelectItem>
+            <SelectItem value="Variável">Variável</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filterResponsavel} onValueChange={setFilterResponsavel}>
+          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Responsável" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos responsáveis</SelectItem>
+            {[...new Set(despesas.map(d => d.responsavel).filter(Boolean))].sort().map(r => (
+              <SelectItem key={r} value={r!}>{r}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
