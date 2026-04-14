@@ -141,6 +141,20 @@ export default function Receitas() {
         <h2 className="text-2xl font-bold">Receitas</h2>
         <div className="flex items-center gap-3">
           <MonthYearPicker month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
+          <Button variant="outline" onClick={() => {
+            const rows = filtered.map(r => ({
+              Data: formatDate(r.data),
+              Descrição: r.descricao,
+              Categoria: r.categoria,
+              Operadora: (r.operadoras as any)?.nome || '',
+              Vendedor: (r.vendedores as any)?.nome || '',
+              Valor: Number(r.valor),
+              Status: r.status,
+            }));
+            exportToExcel(rows, `Receitas_${getMonthName(month)}_${year}`);
+          }}>
+            <Download className="h-4 w-4 mr-1" /> Exportar
+          </Button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-1" /> Importar Excel
           </Button>
