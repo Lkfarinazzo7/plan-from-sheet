@@ -102,9 +102,9 @@ export function useCreateReceita() {
   return useMutation({
     mutationFn: async (receita: {
       data: string; descricao: string; categoria: string; operadora_id: string;
-      valor: number; vendedor_id: string; status: string;
+      valor: number; vendedor_id: string; status: string; unidade_negocio?: string | null;
     }) => {
-      const { error } = await supabase.from('receitas').insert({ ...receita, comissao: 0, user_id: user!.id });
+      const { error } = await supabase.from('receitas').insert({ ...receita, comissao: 0, user_id: user!.id } as any);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['receitas'] }),
@@ -139,9 +139,9 @@ export function useCreateDespesa() {
   return useMutation({
     mutationFn: async (despesa: {
       data: string; descricao: string; categoria_id: string; tipo: string;
-      valor: number; responsavel?: string; recorrente: boolean; status: string;
+      valor: number; responsavel?: string; recorrente: boolean; status: string; unidade_negocio?: string | null;
     }) => {
-      const { error } = await supabase.from('despesas').insert({ ...despesa, user_id: user!.id });
+      const { error } = await supabase.from('despesas').insert({ ...despesa, user_id: user!.id } as any);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['despesas'] }),
