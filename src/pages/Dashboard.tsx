@@ -28,14 +28,15 @@ export default function Dashboard() {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [activeRange, setActiveRange] = useState<{ start: string; end: string } | null>(null);
+  const [filterUnidade, setFilterUnidade] = useState<string>('all');
 
   const isCustom = !!activeRange;
 
-  const { data: receitas = [] } = useReceitas(
+  const { data: receitasRaw = [] } = useReceitas(
     isCustom ? undefined : month, isCustom ? undefined : year,
     activeRange?.start, activeRange?.end
   );
-  const { data: despesas = [] } = useDespesas(
+  const { data: despesasRaw = [] } = useDespesas(
     isCustom ? undefined : month, isCustom ? undefined : year,
     activeRange?.start, activeRange?.end
   );
@@ -45,6 +46,16 @@ export default function Dashboard() {
   );
   const { data: vendedores = [] } = useVendedores();
   const { data: monthlyData = [] } = useMonthlyComparison();
+
+  // Filtro client-side por unidade de negócio
+  const receitas = useMemo(
+    () => filterUnidade === 'all' ? receitasRaw : receitasRaw.filter(r => ((r as any).unidade_negocio || '') === filterUnidade),
+    [receitasRaw, filterUnidade]
+  );
+  const despesas = useMemo(
+    () => filterUnidade === 'all' ? despesasRaw : despesasRaw.filter(d => ((d as any).unidade_negocio || '') === filterUnidade),
+    [despesasRaw, filterUnidade]
+  );
 
   const totalReceitas = receitas.reduce((acc, r) => acc + Number(r.valor), 0);
   const totalDespesas = despesas.reduce((acc, d) => acc + Number(d.valor), 0);
@@ -130,7 +141,14 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-2xl font-bold">Dashboard</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={filterUnidade} onValueChange={setFilterUnidade}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Unidade" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as unidades</SelectItem>
+              {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+            </SelectContent>
+          </Select>
           {!isCustom && (
             <MonthYearPicker month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
           )}
