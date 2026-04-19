@@ -96,6 +96,7 @@ export type Database = {
           responsavel: string | null
           status: string
           tipo: string
+          unidade_negocio: string | null
           updated_at: string
           user_id: string
           valor: number
@@ -110,6 +111,7 @@ export type Database = {
           responsavel?: string | null
           status?: string
           tipo: string
+          unidade_negocio?: string | null
           updated_at?: string
           user_id: string
           valor?: number
@@ -124,6 +126,7 @@ export type Database = {
           responsavel?: string | null
           status?: string
           tipo?: string
+          unidade_negocio?: string | null
           updated_at?: string
           user_id?: string
           valor?: number
@@ -169,6 +172,7 @@ export type Database = {
           id: string
           operadora_id: string
           status: string
+          unidade_negocio: string | null
           updated_at: string
           user_id: string
           valor: number
@@ -183,6 +187,7 @@ export type Database = {
           id?: string
           operadora_id: string
           status?: string
+          unidade_negocio?: string | null
           updated_at?: string
           user_id: string
           valor?: number
@@ -197,6 +202,7 @@ export type Database = {
           id?: string
           operadora_id?: string
           status?: string
+          unidade_negocio?: string | null
           updated_at?: string
           user_id?: string
           valor?: number

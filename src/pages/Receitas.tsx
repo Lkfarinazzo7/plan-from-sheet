@@ -13,6 +13,7 @@ import { exportToExcel } from '@/lib/exportHelpers';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
 import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
+import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
 
 const emptyForm = {
   data: new Date().toISOString().split('T')[0],
@@ -22,6 +23,7 @@ const emptyForm = {
   valor: '',
   vendedor_id: '',
   status: 'Aguardando',
+  unidade_negocio: 'none' as string,
 };
 
 export default function Receitas() {
@@ -33,6 +35,7 @@ export default function Receitas() {
   const [filterVendedor, setFilterVendedor] = useState<string>('all');
   const [filterOperadora, setFilterOperadora] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterUnidade, setFilterUnidade] = useState<string>('all');
 
   const { data: receitas = [], isLoading } = useReceitas(month, year);
   const { data: vendedores = [] } = useVendedores();
@@ -53,6 +56,7 @@ export default function Receitas() {
     const vendedorNome = row['Vendedor'] || '';
     const valor = parseValorBR(row['Valor']);
     const status = row['Status'] || 'Aguardando';
+    const unidade = row['Unidade'] || row['Unidade de Negócio'] || row['Unidade de Negocio'] || '';
 
     if (!data) errors.push('Data obrigatória');
     if (!descricao) errors.push('Descrição obrigatória');
@@ -67,6 +71,7 @@ export default function Receitas() {
     if (!vendedorNome) errors.push('Vendedor obrigatório');
 
     const dateStr = parseDateFlexible(data);
+    const unidadeMatch = UNIDADES_NEGOCIO.find(u => u.toLowerCase() === String(unidade).toLowerCase());
 
     return {
       mapped: {
@@ -77,6 +82,7 @@ export default function Receitas() {
         vendedor_id: vendedor?.id || '',
         valor: isNaN(valor) ? 0 : valor,
         status: ['Recebido', 'Aguardando'].includes(status) ? status : 'Aguardando',
+        unidade_negocio: unidadeMatch || null,
       },
       raw: row,
       errors,
@@ -89,6 +95,10 @@ export default function Receitas() {
     if (filterVendedor !== 'all' && r.vendedor_id !== filterVendedor) return false;
     if (filterOperadora !== 'all' && r.operadora_id !== filterOperadora) return false;
     if (filterStatus !== 'all' && r.status !== filterStatus) return false;
+    if (filterUnidade !== 'all') {
+      const u = (r as any).unidade_negocio || '';
+      if (filterUnidade === 'none' ? u !== '' : u !== filterUnidade) return false;
+    }
     return true;
   });
 
@@ -110,6 +120,7 @@ export default function Receitas() {
       valor: String(r.valor),
       vendedor_id: r.vendedor_id,
       status: r.status,
+      unidade_negocio: r.unidade_negocio || 'none',
     });
     setOpen(true);
   };
@@ -117,7 +128,11 @@ export default function Receitas() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const payload = { ...form, valor: parseFloat(form.valor) };
+      const payload = {
+        ...form,
+        valor: parseFloat(form.valor),
+        unidade_negocio: form.unidade_negocio === 'none' ? null : form.unidade_negocio,
+      };
       if (editId) {
         await updateReceita.mutateAsync({ id: editId, ...payload });
         toast({ title: 'Receita atualizada com sucesso!' });
@@ -148,6 +163,7 @@ export default function Receitas() {
               Categoria: r.categoria,
               Operadora: (r.operadoras as any)?.nome || '',
               Vendedor: (r.vendedores as any)?.nome || '',
+              'Unidade de Negócio': (r as any).unidade_negocio || '',
               Valor: Number(r.valor),
               Status: r.status,
             }));
@@ -205,7 +221,7 @@ export default function Receitas() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-1">
                     <label className="text-sm font-medium">Valor (R$)</label>
                     <Input type="number" step="0.01" min="0" value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} required />
@@ -217,6 +233,16 @@ export default function Receitas() {
                       <SelectContent>
                         <SelectItem value="Recebido">Recebido</SelectItem>
                         <SelectItem value="Aguardando">Aguardando</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Unidade</label>
+                    <Select value={form.unidade_negocio} onValueChange={v => setForm({ ...form, unidade_negocio: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhuma</SelectItem>
+                        {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -254,6 +280,14 @@ export default function Receitas() {
             <SelectItem value="Aguardando">Aguardando</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={filterUnidade} onValueChange={setFilterUnidade}>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Unidade" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas unidades</SelectItem>
+            <SelectItem value="none">Sem unidade</SelectItem>
+            {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
@@ -267,6 +301,7 @@ export default function Receitas() {
                 <TableHead>Categoria</TableHead>
                 <TableHead>Operadora</TableHead>
                 <TableHead>Vendedor</TableHead>
+                <TableHead>Unidade</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead></TableHead>
@@ -274,9 +309,9 @@ export default function Receitas() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nenhuma receita encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Nenhuma receita encontrada</TableCell></TableRow>
               ) : (
                 filtered.map(r => (
                   <TableRow key={r.id}>
@@ -285,6 +320,7 @@ export default function Receitas() {
                     <TableCell>{r.categoria}</TableCell>
                     <TableCell>{(r.operadoras as any)?.nome}</TableCell>
                     <TableCell>{(r.vendedores as any)?.nome}</TableCell>
+                    <TableCell className="text-muted-foreground">{(r as any).unidade_negocio || '—'}</TableCell>
                     <TableCell className="text-right font-medium text-success">{formatCurrency(Number(r.valor))}</TableCell>
                     <TableCell>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${r.status === 'Recebido' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
@@ -310,6 +346,7 @@ export default function Receitas() {
                                 vendedor_id: r.vendedor_id,
                                 valor: r.valor,
                                 status: 'Aguardando',
+                                unidade_negocio: (r as any).unidade_negocio || null,
                               });
                               toast({ title: 'Receita duplicada com sucesso!' });
                             } catch (err: any) {
