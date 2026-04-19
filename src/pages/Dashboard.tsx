@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useReceitas, useDespesas, useComissoes, useVendedores, useMonthlyComparison } from '@/hooks/useFinancialData';
@@ -7,6 +7,8 @@ import { ArrowUpCircle, ArrowDownCircle, Wallet, Clock, AlertTriangle, CreditCar
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
