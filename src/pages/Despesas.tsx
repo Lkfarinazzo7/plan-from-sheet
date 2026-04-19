@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,14 +6,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
-import { Plus, Trash2, RotateCcw, Pencil, Upload, Check, Copy, Download } from 'lucide-react';
+import { Plus, Trash2, RotateCcw, Pencil, Upload, Check, Copy, Download, X } from 'lucide-react';
 import { exportToExcel } from '@/lib/exportHelpers';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
 import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
+import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
 
 const emptyForm = {
   data: new Date().toISOString().split('T')[0],
@@ -24,7 +26,19 @@ const emptyForm = {
   responsavel: '',
   recorrente: false,
   status: 'A pagar',
+  unidade_negocio: 'none' as string,
 };
+
+// Calcula segunda e domingo (BR) da semana atual em YYYY-MM-DD local
+function getThisWeekRange(): { start: string; end: string } {
+  const today = new Date();
+  const day = today.getDay(); // 0=dom, 1=seg, ..., 6=sab
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diffToMonday);
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+  const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return { start: fmt(monday), end: fmt(sunday) };
+}
 
 export default function Despesas() {
   const { month: curMonth, year: curYear } = getCurrentMonthYear();
@@ -34,9 +48,19 @@ export default function Despesas() {
   const [editId, setEditId] = useState<string | null>(null);
   const [filterCategoria, setFilterCategoria] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterPeriodo, setFilterPeriodo] = useState<string>('all');
+  const [filterPeriodo, setFilterPeriodo] = useState<string>('all'); // all | semana | custom
   const [filterTipo, setFilterTipo] = useState<string>('all');
   const [filterResponsavel, setFilterResponsavel] = useState<string>('all');
+  const [filterUnidade, setFilterUnidade] = useState<string>('all');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+
+  // Selecao em massa
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkData, setBulkData] = useState('');
+  const [bulkStatus, setBulkStatus] = useState<string>('none');
+  const [bulkUnidade, setBulkUnidade] = useState<string>('none');
 
   const { data: despesas = [], isLoading } = useDespesas(month, year);
   const { data: categorias = [] } = useCategoriasDespesa();
@@ -58,6 +82,7 @@ export default function Despesas() {
     const responsavel = row['Responsável'] || row['Responsavel'] || '';
     const recorrenteRaw = row['Recorrente'] || '';
     const status = row['Status'] || 'A pagar';
+    const unidade = row['Unidade'] || row['Unidade de Negócio'] || row['Unidade de Negocio'] || '';
 
     if (!data) errors.push('Data obrigatória');
     if (!descricao) errors.push('Descrição obrigatória');
@@ -71,6 +96,7 @@ export default function Despesas() {
 
     const recorrente = ['sim', 'true', '1', 'yes'].includes(String(recorrenteRaw).toLowerCase());
     const dateStr = parseDateFlexible(data);
+    const unidadeMatch = UNIDADES_NEGOCIO.find(u => u.toLowerCase() === String(unidade).toLowerCase());
 
     return {
       mapped: {
@@ -82,6 +108,7 @@ export default function Despesas() {
         responsavel: responsavel || undefined,
         recorrente,
         status: ['Pago', 'A pagar', 'Atrasado'].includes(status) ? status : 'A pagar',
+        unidade_negocio: unidadeMatch || null,
       },
       raw: row,
       errors,
@@ -90,27 +117,45 @@ export default function Despesas() {
 
   const [form, setForm] = useState(emptyForm);
 
-  const filtered = despesas.filter(d => {
+  const filtered = useMemo(() => despesas.filter(d => {
     if (filterCategoria !== 'all' && d.categoria_id !== filterCategoria) return false;
     if (filterStatus !== 'all' && d.status !== filterStatus) return false;
     if (filterTipo !== 'all' && d.tipo !== filterTipo) return false;
     if (filterResponsavel !== 'all' && (d.responsavel || '') !== filterResponsavel) return false;
-    if (filterPeriodo !== 'all') {
-      const today = new Date();
-      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-      if (filterPeriodo === 'hoje') {
-        if (d.data !== todayStr) return false;
-      } else {
-        const dias = filterPeriodo === 'semana' ? 7 : 15;
-        const limite = new Date(today.getFullYear(), today.getMonth(), today.getDate() - dias);
-        const limiteStr = `${limite.getFullYear()}-${String(limite.getMonth() + 1).padStart(2, '0')}-${String(limite.getDate()).padStart(2, '0')}`;
-        if (d.data < limiteStr) return false;
-      }
+    if (filterUnidade !== 'all') {
+      const u = (d as any).unidade_negocio || '';
+      if (filterUnidade === 'none' ? u !== '' : u !== filterUnidade) return false;
+    }
+    if (filterPeriodo === 'semana') {
+      const { start, end } = getThisWeekRange();
+      if (d.data < start || d.data > end) return false;
+    } else if (filterPeriodo === 'custom') {
+      if (customStart && d.data < customStart) return false;
+      if (customEnd && d.data > customEnd) return false;
     }
     return true;
-  });
+  }), [despesas, filterCategoria, filterStatus, filterTipo, filterResponsavel, filterUnidade, filterPeriodo, customStart, customEnd]);
 
   const total = filtered.reduce((acc, d) => acc + Number(d.valor), 0);
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every(d => selectedIds.has(d.id));
+  const toggleAll = () => {
+    if (allFilteredSelected) {
+      const next = new Set(selectedIds);
+      filtered.forEach(d => next.delete(d.id));
+      setSelectedIds(next);
+    } else {
+      const next = new Set(selectedIds);
+      filtered.forEach(d => next.add(d.id));
+      setSelectedIds(next);
+    }
+  };
+  const toggleOne = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedIds(next);
+  };
+  const clearSelection = () => setSelectedIds(new Set());
 
   const openNew = () => {
     setEditId(null);
@@ -129,6 +174,7 @@ export default function Despesas() {
       responsavel: d.responsavel || '',
       recorrente: d.recorrente,
       status: d.status,
+      unidade_negocio: d.unidade_negocio || 'none',
     });
     setOpen(true);
   };
@@ -136,7 +182,12 @@ export default function Despesas() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const payload = { ...form, valor: parseFloat(form.valor), responsavel: form.responsavel || undefined };
+      const payload = {
+        ...form,
+        valor: parseFloat(form.valor),
+        responsavel: form.responsavel || undefined,
+        unidade_negocio: form.unidade_negocio === 'none' ? null : form.unidade_negocio,
+      };
       if (editId) {
         await updateDespesa.mutateAsync({ id: editId, ...payload });
         toast({ title: 'Despesa atualizada com sucesso!' });
@@ -166,6 +217,28 @@ export default function Despesas() {
     }
   };
 
+  const applyBulkEdit = async () => {
+    const updates: Record<string, any> = {};
+    if (bulkData) updates.data = bulkData;
+    if (bulkStatus !== 'none') updates.status = bulkStatus;
+    if (bulkUnidade !== 'none') updates.unidade_negocio = bulkUnidade === 'clear' ? null : bulkUnidade;
+
+    if (Object.keys(updates).length === 0) {
+      toast({ title: 'Nada para atualizar', description: 'Preencha ao menos um campo.', variant: 'destructive' });
+      return;
+    }
+    const ids = Array.from(selectedIds);
+    try {
+      await Promise.all(ids.map(id => updateDespesa.mutateAsync({ id, ...updates })));
+      toast({ title: `${ids.length} despesas atualizadas com sucesso!` });
+      setBulkOpen(false);
+      setBulkData(''); setBulkStatus('none'); setBulkUnidade('none');
+      clearSelection();
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+  };
+
   const isPending = createDespesa.isPending || updateDespesa.isPending;
 
   return (
@@ -181,6 +254,7 @@ export default function Despesas() {
               Categoria: (d.categorias_despesa as any)?.nome || '',
               Tipo: d.tipo,
               Responsável: d.responsavel || '',
+              'Unidade de Negócio': (d as any).unidade_negocio || '',
               Valor: Number(d.valor),
               Status: d.status,
               Recorrente: d.recorrente ? 'Sim' : 'Não',
@@ -237,10 +311,16 @@ export default function Despesas() {
                     <Input value={form.responsavel} onChange={e => setForm({ ...form, responsavel: e.target.value })} />
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-sm font-medium">Valor (R$)</label>
-                    <Input type="number" step="0.01" min="0" value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} required />
+                    <label className="text-sm font-medium">Unidade de Negócio</label>
+                    <Select value={form.unidade_negocio} onValueChange={v => setForm({ ...form, unidade_negocio: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhuma</SelectItem>
+                        {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1">
                     <label className="text-sm font-medium">Status</label>
@@ -252,6 +332,12 @@ export default function Despesas() {
                         <SelectItem value="Atrasado">Atrasado</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Valor (R$)</label>
+                    <Input type="number" step="0.01" min="0" value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} required />
                   </div>
                   <div className="flex items-end gap-2 pb-1">
                     <Switch checked={form.recorrente} onCheckedChange={v => setForm({ ...form, recorrente: v })} />
@@ -289,11 +375,17 @@ export default function Despesas() {
           <SelectTrigger className="w-[160px]"><SelectValue placeholder="Período" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todo o mês</SelectItem>
-            <SelectItem value="hoje">Hoje</SelectItem>
-            <SelectItem value="semana">Últimos 7 dias</SelectItem>
-            <SelectItem value="15dias">Últimos 15 dias</SelectItem>
+            <SelectItem value="semana">Esta semana (Seg–Dom)</SelectItem>
+            <SelectItem value="custom">Personalizado</SelectItem>
           </SelectContent>
         </Select>
+        {filterPeriodo === 'custom' && (
+          <div className="flex items-center gap-2">
+            <Input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="w-[150px]" />
+            <span className="text-muted-foreground text-sm">até</span>
+            <Input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="w-[150px]" />
+          </div>
+        )}
         <Select value={filterTipo} onValueChange={setFilterTipo}>
           <SelectTrigger className="w-[140px]"><SelectValue placeholder="Tipo" /></SelectTrigger>
           <SelectContent>
@@ -311,7 +403,30 @@ export default function Despesas() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={filterUnidade} onValueChange={setFilterUnidade}>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Unidade" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas unidades</SelectItem>
+            <SelectItem value="none">Sem unidade</SelectItem>
+            {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
+
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center justify-between gap-3 p-3 rounded-md border bg-accent/40">
+          <span className="text-sm font-medium">{selectedIds.size} selecionada(s)</span>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={() => setBulkOpen(true)}>
+              <Pencil className="h-4 w-4 mr-1" /> Editar em massa
+            </Button>
+            <Button size="sm" variant="ghost" onClick={clearSelection}>
+              <X className="h-4 w-4 mr-1" /> Limpar
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <Card>
@@ -319,11 +434,15 @@ export default function Despesas() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox checked={allFilteredSelected} onCheckedChange={toggleAll} aria-label="Selecionar todos" />
+                </TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead>Descrição</TableHead>
                 <TableHead>Categoria</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Responsável</TableHead>
+                <TableHead>Unidade</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Rec.</TableHead>
@@ -332,17 +451,21 @@ export default function Despesas() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Nenhuma despesa encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Nenhuma despesa encontrada</TableCell></TableRow>
               ) : (
                 filtered.map(d => (
-                  <TableRow key={d.id}>
+                  <TableRow key={d.id} data-state={selectedIds.has(d.id) ? 'selected' : undefined}>
+                    <TableCell>
+                      <Checkbox checked={selectedIds.has(d.id)} onCheckedChange={() => toggleOne(d.id)} aria-label="Selecionar linha" />
+                    </TableCell>
                     <TableCell>{formatDate(d.data)}</TableCell>
                     <TableCell className="max-w-[200px] truncate">{d.descricao}</TableCell>
                     <TableCell>{(d.categorias_despesa as any)?.nome}</TableCell>
                     <TableCell>{d.tipo}</TableCell>
                     <TableCell>{d.responsavel || '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{(d as any).unidade_negocio || '—'}</TableCell>
                     <TableCell className="text-right font-medium text-destructive">{formatCurrency(Number(d.valor))}</TableCell>
                     <TableCell>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -392,6 +515,7 @@ export default function Despesas() {
                                 responsavel: d.responsavel || undefined,
                                 recorrente: d.recorrente,
                                 status: 'A pagar',
+                                unidade_negocio: (d as any).unidade_negocio || null,
                               });
                               toast({ title: 'Despesa duplicada com sucesso!' });
                             } catch (err: any) {
@@ -420,6 +544,46 @@ export default function Despesas() {
       <div className="text-right text-sm text-muted-foreground">
         Total: <span className="font-bold text-foreground">{formatCurrency(total)}</span> ({filtered.length} registros)
       </div>
+
+      {/* Bulk edit dialog */}
+      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Editar {selectedIds.size} despesa(s) em massa</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">Preencha apenas os campos que deseja alterar. Os demais permanecerão como estão.</p>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Nova data</label>
+              <Input type="date" value={bulkData} onChange={e => setBulkData(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Novo status</label>
+              <Select value={bulkStatus} onValueChange={setBulkStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Não alterar</SelectItem>
+                  <SelectItem value="Pago">Pago</SelectItem>
+                  <SelectItem value="A pagar">A pagar</SelectItem>
+                  <SelectItem value="Atrasado">Atrasado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Nova unidade de negócio</label>
+              <Select value={bulkUnidade} onValueChange={setBulkUnidade}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Não alterar</SelectItem>
+                  <SelectItem value="clear">Remover unidade</SelectItem>
+                  {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button className="w-full" onClick={applyBulkEdit} disabled={updateDespesa.isPending}>
+              {updateDespesa.isPending ? 'Aplicando...' : `Aplicar a ${selectedIds.size} despesa(s)`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ExcelImportDialog
         open={importOpen}
