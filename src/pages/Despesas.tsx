@@ -134,6 +134,12 @@ export default function Despesas() {
       if (customEnd && d.data > customEnd) return false;
     }
     return true;
+  }).sort((a, b) => {
+    if (a.data !== b.data) return a.data < b.data ? -1 : 1;
+    const catA = ((a.categorias_despesa as any)?.nome || '').toLowerCase();
+    const catB = ((b.categorias_despesa as any)?.nome || '').toLowerCase();
+    if (catA !== catB) return catA.localeCompare(catB, 'pt-BR');
+    return (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR');
   }), [despesas, filterCategoria, filterStatus, filterTipo, filterResponsavel, filterUnidade, filterPeriodo, customStart, customEnd]);
 
   const total = filtered.reduce((acc, d) => acc + Number(d.valor), 0);
