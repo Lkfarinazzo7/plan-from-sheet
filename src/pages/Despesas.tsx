@@ -373,14 +373,14 @@ export default function Despesas() {
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <Select value={filterCategoria} onValueChange={setFilterCategoria}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
+          <SelectTrigger className={`w-[180px] ${filterCategoria !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Categoria" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas categorias</SelectItem>
             {categorias.map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectTrigger className={`w-[140px] ${filterStatus !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos status</SelectItem>
             <SelectItem value="Pago">Pago</SelectItem>
@@ -389,7 +389,7 @@ export default function Despesas() {
           </SelectContent>
         </Select>
         <Select value={filterPeriodo} onValueChange={setFilterPeriodo}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Período" /></SelectTrigger>
+          <SelectTrigger className={`w-[160px] ${filterPeriodo !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Período" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todo o mês</SelectItem>
             <SelectItem value="semana">Esta semana (Seg–Dom)</SelectItem>
@@ -398,13 +398,13 @@ export default function Despesas() {
         </Select>
         {filterPeriodo === 'custom' && (
           <div className="flex items-center gap-2">
-            <Input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="w-[150px]" />
+            <Input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className={`w-[150px] ${customStart ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`} />
             <span className="text-muted-foreground text-sm">até</span>
-            <Input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="w-[150px]" />
+            <Input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className={`w-[150px] ${customEnd ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`} />
           </div>
         )}
         <Select value={filterTipo} onValueChange={setFilterTipo}>
-          <SelectTrigger className="w-[140px]"><SelectValue placeholder="Tipo" /></SelectTrigger>
+          <SelectTrigger className={`w-[140px] ${filterTipo !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Tipo" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos tipos</SelectItem>
             <SelectItem value="Fixo">Fixo</SelectItem>
@@ -412,7 +412,7 @@ export default function Despesas() {
           </SelectContent>
         </Select>
         <Select value={filterResponsavel} onValueChange={setFilterResponsavel}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Responsável" /></SelectTrigger>
+          <SelectTrigger className={`w-[160px] ${filterResponsavel !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Responsável" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos responsáveis</SelectItem>
             {[...new Set(despesas.map(d => d.responsavel).filter(Boolean))].sort().map(r => (
@@ -421,14 +421,24 @@ export default function Despesas() {
           </SelectContent>
         </Select>
         <Select value={filterUnidade} onValueChange={setFilterUnidade}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Unidade" /></SelectTrigger>
+          <SelectTrigger className={`w-[180px] ${filterUnidade !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Unidade" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas unidades</SelectItem>
             <SelectItem value="none">Sem unidade</SelectItem>
             {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
           </SelectContent>
         </Select>
+        {(filterCategoria !== 'all' || filterStatus !== 'all' || filterPeriodo !== 'all' || filterTipo !== 'all' || filterResponsavel !== 'all' || filterUnidade !== 'all') && (
+          <Button variant="ghost" size="sm" onClick={() => {
+            setFilterCategoria('all'); setFilterStatus('all'); setFilterPeriodo('all');
+            setFilterTipo('all'); setFilterResponsavel('all'); setFilterUnidade('all');
+            setCustomStart(''); setCustomEnd('');
+          }}>
+            <X className="h-4 w-4 mr-1" /> Limpar filtros
+          </Button>
+        )}
       </div>
+
 
       {/* Bulk action bar */}
       {selectedIds.size > 0 && (
