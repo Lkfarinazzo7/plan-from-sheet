@@ -72,6 +72,17 @@ export default function Despesas() {
   const { toast } = useToast();
   const [importOpen, setImportOpen] = useState(false);
 
+  // Auto-marca como Atrasado: status "A pagar" com data < hoje
+  const autoOverdueRan = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const overdue = despesas.filter(d => d.status === 'A pagar' && d.data < todayStr && !autoOverdueRan.current.has(d.id));
+    if (overdue.length === 0) return;
+    overdue.forEach(d => autoOverdueRan.current.add(d.id));
+    Promise.all(overdue.map(d => updateDespesa.mutateAsync({ id: d.id, status: 'Atrasado' }))).catch(() => {});
+  }, [despesas]);
+
   const mapDespesaRow = useCallback((row: Record<string, any>): ParsedRow => {
     const errors: string[] = [];
     const data = row['Data'];
