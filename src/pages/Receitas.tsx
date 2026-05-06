@@ -259,21 +259,21 @@ export default function Receitas() {
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <Select value={filterVendedor} onValueChange={setFilterVendedor}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Vendedor" /></SelectTrigger>
+          <SelectTrigger className={`w-[160px] ${filterVendedor !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Vendedor" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos vendedores</SelectItem>
             {vendedores.map(v => <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterOperadora} onValueChange={setFilterOperadora}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Operadora" /></SelectTrigger>
+          <SelectTrigger className={`w-[160px] ${filterOperadora !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Operadora" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas operadoras</SelectItem>
             {operadoras.map(o => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectTrigger className={`w-[140px] ${filterStatus !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos status</SelectItem>
             <SelectItem value="Recebido">Recebido</SelectItem>
@@ -281,13 +281,18 @@ export default function Receitas() {
           </SelectContent>
         </Select>
         <Select value={filterUnidade} onValueChange={setFilterUnidade}>
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Unidade" /></SelectTrigger>
+          <SelectTrigger className={`w-[180px] ${filterUnidade !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Unidade" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas unidades</SelectItem>
             <SelectItem value="none">Sem unidade</SelectItem>
             {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
           </SelectContent>
         </Select>
+        {(filterVendedor !== 'all' || filterOperadora !== 'all' || filterStatus !== 'all' || filterUnidade !== 'all') && (
+          <Button variant="ghost" size="sm" onClick={() => {
+            setFilterVendedor('all'); setFilterOperadora('all'); setFilterStatus('all'); setFilterUnidade('all');
+          }}>Limpar filtros</Button>
+        )}
       </div>
 
       {/* Table */}
