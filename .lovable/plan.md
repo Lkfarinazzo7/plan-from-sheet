@@ -1,77 +1,74 @@
 
+# Pipeline de Propostas + ADM + Promoção a Receita
 
-# Ajustes em Despesas + Unidade de Negocio
+Replicar o pipeline do projeto "Lucas Contratos" (7 etapas, drag-and-drop, formulário completo com titulares/dependentes, anexos, declinadas) e integrá-lo a este sistema. Criar um papel `adm_pipeline` que só enxerga o Pipeline. Quando uma proposta for movida para "Implantado", abrir o formulário de Receitas pré-preenchido.
 
-## 1. Ajuste no filtro de Periodo (Despesas)
+## 1. Backend (migration)
 
-Reduzir as opcoes do Select de periodo para apenas 3:
+### Tabelas novas
+- **`canais_venda`**: `id`, `nome`, `ativo`, timestamps. RLS: leitura/escrita para autenticados.
+- **`pipeline_contratos`**:
+  - `id`, `user_id`, `cliente`, `numero_proposta`, `tipo` ('PF'|'PJ'|'Adesao'), `operadora_id`, `canal_id`, `vendedor_id` (opcional), `valor_mensal`, `data_vigencia`, `data_revisao`, `etapa` (enum), `posicao` (bigint), `observacoes`, `dados_proposta` (jsonb com cnpj_cpf, vidas, titulares, dependentes etc.), `declinada` (bool), `motivo_declinio`, `declinada_em`, timestamps.
+  - RLS: usuários autenticados leem/escrevem (sem isolamento por user_id, igual ao restante do sistema — ADM e gestor compartilham os mesmos dados).
+- **`user_roles`** + enum `app_role` ('admin', 'gestor', 'adm_pipeline'): segue o padrão recomendado (tabela separada + função `has_role` security definer). Sem armazenar role em profiles.
 
-- **Todo o mes** (padrao)
-- **Esta semana** — sempre de **segunda a domingo** da semana atual (nao "ultimos 7 dias")
-- **Personalizado** — abre dois date pickers (De / Ate) lado a lado, e filtra o intervalo selecionado
+### Enum
+- `pipeline_etapa`: 'Montagem de contrato', 'Assinatura / Declaração de saúde', 'Entrevista médica', 'Em análise', 'Pendências', 'Aguardando vigência', 'Implantado'.
 
-A logica de "esta semana" calcula a segunda-feira anterior (ou o proprio dia, se hoje for segunda) e o domingo seguinte, comparando com `d.data` em string `YYYY-MM-DD` local (sem UTC).
+### Storage
+- Bucket privado `pipeline-anexos`. Policies: usuários autenticados leem/escrevem dentro de `{user_id}/{pipeline_id}/...`.
 
-Remover as opcoes "Hoje", "Ultimos 7 dias" e "Ultimos 15 dias".
+## 2. Papéis e proteção de rotas
 
-## 2. Unidade de Negocio (Odisseia / Socios)
+- `useUserRole()` hook: carrega papéis do usuário logado.
+- Rotas protegidas:
+  - ADM Pipeline (`adm_pipeline`): só `/pipeline`. Qualquer outra rota redireciona para `/pipeline`.
+  - Admin/gestor: acesso total (incluindo `/pipeline`).
+- `AppSidebar`: esconder Dashboard/Receitas/Despesas/Comissões/Cadastros se for `adm_pipeline`.
+- Tela em **Cadastros → Usuários**: lista usuários (via `auth.users` mirror em `profiles` ou função RPC) e permite marcar/desmarcar papel `adm_pipeline`. Acessível só para admin.
 
-### Banco
-Adicionar coluna `unidade_negocio` (text, nullable) nas tabelas **`despesas`** e **`receitas`**. Lan\u00e7amentos antigos ficam com valor nulo ate serem editados.
+## 3. Frontend — Pipeline
 
-### Lista fixa no codigo
-Criar `src/lib/unidadesNegocio.ts` exportando:
-```ts
-export const UNIDADES_NEGOCIO = ['Odisseia', 'Socios'] as const;
-```
+### Arquivos novos
+- `src/pages/Pipeline.tsx` — página principal, com DndKit, contadores (total em pipeline, propostas ativas, revisar hoje), botões: Nova proposta, Importar, Declinadas, filtro "só revisar".
+- `src/components/pipeline/PipelineColumn.tsx` — coluna droppable com totalizador.
+- `src/components/pipeline/PipelineCard.tsx` — card draggable: cliente, nº proposta, tipo, operadora/canal, vidas, vigência, valor, badge de revisão, lista de pendências.
+- `src/components/pipeline/PipelineForm.tsx` — formulário completo com:
+  - Dados do contrato (cliente, proposta, tipo, CPF/CNPJ, operadora, canal, valor, vigência, revisão, etapa, observações).
+  - Dados da proposta (categoria, acomodação, coparticipação, vidas, qtd titulares/dependentes, reajuste, endereço).
+  - Titulares dinâmicos (nome, CPF, nascimento, telefone, email, endereço, plano anterior) e dependentes aninhados.
+  - Anexos.
+- `src/components/pipeline/PipelineAnexos.tsx` — upload/listagem/remoção via Storage.
+- `src/components/pipeline/DeclinadasDialog.tsx` — listar/restaurar/excluir declinadas.
+- `src/lib/pipelinePendencias.ts` — calcula pendências (sem operadora, sem valor, sem vigência etc.).
+- `src/lib/tagColor.ts` — paleta determinística para tags (operadora/canal/tipo).
+- Cadastro de **Canais de venda** em `src/pages/Cadastros.tsx` (CRUD simples, espelhando Operadoras).
 
-### Despesas
-- Novo campo **Unidade de Negocio** no formulario de criar/editar (Select com as duas opcoes + "Nenhuma")
-- Novo filtro **Unidade** ao lado dos demais filtros
-- Nova coluna na tabela exibindo a unidade
-- Incluir no export Excel
-- Botao Duplicar copia a unidade
+### Drag-and-drop
+- `@dnd-kit/core` (instalar). Mover entre colunas atualiza `etapa` no banco.
+- Ao soltar em "Implantado", **NÃO** muda o status: abre `ReceitaForm` pré-preenchido (cliente vira descrição, valor_mensal vira valor, vendedor/operadora copiados, data = vigência ou hoje). Ao salvar a receita, marca o card como "Implantado" e remove do board (mantém no banco para histórico). Cancelar = card volta à etapa anterior.
 
-### Receitas
-- Mesmas mudancas: campo no form, filtro, coluna na tabela, export, duplicar
+## 4. Reuso do ReceitaForm
 
-### Dashboard
-- Adicionar Select global no topo: **Unidade de Negocio** (Todas / Odisseia / Socios)
-- Filtra todos os indicadores, graficos e rankings ja existentes pela unidade selecionada
-- Filtragem client-side sobre os dados ja carregados (ou ajustar queries para passar o filtro)
+Hoje a criação de receita é inline na página `Receitas.tsx`. Vou extrair o formulário para `src/components/receitas/ReceitaForm.tsx` (Dialog reutilizável) com prop `initial` para pré-preenchimento. Receitas.tsx continua funcionando igual.
 
-## 3. Edicao em massa em Despesas
+## 5. Sidebar e rotas
 
-### UI
-- Adicionar coluna de **checkbox** no inicio da tabela (com checkbox no header para "selecionar todos os filtrados")
-- Quando ha 1+ linhas selecionadas, aparece uma **barra de acoes flutuante** no topo da tabela com:
-  - Texto "X selecionadas"
-  - Botao **Editar em massa** (abre dialog)
-  - Botao **Limpar selecao**
+- Adicionar item "Pipeline" no `AppSidebar` (ícone Kanban) entre Despesas e Comissões.
+- `App.tsx`: nova rota `/pipeline`. `ProtectedRoute` passa a ler papel e redirecionar `adm_pipeline` para `/pipeline`.
 
-### Dialog de edicao em massa
-Tres campos opcionais (so atualiza o que for preenchido):
-- **Nova data** (date picker)
-- **Novo status** (Pago / A pagar / Atrasado / Nao alterar)
-- **Nova unidade** (Odisseia / Socios / Nao alterar)
+## 6. O que NÃO entra agora
 
-Botao "Aplicar a X despesas" executa um `UPDATE` por linha selecionada via `updateDespesa.mutateAsync` (sequencial com Promise.all), invalida o cache e mostra toast de sucesso.
+- Preenchimento via IA (botão "Sparkles") do Lucas Contratos — depende de edge function própria, posso adicionar depois se quiser.
+- Importação de planilha do pipeline — posso adicionar num passo seguinte.
+- Email de elaboração — fora de escopo.
 
-## Arquivos alterados
+## Resumo das mudanças
 
-| Arquivo | Mudanca |
-|---|---|
-| `supabase/migrations/...` (nova) | `ALTER TABLE despesas ADD COLUMN unidade_negocio text` + mesmo em `receitas` |
-| `src/lib/unidadesNegocio.ts` (novo) | Constante com as duas unidades |
-| `src/pages/Despesas.tsx` | Filtro de periodo simplificado, picker personalizado, filtro de unidade, coluna unidade, campo no form, checkboxes de selecao, barra de acoes, dialog de edicao em massa, export incluindo unidade |
-| `src/pages/Receitas.tsx` | Filtro de unidade, coluna, campo no form, export incluindo unidade |
-| `src/pages/Dashboard.tsx` | Select global de unidade no topo + filtragem dos dados |
-| `src/hooks/useFinancialData.ts` | Aceitar `unidade_negocio` em create/update de despesas e receitas |
-
-## Observacoes tecnicas
-
-- "Esta semana" usa a regra brasileira (segunda a domingo), calculada com `Date` local — sem `toISOString()`
-- Filtro personalizado limita as opcoes do MonthYearPicker? Nao — quando "Personalizado" esta ativo, o intervalo escolhido prevalece sobre o mes/ano
-- Edicao em massa usa o id de cada despesa selecionada e dispara updates paralelos com `Promise.all`
-- Sem alteracoes nas RLS policies — coluna nova herda a policy existente da tabela
-
+| Área | Mudança |
+|------|---------|
+| Banco | tabelas `pipeline_contratos`, `canais_venda`, `user_roles` + enum, função `has_role`, bucket `pipeline-anexos` |
+| Auth | hook `useUserRole`, redirecionamentos por papel, tela de gestão de usuários ADM |
+| UI | nova rota `/pipeline`, sidebar adaptativa, cadastro de canais |
+| Receitas | extrair `ReceitaForm` para dialog reutilizável; abrir pré-preenchido ao "implantar" |
+| Deps | adicionar `@dnd-kit/core` |

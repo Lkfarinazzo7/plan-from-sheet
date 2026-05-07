@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      canais_venda: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       categorias_despesa: {
         Row: {
           created_at: string
@@ -162,6 +186,75 @@ export type Database = {
         }
         Relationships: []
       }
+      pipeline_contratos: {
+        Row: {
+          canal_id: string | null
+          cliente: string
+          created_at: string
+          dados_proposta: Json | null
+          data_revisao: string | null
+          data_vigencia: string | null
+          declinada: boolean
+          declinada_em: string | null
+          etapa: Database["public"]["Enums"]["pipeline_etapa"]
+          id: string
+          motivo_declinio: string | null
+          numero_proposta: string | null
+          observacoes: string | null
+          operadora_id: string | null
+          posicao: number
+          tipo: string
+          updated_at: string
+          user_id: string
+          valor_mensal: number
+          vendedor_id: string | null
+        }
+        Insert: {
+          canal_id?: string | null
+          cliente: string
+          created_at?: string
+          dados_proposta?: Json | null
+          data_revisao?: string | null
+          data_vigencia?: string | null
+          declinada?: boolean
+          declinada_em?: string | null
+          etapa?: Database["public"]["Enums"]["pipeline_etapa"]
+          id?: string
+          motivo_declinio?: string | null
+          numero_proposta?: string | null
+          observacoes?: string | null
+          operadora_id?: string | null
+          posicao?: number
+          tipo?: string
+          updated_at?: string
+          user_id: string
+          valor_mensal?: number
+          vendedor_id?: string | null
+        }
+        Update: {
+          canal_id?: string | null
+          cliente?: string
+          created_at?: string
+          dados_proposta?: Json | null
+          data_revisao?: string | null
+          data_vigencia?: string | null
+          declinada?: boolean
+          declinada_em?: string | null
+          etapa?: Database["public"]["Enums"]["pipeline_etapa"]
+          id?: string
+          motivo_declinio?: string | null
+          numero_proposta?: string | null
+          observacoes?: string | null
+          operadora_id?: string | null
+          posicao?: number
+          tipo?: string
+          updated_at?: string
+          user_id?: string
+          valor_mensal?: number
+          vendedor_id?: string | null
+        }
+        Relationships: []
+      }
       receitas: {
         Row: {
           categoria: string
@@ -249,6 +342,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       vendedores: {
         Row: {
           ativo: boolean
@@ -278,10 +392,40 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      grant_role_by_email: {
+        Args: {
+          _email: string
+          _grant: boolean
+          _role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: Json
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      list_users_with_roles: {
+        Args: never
+        Returns: {
+          email: string
+          roles: Database["public"]["Enums"]["app_role"][]
+          user_id: string
+        }[]
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "gestor" | "adm_pipeline"
+      pipeline_etapa:
+        | "Montagem de contrato"
+        | "Assinatura / Declaração de saúde"
+        | "Entrevista médica"
+        | "Em análise"
+        | "Pendências"
+        | "Aguardando vigência"
+        | "Implantado"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -408,6 +552,17 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "gestor", "adm_pipeline"],
+      pipeline_etapa: [
+        "Montagem de contrato",
+        "Assinatura / Declaração de saúde",
+        "Entrevista médica",
+        "Em análise",
+        "Pendências",
+        "Aguardando vigência",
+        "Implantado",
+      ],
+    },
   },
 } as const

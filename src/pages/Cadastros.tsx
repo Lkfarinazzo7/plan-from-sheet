@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Shield, ShieldOff } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   useAllVendedores, useCreateVendedor, useUpdateVendedor,
@@ -13,6 +13,9 @@ import {
   useCategoriasDespesa, useCreateCategoriaDespesa, useUpdateCategoriaDespesa, useDeleteCategoriaDespesa,
   useSupervisores, useCreateSupervisor, useUpdateSupervisor,
 } from '@/hooks/useFinancialData';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { useIsAdmPipelineOnly } from '@/hooks/useUserRole';
 
 function CrudDialog({ open, onOpenChange, title, value, onChange, onSave }: {
   open: boolean; onOpenChange: (v: boolean) => void; title: string;
@@ -226,6 +229,152 @@ function SupervisoresTab() {
   );
 }
 
+function CanaisVendaTab() {
+  const [items, setItems] = useState<any[]>([]);
+  const [open, setOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [nome, setNome] = useState('');
+
+  const load = async () => {
+    const { data } = await supabase.from('canais_venda').select('*').order('nome');
+    setItems(data ?? []);
+  };
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    if (!nome.trim()) return;
+    if (editId) await supabase.from('canais_venda').update({ nome }).eq('id', editId);
+    else await supabase.from('canais_venda').insert({ nome });
+    toast.success(editId ? 'Canal atualizado!' : 'Canal criado!');
+    setOpen(false); setNome(''); setEditId(null); load();
+  };
+  const toggle = async (c: any) => {
+    await supabase.from('canais_venda').update({ ativo: !c.ativo }).eq('id', c.id);
+    load();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button onClick={() => { setEditId(null); setNome(''); setOpen(true); }}>
+          <Plus className="mr-2 h-4 w-4" />Adicionar
+        </Button>
+      </div>
+      <Table>
+        <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
+        <TableBody>
+          {items.map(c => (
+            <TableRow key={c.id}>
+              <TableCell>{c.nome}</TableCell>
+              <TableCell><Badge variant={c.ativo ? 'default' : 'secondary'}>{c.ativo ? 'Ativo' : 'Inativo'}</Badge></TableCell>
+              <TableCell className="text-right space-x-2">
+                <Button size="sm" variant="ghost" onClick={() => { setEditId(c.id); setNome(c.nome); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                <Button size="sm" variant="ghost" onClick={() => toggle(c)}>{c.ativo ? 'Desativar' : 'Ativar'}</Button>
+              </TableCell>
+            </TableRow>
+          ))}
+          {!items.length && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground">Nenhum canal cadastrado.</TableCell></TableRow>}
+        </TableBody>
+      </Table>
+      <CrudDialog open={open} onOpenChange={setOpen} title={editId ? 'Editar Canal' : 'Novo Canal'} value={nome} onChange={setNome} onSave={save} />
+    </div>
+  );
+}
+
+function UsuariosTab() {
+  const { user } = useAuth();
+  const { roles, isAdmin } = useIsAdmPipelineOnly();
+  const [users, setUsers] = useState<{ user_id: string; email: string; roles: string[] }[]>([]);
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    const { data, error } = await supabase.rpc('list_users_with_roles');
+    if (error) { console.error(error); return; }
+    setUsers((data as any) ?? []);
+  };
+  useEffect(() => { if (isAdmin) load(); }, [isAdmin]);
+
+  const claimAdmin = async () => {
+    if (!user) return;
+    setBusy(true);
+    const { error } = await supabase.from('user_roles').insert({ user_id: user.id, role: 'admin' });
+    setBusy(false);
+    if (error) toast.error('Já existe um admin. Peça para te conceder o papel.');
+    else { toast.success('Você é admin agora!'); window.location.reload(); }
+  };
+
+  const grant = async (grantTo: boolean) => {
+    if (!email.trim()) return;
+    setBusy(true);
+    const { data, error } = await supabase.rpc('grant_role_by_email', {
+      _email: email.trim(), _role: 'adm_pipeline', _grant: grantTo,
+    });
+    setBusy(false);
+    if (error) { toast.error(error.message); return; }
+    if ((data as any)?.ok === false) { toast.error((data as any).error); return; }
+    toast.success(grantTo ? 'ADM Pipeline concedido!' : 'Papel removido');
+    setEmail(''); load();
+  };
+
+  const revokeRole = async (uemail: string, role: string) => {
+    if (!confirm(`Remover papel "${role}" de ${uemail}?`)) return;
+    await supabase.rpc('grant_role_by_email', { _email: uemail, _role: role as any, _grant: false });
+    load();
+  };
+
+  if (!isAdmin) {
+    return (
+      <div className="space-y-3 max-w-md">
+        <p className="text-sm text-muted-foreground">
+          Você ainda não tem o papel de administrador. Se você é o primeiro usuário deste sistema, clique abaixo para se tornar admin.
+        </p>
+        <p className="text-xs text-muted-foreground">Seus papéis atuais: {roles.length ? roles.join(', ') : 'nenhum'}</p>
+        <Button onClick={claimAdmin} disabled={busy}>
+          <Shield className="h-4 w-4 mr-1" /> Tornar-me admin
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="border rounded-lg p-4 space-y-2 bg-muted/20">
+        <h3 className="font-semibold text-sm">Conceder acesso "ADM Pipeline"</h3>
+        <p className="text-xs text-muted-foreground">A pessoa precisa ter criado uma conta antes (qualquer e-mail/senha na tela de login).</p>
+        <div className="flex gap-2">
+          <Input placeholder="email@exemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Button onClick={() => grant(true)} disabled={busy || !email.trim()}>Conceder</Button>
+        </div>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow><TableHead>E-mail</TableHead><TableHead>Papéis</TableHead><TableHead className="text-right">Ações</TableHead></TableRow>
+        </TableHeader>
+        <TableBody>
+          {users.map(u => (
+            <TableRow key={u.user_id}>
+              <TableCell>{u.email}</TableCell>
+              <TableCell className="space-x-1">
+                {u.roles.map(r => <Badge key={r} variant="secondary">{r}</Badge>)}
+              </TableCell>
+              <TableCell className="text-right space-x-1">
+                {u.roles.includes('adm_pipeline') && (
+                  <Button size="sm" variant="ghost" onClick={() => revokeRole(u.email, 'adm_pipeline')}>
+                    <ShieldOff className="h-4 w-4" /> Remover ADM Pipeline
+                  </Button>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+          {!users.length && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground">Nenhum usuário com papel.</TableCell></TableRow>}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 export default function Cadastros() {
   return (
     <div className="space-y-6">
@@ -236,11 +385,15 @@ export default function Cadastros() {
           <TabsTrigger value="operadoras">Operadoras</TabsTrigger>
           <TabsTrigger value="categorias">Categorias de Despesa</TabsTrigger>
           <TabsTrigger value="supervisores">Supervisores</TabsTrigger>
+          <TabsTrigger value="canais">Canais de Venda</TabsTrigger>
+          <TabsTrigger value="usuarios">Usuários</TabsTrigger>
         </TabsList>
         <TabsContent value="vendedores"><VendedoresTab /></TabsContent>
         <TabsContent value="operadoras"><OperadorasTab /></TabsContent>
         <TabsContent value="categorias"><CategoriasTab /></TabsContent>
         <TabsContent value="supervisores"><SupervisoresTab /></TabsContent>
+        <TabsContent value="canais"><CanaisVendaTab /></TabsContent>
+        <TabsContent value="usuarios"><UsuariosTab /></TabsContent>
       </Tabs>
     </div>
   );
