@@ -319,7 +319,7 @@ function UsuariosTab() {
 
   const revokeRole = async (uemail: string, role: string) => {
     if (!confirm(`Remover papel "${role}" de ${uemail}?`)) return;
-    await supabase.rpc('grant_role_by_email', { _email: uemail, _role: role, _grant: false });
+    await supabase.rpc('grant_role_by_email', { _email: uemail, _role: role as any, _grant: false });
     load();
   };
 
