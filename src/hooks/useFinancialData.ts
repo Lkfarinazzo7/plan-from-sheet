@@ -77,21 +77,65 @@ export function useDespesas(month?: number, year?: number, startDate?: string, e
   });
 }
 
-export function useComissoes(month?: number, year?: number, startDate?: string, endDate?: string) {
+export function usePropostas() {
   return useQuery({
-    queryKey: ['comissoes', month, year, startDate, endDate],
+    queryKey: ['propostas'],
     queryFn: async () => {
-      let query = supabase.from('comissoes').select('*, vendedores(nome)').order('data', { ascending: false });
-      if (startDate && endDate) {
-        query = query.gte('data', startDate).lte('data', endDate);
-      } else if (month !== undefined && year !== undefined) {
-        const sd = toDateStr(year, month, 1);
-        const ed = toDateStr(year, month, new Date(year, month + 1, 0).getDate());
-        query = query.gte('data', sd).lte('data', ed);
-      }
-      const { data, error } = await query;
+      const { data, error } = await supabase
+        .from('propostas')
+        .select('*, operadoras(nome), vendedores(nome)')
+        .order('nome');
       if (error) throw error;
       return data;
+    },
+  });
+}
+
+export function useCreateProposta() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (p: {
+      nome: string; operadora_id?: string | null; vendedor_id?: string | null;
+      unidade_negocio?: string | null; valor_proposta?: number; valor_contrato?: number | null;
+    }) => {
+      const { data, error } = await supabase.from('propostas').insert({
+        nome: p.nome,
+        operadora_id: p.operadora_id || null,
+        vendedor_id: p.vendedor_id || null,
+        unidade_negocio: p.unidade_negocio || null,
+        valor_proposta: p.valor_proposta ?? 0,
+        valor_contrato: p.valor_contrato ?? null,
+        user_id: user!.id,
+      }).select('*').single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['propostas'] }),
+  });
+}
+
+export function useUpdateProposta() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string; [key: string]: any }) => {
+      const { error } = await supabase.from('propostas').update(updates as any).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['propostas'] }),
+  });
+}
+
+export function useDeleteProposta() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('propostas').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['propostas'] });
+      queryClient.invalidateQueries({ queryKey: ['receitas'] });
     },
   });
 }
