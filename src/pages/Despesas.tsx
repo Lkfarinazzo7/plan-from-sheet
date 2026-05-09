@@ -206,6 +206,7 @@ export default function Despesas() {
         valor: parseFloat(form.valor),
         responsavel: form.responsavel || undefined,
         unidade_negocio: form.unidade_negocio === 'none' ? null : form.unidade_negocio,
+        setor_id: form.setor_id === 'none' ? null : form.setor_id,
       };
       if (editId) {
         await updateDespesa.mutateAsync({ id: editId, ...payload });
