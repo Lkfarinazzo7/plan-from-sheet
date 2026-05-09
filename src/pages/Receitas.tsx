@@ -173,6 +173,9 @@ export default function Receitas() {
           }}>
             <Download className="h-4 w-4 mr-1" /> Exportar
           </Button>
+          <Button variant="outline" onClick={() => setPasteOpen(true)}>
+            <Sparkles className="h-4 w-4 mr-1" /> Colar e identificar
+          </Button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-1" /> Importar Excel
           </Button>
