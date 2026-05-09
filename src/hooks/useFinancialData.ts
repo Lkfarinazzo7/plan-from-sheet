@@ -81,7 +81,7 @@ export function useComissoes(month?: number, year?: number, startDate?: string, 
   return useQuery({
     queryKey: ['comissoes', month, year, startDate, endDate],
     queryFn: async () => {
-      let query = supabase.from('comissoes').select('*, vendedores(nome)').order('data', { ascending: false });
+      let query = supabase.from('comissoes').select('*, vendedores(nome), operadoras(nome), supervisores(nome)').order('data', { ascending: false });
       if (startDate && endDate) {
         query = query.gte('data', startDate).lte('data', endDate);
       } else if (month !== undefined && year !== undefined) {
