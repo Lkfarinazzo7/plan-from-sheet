@@ -27,6 +27,7 @@ const emptyForm = {
   recorrente: false,
   status: 'A pagar',
   unidade_negocio: 'none' as string,
+  setor_id: 'none' as string,
 };
 
 // Calcula segunda e domingo (BR) da semana atual em YYYY-MM-DD local
