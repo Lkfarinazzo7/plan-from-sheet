@@ -9,19 +9,26 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { usePropostas, useCreateProposta, useUpdateProposta, useDeleteProposta, useOperadoras, useVendedores, useReceitas } from '@/hooks/useFinancialData';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
-import { formatCurrency } from '@/lib/format';
+import { formatCurrency, getMonthName } from '@/lib/format';
 import { useToast } from '@/hooks/use-toast';
 
 const emptyForm = {
   nome: '', operadora_id: '', vendedor_id: '', unidade_negocio: 'none',
-  valor_proposta: '', valor_contrato: '',
+  valor_proposta: '', valor_contrato: '', mes_implantacao: '',
 };
+
+const activeCls = 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium';
+
+function formatMesImpl(d?: string | null) {
+  if (!d) return '—';
+  const [y, m] = d.split('-');
+  return `${getMonthName(Number(m) - 1)} ${y}`;
+}
 
 export default function Propostas() {
   const { data: propostas = [], isLoading } = usePropostas();
   const { data: operadoras = [] } = useOperadoras();
   const { data: vendedores = [] } = useVendedores();
-  // Pega TODAS receitas (sem filtro de mês) para agregações por proposta
   const { data: receitasAll = [] } = useReceitas(undefined, undefined, '1900-01-01', '2999-12-31');
 
   const create = useCreateProposta();
@@ -30,6 +37,10 @@ export default function Propostas() {
   const { toast } = useToast();
 
   const [search, setSearch] = useState('');
+  const [filterOperadora, setFilterOperadora] = useState('all');
+  const [filterVendedor, setFilterVendedor] = useState('all');
+  const [filterUnidade, setFilterUnidade] = useState('all');
+  const [filterMes, setFilterMes] = useState('all');
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -50,11 +61,29 @@ export default function Propostas() {
     return acc;
   }, [receitasAll]);
 
+  const mesesDisponiveis = useMemo(() => {
+    const set = new Set<string>();
+    (propostas as any[]).forEach(p => { if (p.mes_implantacao) set.add(String(p.mes_implantacao).slice(0, 7)); });
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [propostas]);
+
   const filtered = useMemo(() => {
     const s = search.toLowerCase().trim();
-    if (!s) return propostas;
-    return (propostas as any[]).filter(p => p.nome.toLowerCase().includes(s));
-  }, [propostas, search]);
+    return (propostas as any[]).filter(p => {
+      if (s && !p.nome.toLowerCase().includes(s)) return false;
+      if (filterOperadora !== 'all' && (p.operadora_id || '') !== filterOperadora) return false;
+      if (filterVendedor !== 'all' && (p.vendedor_id || '') !== filterVendedor) return false;
+      if (filterUnidade !== 'all') {
+        const u = p.unidade_negocio || '';
+        if (filterUnidade === 'none' ? u !== '' : u !== filterUnidade) return false;
+      }
+      if (filterMes !== 'all') {
+        const m = p.mes_implantacao ? String(p.mes_implantacao).slice(0, 7) : '';
+        if (filterMes === 'none' ? m !== '' : m !== filterMes) return false;
+      }
+      return true;
+    });
+  }, [propostas, search, filterOperadora, filterVendedor, filterUnidade, filterMes]);
 
   const openNew = () => { setEditId(null); setForm(emptyForm); setOpen(true); };
   const openEdit = (p: any) => {
@@ -66,6 +95,7 @@ export default function Propostas() {
       unidade_negocio: p.unidade_negocio || 'none',
       valor_proposta: String(p.valor_proposta ?? ''),
       valor_contrato: p.valor_contrato == null ? '' : String(p.valor_contrato),
+      mes_implantacao: p.mes_implantacao ? String(p.mes_implantacao).slice(0, 7) : '',
     });
     setOpen(true);
   };
@@ -80,6 +110,7 @@ export default function Propostas() {
         unidade_negocio: form.unidade_negocio === 'none' ? null : form.unidade_negocio,
         valor_proposta: parseFloat(form.valor_proposta) || 0,
         valor_contrato: form.valor_contrato === '' ? null : parseFloat(form.valor_contrato),
+        mes_implantacao: form.mes_implantacao ? `${form.mes_implantacao}-01` : null,
       };
       if (editId) await update.mutateAsync({ id: editId, ...payload });
       else await create.mutateAsync(payload);
@@ -111,6 +142,40 @@ export default function Propostas() {
         </div>
       </div>
 
+      {/* Filtros */}
+      <div className="flex flex-wrap gap-3">
+        <Select value={filterOperadora} onValueChange={setFilterOperadora}>
+          <SelectTrigger className={`w-[180px] ${filterOperadora !== 'all' ? activeCls : ''}`}><SelectValue placeholder="Operadora" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas operadoras</SelectItem>
+            {operadoras.map(o => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterVendedor} onValueChange={setFilterVendedor}>
+          <SelectTrigger className={`w-[180px] ${filterVendedor !== 'all' ? activeCls : ''}`}><SelectValue placeholder="Vendedor" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos vendedores</SelectItem>
+            {vendedores.map(v => <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterUnidade} onValueChange={setFilterUnidade}>
+          <SelectTrigger className={`w-[180px] ${filterUnidade !== 'all' ? activeCls : ''}`}><SelectValue placeholder="Unidade" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas unidades</SelectItem>
+            <SelectItem value="none">Sem unidade</SelectItem>
+            {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterMes} onValueChange={setFilterMes}>
+          <SelectTrigger className={`w-[200px] ${filterMes !== 'all' ? activeCls : ''}`}><SelectValue placeholder="Mês de implantação" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos meses</SelectItem>
+            <SelectItem value="none">Sem mês</SelectItem>
+            {mesesDisponiveis.map(m => <SelectItem key={m} value={m}>{formatMesImpl(`${m}-01`)}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -120,6 +185,7 @@ export default function Propostas() {
                 <TableHead>Operadora</TableHead>
                 <TableHead>Vendedor</TableHead>
                 <TableHead>Unidade</TableHead>
+                <TableHead>Implantação</TableHead>
                 <TableHead className="text-right">Valor Proposta</TableHead>
                 <TableHead className="text-right">Valor Contrato</TableHead>
                 <TableHead className="text-right">Recebido</TableHead>
@@ -130,9 +196,9 @@ export default function Propostas() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Nenhuma proposta cadastrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Nenhuma proposta encontrada</TableCell></TableRow>
               ) : (filtered as any[]).map(p => {
                 const agg = aggByProposta[p.id] || { recebido: 0, total: 0, lancamentos: 0 };
                 const ticket = agg.lancamentos > 0 ? agg.recebido / agg.lancamentos : 0;
@@ -142,6 +208,7 @@ export default function Propostas() {
                     <TableCell>{(p.operadoras as any)?.nome || '—'}</TableCell>
                     <TableCell>{(p.vendedores as any)?.nome || '—'}</TableCell>
                     <TableCell className="text-muted-foreground">{p.unidade_negocio || '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatMesImpl(p.mes_implantacao)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(Number(p.valor_proposta))}</TableCell>
                     <TableCell className="text-right">{p.valor_contrato == null ? <span className="text-muted-foreground">—</span> : formatCurrency(Number(p.valor_contrato))}</TableCell>
                     <TableCell className="text-right text-success">{formatCurrency(agg.recebido)}</TableCell>
@@ -189,7 +256,7 @@ export default function Propostas() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-sm font-medium">Unidade</label>
                 <Select value={form.unidade_negocio} onValueChange={v => setForm({ ...form, unidade_negocio: v })}>
@@ -200,6 +267,12 @@ export default function Propostas() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Mês de Implantação</label>
+                <Input type="month" value={form.mes_implantacao} onChange={e => setForm({ ...form, mes_implantacao: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-sm font-medium">Valor Proposta</label>
                 <Input type="number" step="0.01" min="0" value={form.valor_proposta} onChange={e => setForm({ ...form, valor_proposta: e.target.value })} />
