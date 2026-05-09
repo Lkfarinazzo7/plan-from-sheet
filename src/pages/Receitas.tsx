@@ -460,12 +460,15 @@ export default function Receitas() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Nenhuma receita encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Nenhuma receita encontrada</TableCell></TableRow>
               ) : (
                 filtered.map(r => (
-                  <TableRow key={r.id}>
+                  <TableRow key={r.id} data-state={selectedIds.has(r.id) ? 'selected' : undefined}>
+                    <TableCell>
+                      <Checkbox checked={selectedIds.has(r.id)} onCheckedChange={() => toggleOne(r.id)} aria-label="Selecionar" />
+                    </TableCell>
                     <TableCell>{formatDate(r.data)}</TableCell>
                     <TableCell className="max-w-[200px] truncate">{r.descricao}</TableCell>
                     <TableCell>{r.categoria}</TableCell>
