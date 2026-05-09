@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa } from '@/hooks/useFinancialData';
+import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa, useSetoresDespesa } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
 import { Plus, Trash2, RotateCcw, Pencil, Upload, Check, Copy, Download, X } from 'lucide-react';
 import { exportToExcel } from '@/lib/exportHelpers';
@@ -27,6 +27,7 @@ const emptyForm = {
   recorrente: false,
   status: 'A pagar',
   unidade_negocio: 'none' as string,
+  setor_id: 'none' as string,
 };
 
 // Calcula segunda e domingo (BR) da semana atual em YYYY-MM-DD local
@@ -64,6 +65,7 @@ export default function Despesas() {
 
   const { data: despesas = [], isLoading } = useDespesas(month, year);
   const { data: categorias = [] } = useCategoriasDespesa();
+  const { data: setores = [] } = useSetoresDespesa();
   const createDespesa = useCreateDespesa();
   const updateDespesa = useUpdateDespesa();
   const deleteDespesa = useDeleteDespesa();
@@ -192,6 +194,7 @@ export default function Despesas() {
       recorrente: d.recorrente,
       status: d.status,
       unidade_negocio: d.unidade_negocio || 'none',
+      setor_id: d.setor_id || 'none',
     });
     setOpen(true);
   };
@@ -204,6 +207,7 @@ export default function Despesas() {
         valor: parseFloat(form.valor),
         responsavel: form.responsavel || undefined,
         unidade_negocio: form.unidade_negocio === 'none' ? null : form.unidade_negocio,
+        setor_id: form.setor_id === 'none' ? null : form.setor_id,
       };
       if (editId) {
         await updateDespesa.mutateAsync({ id: editId, ...payload });
@@ -353,13 +357,23 @@ export default function Despesas() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
+                    <label className="text-sm font-medium">Setor</label>
+                    <Select value={form.setor_id} onValueChange={v => setForm({ ...form, setor_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        {setores.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
                     <label className="text-sm font-medium">Valor (R$)</label>
                     <Input type="number" step="0.01" min="0" value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} required />
                   </div>
-                  <div className="flex items-end gap-2 pb-1">
-                    <Switch checked={form.recorrente} onCheckedChange={v => setForm({ ...form, recorrente: v })} />
-                    <label className="text-sm">Recorrente</label>
-                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={form.recorrente} onCheckedChange={v => setForm({ ...form, recorrente: v })} />
+                  <label className="text-sm">Recorrente</label>
                 </div>
                 <Button type="submit" className="w-full" disabled={isPending}>
                   {isPending ? 'Salvando...' : editId ? 'Salvar Alterações' : 'Cadastrar Despesa'}
@@ -470,6 +484,7 @@ export default function Despesas() {
                 <TableHead>Tipo</TableHead>
                 <TableHead>Responsável</TableHead>
                 <TableHead>Unidade</TableHead>
+                <TableHead>Setor</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Rec.</TableHead>
@@ -478,9 +493,9 @@ export default function Despesas() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Nenhuma despesa encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhuma despesa encontrada</TableCell></TableRow>
               ) : (
                 filtered.map(d => (
                   <TableRow key={d.id} data-state={selectedIds.has(d.id) ? 'selected' : undefined}>
@@ -493,6 +508,7 @@ export default function Despesas() {
                     <TableCell>{d.tipo}</TableCell>
                     <TableCell>{d.responsavel || '—'}</TableCell>
                     <TableCell className="text-muted-foreground">{(d as any).unidade_negocio || '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{(d as any).setores_despesa?.nome || '—'}</TableCell>
                     <TableCell className="text-right font-medium text-destructive">{formatCurrency(Number(d.valor))}</TableCell>
                     <TableCell>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
