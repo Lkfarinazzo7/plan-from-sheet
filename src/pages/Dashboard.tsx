@@ -103,28 +103,13 @@ export default function Dashboard() {
     }, {} as Record<string, { nome: string; total: number }>)
   ).sort((a, b) => b.total - a.total);
 
-  // Rankings from comissoes
-  const vendedorMap = new Map(vendedores.map(v => [v.id, v.nome]));
-
-  const vendedorContrato = Object.values(
-    comissoes.reduce((acc, c) => {
-      const nome = (c.vendedores as any)?.nome || vendedorMap.get(c.vendedor_id) || 'Desconhecido';
-      if (!acc[nome]) acc[nome] = { nome, contratos: 0, total: 0 };
-      acc[nome].contratos += 1;
-      acc[nome].total += Number(c.valor_proposta);
-      return acc;
-    }, {} as Record<string, { nome: string; contratos: number; total: number }>)
-  ).sort((a, b) => b.total - a.total);
-
-  const vendedorRecebimento = Object.values(
-    comissoes.reduce((acc, c) => {
-      const nome = (c.vendedores as any)?.nome || vendedorMap.get(c.vendedor_id) || 'Desconhecido';
-      if (!acc[nome]) acc[nome] = { nome, contratos: 0, total: 0 };
-      acc[nome].contratos += 1;
-      acc[nome].total += Number(c.valor_recebido);
-      return acc;
-    }, {} as Record<string, { nome: string; contratos: number; total: number }>)
-  ).sort((a, b) => b.total - a.total);
+  // Ticket médio de recebimento: total recebido / nº de propostas distintas com recebimento
+  const recebidas = receitas.filter(r => r.status === 'Recebido');
+  const totalRecebido = recebidas.reduce((acc, r) => acc + Number(r.valor), 0);
+  const propostasComRecebimento = new Set(
+    recebidas.map(r => (r as any).proposta_id).filter(Boolean)
+  ).size;
+  const ticketMedio = propostasComRecebimento > 0 ? totalRecebido / propostasComRecebimento : 0;
 
   const applyRange = () => {
     if (customStart && customEnd) setActiveRange({ start: customStart, end: customEnd });
