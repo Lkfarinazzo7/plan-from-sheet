@@ -1,1 +1,4 @@
 project_id = "hzphyqrvkyjguagyzley"
+
+[functions.extract-receitas]
+verify_jwt = true
