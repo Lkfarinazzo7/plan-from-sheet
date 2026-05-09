@@ -131,23 +131,25 @@ export default function Dashboard() {
   const ticketMedioProposta = propostasEscopo.length > 0 ? totalProposta / propostasEscopo.length : 0;
 
   // Proposta por Operadora / Vendedor
-  const propostaPorOperadora = useMemo(() => Object.values(
-    propostasEscopo.reduce<Record<string, { nome: string; total: number }>>((acc, p) => {
+  const propostaPorOperadora = useMemo(() => {
+    const acc: Record<string, { nome: string; total: number }> = {};
+    for (const p of propostasEscopo) {
       const nome = (p.operadoras as any)?.nome || 'Desconhecida';
       if (!acc[nome]) acc[nome] = { nome, total: 0 };
       acc[nome].total += Number(p.valor_proposta || 0);
-      return acc;
-    }, {} as Record<string, { nome: string; total: number }>)
-  ).sort((a, b) => b.total - a.total), [propostasEscopo]);
+    }
+    return Object.values(acc).sort((a, b) => b.total - a.total);
+  }, [propostasEscopo]);
 
-  const propostaPorVendedor = useMemo(() => Object.values(
-    propostasEscopo.reduce<Record<string, { nome: string; total: number }>>((acc, p) => {
+  const propostaPorVendedor = useMemo(() => {
+    const acc: Record<string, { nome: string; total: number }> = {};
+    for (const p of propostasEscopo) {
       const nome = (p.vendedores as any)?.nome || 'Desconhecido';
       if (!acc[nome]) acc[nome] = { nome, total: 0 };
       acc[nome].total += Number(p.valor_proposta || 0);
-      return acc;
-    }, {} as Record<string, { nome: string; total: number }>)
-  ).sort((a, b) => b.total - a.total), [propostasEscopo]);
+    }
+    return Object.values(acc).sort((a, b) => b.total - a.total);
+  }, [propostasEscopo]);
 
   // Despesas por categoria (ordenado para barras horizontais)
   const barCategoriaData = pieData.slice().sort((a, b) => b.value - a.value);
