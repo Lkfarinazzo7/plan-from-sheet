@@ -398,6 +398,7 @@ export default function Receitas() {
           'Vendedor': ['Responsável', 'Responsavel'],
         }}
       />
+      <ReceitaPasteDialog open={pasteOpen} onOpenChange={setPasteOpen} />
     </div>
   );
 }
