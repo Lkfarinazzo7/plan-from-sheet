@@ -140,6 +140,27 @@ export function useDeleteProposta() {
   });
 }
 
+async function ensurePropostaId(
+  userId: string,
+  nome: string,
+  fallback: { operadora_id?: string | null; vendedor_id?: string | null; unidade_negocio?: string | null; valor_proposta?: number },
+): Promise<string> {
+  const trimmed = (nome || '').trim();
+  if (!trimmed) throw new Error('Descrição da proposta vazia');
+  const { data: existing } = await supabase
+    .from('propostas').select('id').eq('user_id', userId).eq('nome', trimmed).maybeSingle();
+  if (existing?.id) return existing.id;
+  const { data, error } = await supabase.from('propostas').insert({
+    user_id: userId, nome: trimmed,
+    operadora_id: fallback.operadora_id || null,
+    vendedor_id: fallback.vendedor_id || null,
+    unidade_negocio: fallback.unidade_negocio || null,
+    valor_proposta: fallback.valor_proposta ?? 0,
+  }).select('id').single();
+  if (error) throw error;
+  return data!.id;
+}
+
 export function useCreateReceita() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -147,11 +168,24 @@ export function useCreateReceita() {
     mutationFn: async (receita: {
       data: string; descricao: string; categoria: string; operadora_id: string;
       valor: number; vendedor_id: string; status: string; unidade_negocio?: string | null;
+      proposta_id?: string | null;
     }) => {
-      const { error } = await supabase.from('receitas').insert({ ...receita, comissao: 0, user_id: user!.id } as any);
+      let proposta_id = receita.proposta_id || null;
+      if (!proposta_id) {
+        proposta_id = await ensurePropostaId(user!.id, receita.descricao, {
+          operadora_id: receita.operadora_id, vendedor_id: receita.vendedor_id,
+          unidade_negocio: receita.unidade_negocio || null, valor_proposta: receita.valor,
+        });
+      }
+      const { error } = await supabase.from('receitas').insert({
+        ...receita, proposta_id, comissao: 0, user_id: user!.id,
+      } as any);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['receitas'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['receitas'] });
+      queryClient.invalidateQueries({ queryKey: ['propostas'] });
+    },
   });
 }
 
