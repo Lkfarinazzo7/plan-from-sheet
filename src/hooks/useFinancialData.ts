@@ -214,43 +214,6 @@ export function useDeleteDespesa() {
   });
 }
 
-export function useCreateComissao() {
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
-  return useMutation({
-    mutationFn: async (comissao: {
-      data: string; descricao: string; vendedor_id: string;
-      valor_proposta: number; valor_recebido: number;
-      comissao_vendedor: number; comissao_supervisor: number; status: string;
-    }) => {
-      const { error } = await supabase.from('comissoes').insert({ ...comissao, user_id: user!.id });
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['comissoes'] }),
-  });
-}
-
-export function useUpdateComissao() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, ...updates }: { id: string; [key: string]: any }) => {
-      const { error } = await supabase.from('comissoes').update(updates as any).eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['comissoes'] }),
-  });
-}
-
-export function useDeleteComissao() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('comissoes').delete().eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['comissoes'] }),
-  });
-}
 
 // ===== Cadastros CRUD Hooks =====
 
