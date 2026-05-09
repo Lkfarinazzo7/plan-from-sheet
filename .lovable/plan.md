@@ -1,66 +1,46 @@
+## Edição em massa de Receitas
 
-# Lançamento Inteligente de Receitas (colar imagem/texto)
+Adicionar seleção múltipla na tabela de Receitas com ações em lote para alterar campos comuns ou excluir vários lançamentos de uma vez.
 
-Adicionar em **Receitas** um botão "Colar e identificar" que aceita print (Ctrl+V de imagem) ou texto colado, envia para a IA, identifica os lançamentos e abre uma lista para revisão antes de salvar em lote.
+### Mudanças na UI (`src/pages/Receitas.tsx`)
 
-## Fluxo do usuário
+1. **Coluna de checkbox**
+   - Nova primeira coluna na tabela com `Checkbox` por linha.
+   - Header com checkbox "selecionar todos" (marca/desmarca todas as linhas filtradas visíveis).
+   - Estado `selectedIds: Set<string>`. Limpa ao trocar mês/filtros.
 
-1. Em `/receitas`, novo botão **"Colar e identificar"** ao lado dos botões existentes (Importar/Exportar/Nova).
-2. Abre um diálogo com:
-   - Área grande que aceita **Ctrl+V de imagem** (print) ou **texto colado**.
-   - Também permite arrastar arquivo de imagem ou clicar para selecionar.
-   - Botão "Analisar com IA".
-3. IA processa e retorna uma lista de lançamentos detectados.
-4. Tela de **revisão em lote**:
-   - Tabela com colunas: ✓ (checkbox), Data, Descrição, Operadora, Vendedor, Categoria, Valor.
-   - Cada linha é editável (selects para Operadora/Vendedor/Categoria, inputs para o resto).
-   - Linhas com campos faltantes ficam destacadas (badge "Revisar").
-   - Operadora/Vendedor são "casados" automaticamente com o cadastro existente (match case-insensitive por nome/parcial).
-5. Botão **"Lançar selecionados"** salva tudo de uma vez (usa `useBulkCreateReceita`).
+2. **Barra de ações em lote** (aparece quando `selectedIds.size > 0`)
+   - Acima da tabela, fixa visualmente, mostrando "N selecionadas".
+   - Botões:
+     - **Alterar Status** → popover com Recebido / Aguardando.
+     - **Alterar Data** → popover com input `type="date"`.
+     - **Alterar Operadora** → popover com Select.
+     - **Alterar Vendedor** → popover com Select.
+     - **Alterar Categoria** → popover com Select (Bancária / Vida).
+     - **Alterar Unidade** → popover com Select (Nenhuma / unidades).
+     - **Excluir** → `AlertDialog` de confirmação com a contagem.
+     - **Limpar seleção**.
 
-## Backend (Edge Function)
+3. **Comportamento**
+   - Após cada ação em lote: toast de sucesso, limpa seleção, refetch automático via invalidação.
+   - Excluir pede confirmação antes de executar.
 
-Criar `supabase/functions/extract-receitas/index.ts`:
+### Mudanças nos hooks (`src/hooks/useFinancialData.ts`)
 
-- Recebe `{ image?: dataUrlBase64, text?: string }` + listas de operadoras e vendedores cadastrados (para a IA tentar casar pelo nome).
-- Chama Lovable AI Gateway com `google/gemini-3-flash-preview` (suporta imagem + texto).
-- Usa **tool calling** para retornar JSON estruturado:
+Adicionar dois hooks novos (mantém os existentes):
 
-```ts
-{
-  lancamentos: [{
-    data: "YYYY-MM-DD" | null,
-    descricao: string,
-    valor: number,
-    operadora_nome: string | null,
-    vendedor_nome: string | null,
-    categoria: "Bancária" | "Vida" | null
-  }]
-}
-```
+- `useBulkUpdateReceita()` — recebe `{ ids: string[], updates: Partial<...> }`, executa `supabase.from('receitas').update(updates).in('id', ids)`, invalida `['receitas']`.
+- `useBulkDeleteReceita()` — recebe `ids: string[]`, executa `.delete().in('id', ids)`, invalida `['receitas']`.
 
-- Trata 429/402 e devolve mensagens claras.
-- `verify_jwt = true` (default) — usuário precisa estar logado.
+### Detalhes técnicos
 
-## Frontend
+- Usar `Checkbox` de `@/components/ui/checkbox` e `Popover` de `@/components/ui/popover` (já presentes).
+- Datas seguem regra do projeto: string `YYYY-MM-DD` direto do input, sem `toISOString()`.
+- "Selecionar todos" age sobre `filtered` (somente o que está visível com filtros aplicados).
+- RLS atual já permite update/delete por `auth.uid() = user_id`; nada a alterar no banco.
 
-**Novos arquivos:**
-- `src/components/receitas/ReceitaPasteDialog.tsx` — diálogo de colagem (paste handler para imagem e texto).
-- `src/components/receitas/ReceitaPasteReview.tsx` — tabela de revisão/edição em lote.
+### Fora do escopo
 
-**Edits:**
-- `src/pages/Receitas.tsx` — adicionar botão "Colar e identificar" e montar o diálogo.
-
-**Detalhes técnicos:**
-- Captura de imagem: `onPaste` lê `clipboardData.items`, converte para `data:image/png;base64,...`.
-- Match de operadora/vendedor no cliente: normaliza (lowercase, sem acentos) e compara `includes` em ambas direções; se não casar, deixa o select vazio para o usuário escolher.
-- Categoria default: "Bancária" se a IA não identificar.
-- Status default: "Aguardando".
-- Data default: hoje (YYYY-MM-DD local) se a IA não retornar.
-- Reusa `useBulkCreateReceita` já existente em `useFinancialData.ts`.
-
-## Fora de escopo
-
-- OCR local (sem IA) — toda extração é via Lovable AI.
-- Salvar histórico de colagens.
-- Auto-criar Operadora/Vendedor que não existem no cadastro (usuário escolhe manualmente no review).
+- Editar valor/descrição em massa (campos individuais por lançamento).
+- Edição inline célula a célula.
+- Edição em massa em Despesas/Comissões (pode ser replicado depois se desejar).
