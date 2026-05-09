@@ -40,7 +40,7 @@ export default function Dashboard() {
     isCustom ? undefined : month, isCustom ? undefined : year,
     activeRange?.start, activeRange?.end
   );
-  const { data: vendedores = [] } = useVendedores();
+  
   const { data: monthlyData = [] } = useMonthlyComparison();
 
   // Filtro client-side por unidade de negócio
