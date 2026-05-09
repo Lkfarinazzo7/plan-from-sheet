@@ -8,10 +8,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
-import { Plus, Trash2, Pencil, Upload, Copy, Download } from 'lucide-react';
+import { Plus, Trash2, Pencil, Upload, Copy, Download, Sparkles } from 'lucide-react';
 import { exportToExcel } from '@/lib/exportHelpers';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
+import { ReceitaPasteDialog } from '@/components/receitas/ReceitaPasteDialog';
 import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
 
