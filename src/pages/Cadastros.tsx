@@ -304,19 +304,6 @@ function UsuariosTab() {
     else { toast.success('Você é admin agora!'); window.location.reload(); }
   };
 
-  const grant = async (grantTo: boolean) => {
-    if (!email.trim()) return;
-    setBusy(true);
-    const { data, error } = await supabase.rpc('grant_role_by_email', {
-      _email: email.trim(), _role: 'adm_pipeline', _grant: grantTo,
-    });
-    setBusy(false);
-    if (error) { toast.error(error.message); return; }
-    if ((data as any)?.ok === false) { toast.error((data as any).error); return; }
-    toast.success(grantTo ? 'ADM Pipeline concedido!' : 'Papel removido');
-    setEmail(''); load();
-  };
-
   const revokeRole = async (uemail: string, role: string) => {
     if (!confirm(`Remover papel "${role}" de ${uemail}?`)) return;
     await supabase.rpc('grant_role_by_email', { _email: uemail, _role: role as any, _grant: false });
