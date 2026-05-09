@@ -294,49 +294,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader><CardTitle className="text-base">Ranking por Valor de Contrato</CardTitle></CardHeader>
-          <CardContent>
-            {vendedorContrato.length > 0 ? (
-              <div className="space-y-4">
-                {vendedorContrato.map((v, i) => (
-                  <div key={v.nome} className="flex items-center gap-4">
-                    <span className="text-lg font-bold text-muted-foreground w-6">{i + 1}.</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{v.nome}</p>
-                      <p className="text-sm text-muted-foreground">{v.contratos} contratos · Ticket médio: {formatCurrency(v.contratos > 0 ? v.total / v.contratos : 0)}</p>
-                    </div>
-                    <span className="text-sm font-semibold text-success">{formatCurrency(v.total)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-center py-12">Sem comissões neste período</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader><CardTitle className="text-base">Ranking por Valor Recebido</CardTitle></CardHeader>
-          <CardContent>
-            {vendedorRecebimento.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {vendedorRecebimento.map((v, i) => (
-                  <div key={v.nome} className="flex items-center gap-4">
-                    <span className="text-lg font-bold text-muted-foreground w-6">{i + 1}.</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{v.nome}</p>
-                      <p className="text-sm text-muted-foreground">{v.contratos} contratos · Ticket médio: {formatCurrency(v.contratos > 0 ? v.total / v.contratos : 0)}</p>
-                    </div>
-                    <span className="text-sm font-semibold text-success">{formatCurrency(v.total)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-center py-12">Sem comissões neste período</p>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
