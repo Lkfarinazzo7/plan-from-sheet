@@ -484,6 +484,7 @@ export default function Despesas() {
                 <TableHead>Tipo</TableHead>
                 <TableHead>Responsável</TableHead>
                 <TableHead>Unidade</TableHead>
+                <TableHead>Setor</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Rec.</TableHead>
