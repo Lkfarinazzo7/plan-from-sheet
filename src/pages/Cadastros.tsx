@@ -352,9 +352,6 @@ function UsuariosTab() {
     </div>
   );
 }
-    </div>
-  );
-}
 
 export default function Cadastros() {
   return (
