@@ -209,6 +209,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          mes_implantacao: string | null
           nome: string
           operadora_id: string | null
           unidade_negocio: string | null
@@ -221,6 +222,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          mes_implantacao?: string | null
           nome: string
           operadora_id?: string | null
           unidade_negocio?: string | null
@@ -233,6 +235,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          mes_implantacao?: string | null
           nome?: string
           operadora_id?: string | null
           unidade_negocio?: string | null

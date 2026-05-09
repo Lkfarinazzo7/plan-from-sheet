@@ -1,0 +1,1 @@
+ALTER TABLE public.propostas ADD COLUMN IF NOT EXISTS mes_implantacao date;
