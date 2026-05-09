@@ -47,6 +47,7 @@ export default function Receitas() {
   const bulkCreateReceita = useBulkCreateReceita();
   const { toast } = useToast();
   const [importOpen, setImportOpen] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
 
   const mapReceitaRow = useCallback((row: Record<string, any>): ParsedRow => {
     const errors: string[] = [];
