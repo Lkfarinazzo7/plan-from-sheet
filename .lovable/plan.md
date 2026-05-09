@@ -1,46 +1,18 @@
-## Edição em massa de Receitas
+## Plano
 
-Adicionar seleção múltipla na tabela de Receitas com ações em lote para alterar campos comuns ou excluir vários lançamentos de uma vez.
+### 1. Remover Pipeline
+- Em `src/App.tsx`: remover import `Pipeline`, a rota `/pipeline`, o componente `useIsAdmPipelineOnly` e os redirects relacionados (`isAdmPipelineOnly`, prop `pipelineOnly` em `ProtectedRoute`).
+- Em `src/components/AppSidebar.tsx`: remover item Pipeline do menu, remover `pipelineOnlyMenu` e a lógica `isAdmPipelineOnly`. Sidebar fica só com o menu completo.
+- Excluir arquivos: `src/pages/Pipeline.tsx`, pasta `src/components/pipeline/`, `src/lib/pipelinePendencias.ts`.
+- Manter `useUserRole.ts` e a tabela de roles (ainda usados por admin/gestor) — apenas remover referências a `adm_pipeline` no app (a role no DB pode permanecer sem efeito).
 
-### Mudanças na UI (`src/pages/Receitas.tsx`)
+### 2. Atalho "Este ano" no filtro do Dashboard
+No `src/pages/Dashboard.tsx`, dentro do popover de período personalizado (CalendarRange), adicionar botões de presets acima dos campos início/fim:
+- **Este ano** → define `customStart = YYYY-01-01`, `customEnd = YYYY-12-31` do ano atual e aplica direto (`setActiveRange`).
+- **Este mês** (bônus, mesmo padrão, opcional) — incluo só se simples.
 
-1. **Coluna de checkbox**
-   - Nova primeira coluna na tabela com `Checkbox` por linha.
-   - Header com checkbox "selecionar todos" (marca/desmarca todas as linhas filtradas visíveis).
-   - Estado `selectedIds: Set<string>`. Limpa ao trocar mês/filtros.
+Comportamento: clicar no preset preenche os inputs e ativa o range imediatamente, fechando o popover. O badge de período ativo e o botão "X" para limpar continuam funcionando como hoje.
 
-2. **Barra de ações em lote** (aparece quando `selectedIds.size > 0`)
-   - Acima da tabela, fixa visualmente, mostrando "N selecionadas".
-   - Botões:
-     - **Alterar Status** → popover com Recebido / Aguardando.
-     - **Alterar Data** → popover com input `type="date"`.
-     - **Alterar Operadora** → popover com Select.
-     - **Alterar Vendedor** → popover com Select.
-     - **Alterar Categoria** → popover com Select (Bancária / Vida).
-     - **Alterar Unidade** → popover com Select (Nenhuma / unidades).
-     - **Excluir** → `AlertDialog` de confirmação com a contagem.
-     - **Limpar seleção**.
-
-3. **Comportamento**
-   - Após cada ação em lote: toast de sucesso, limpa seleção, refetch automático via invalidação.
-   - Excluir pede confirmação antes de executar.
-
-### Mudanças nos hooks (`src/hooks/useFinancialData.ts`)
-
-Adicionar dois hooks novos (mantém os existentes):
-
-- `useBulkUpdateReceita()` — recebe `{ ids: string[], updates: Partial<...> }`, executa `supabase.from('receitas').update(updates).in('id', ids)`, invalida `['receitas']`.
-- `useBulkDeleteReceita()` — recebe `ids: string[]`, executa `.delete().in('id', ids)`, invalida `['receitas']`.
-
-### Detalhes técnicos
-
-- Usar `Checkbox` de `@/components/ui/checkbox` e `Popover` de `@/components/ui/popover` (já presentes).
-- Datas seguem regra do projeto: string `YYYY-MM-DD` direto do input, sem `toISOString()`.
-- "Selecionar todos" age sobre `filtered` (somente o que está visível com filtros aplicados).
-- RLS atual já permite update/delete por `auth.uid() = user_id`; nada a alterar no banco.
-
-### Fora do escopo
-
-- Editar valor/descrição em massa (campos individuais por lançamento).
-- Edição inline célula a célula.
-- Edição em massa em Despesas/Comissões (pode ser replicado depois se desejar).
+### Fora de escopo
+- Não mexer em Receitas/Despesas/Comissões/Cadastros.
+- Não remover a role `adm_pipeline` do banco (sem migration).
