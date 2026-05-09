@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useReceitas, useDespesas, useComissoes, useVendedores, useMonthlyComparison } from '@/hooks/useFinancialData';
+import { useReceitas, useDespesas, useMonthlyComparison } from '@/hooks/useFinancialData';
 import { formatCurrency, getCurrentMonthYear } from '@/lib/format';
 import { ArrowUpCircle, ArrowDownCircle, Wallet, Clock, AlertTriangle, CreditCard, CalendarRange, X, TrendingUp, TrendingDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -40,11 +40,7 @@ export default function Dashboard() {
     isCustom ? undefined : month, isCustom ? undefined : year,
     activeRange?.start, activeRange?.end
   );
-  const { data: comissoes = [] } = useComissoes(
-    isCustom ? undefined : month, isCustom ? undefined : year,
-    activeRange?.start, activeRange?.end
-  );
-  const { data: vendedores = [] } = useVendedores();
+  
   const { data: monthlyData = [] } = useMonthlyComparison();
 
   // Filtro client-side por unidade de negócio
@@ -107,28 +103,13 @@ export default function Dashboard() {
     }, {} as Record<string, { nome: string; total: number }>)
   ).sort((a, b) => b.total - a.total);
 
-  // Rankings from comissoes
-  const vendedorMap = new Map(vendedores.map(v => [v.id, v.nome]));
-
-  const vendedorContrato = Object.values(
-    comissoes.reduce((acc, c) => {
-      const nome = (c.vendedores as any)?.nome || vendedorMap.get(c.vendedor_id) || 'Desconhecido';
-      if (!acc[nome]) acc[nome] = { nome, contratos: 0, total: 0 };
-      acc[nome].contratos += 1;
-      acc[nome].total += Number(c.valor_proposta);
-      return acc;
-    }, {} as Record<string, { nome: string; contratos: number; total: number }>)
-  ).sort((a, b) => b.total - a.total);
-
-  const vendedorRecebimento = Object.values(
-    comissoes.reduce((acc, c) => {
-      const nome = (c.vendedores as any)?.nome || vendedorMap.get(c.vendedor_id) || 'Desconhecido';
-      if (!acc[nome]) acc[nome] = { nome, contratos: 0, total: 0 };
-      acc[nome].contratos += 1;
-      acc[nome].total += Number(c.valor_recebido);
-      return acc;
-    }, {} as Record<string, { nome: string; contratos: number; total: number }>)
-  ).sort((a, b) => b.total - a.total);
+  // Ticket médio de recebimento: total recebido / nº de propostas distintas com recebimento
+  const recebidas = receitas.filter(r => r.status === 'Recebido');
+  const totalRecebido = recebidas.reduce((acc, r) => acc + Number(r.valor), 0);
+  const propostasComRecebimento = new Set(
+    recebidas.map(r => (r as any).proposta_id).filter(Boolean)
+  ).size;
+  const ticketMedio = propostasComRecebimento > 0 ? totalRecebido / propostasComRecebimento : 0;
 
   const applyRange = () => {
     if (customStart && customEnd) setActiveRange({ start: customStart, end: customEnd });
@@ -199,6 +180,7 @@ export default function Dashboard() {
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Receitas a Receber</p><p className="text-2xl font-bold text-warning">{formatCurrency(receitasAReceber)}</p></div><Clock className="h-8 w-8 text-warning opacity-60" /></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Despesas a Pagar</p><p className="text-2xl font-bold text-warning">{formatCurrency(despesasAPagar)}</p></div><CreditCard className="h-8 w-8 text-warning opacity-60" /></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Despesas Atrasadas</p><p className="text-2xl font-bold text-destructive">{formatCurrency(despesasAtrasadas)}</p></div><AlertTriangle className="h-8 w-8 text-destructive opacity-60" /></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Ticket Médio Recebido</p><p className="text-2xl font-bold text-success">{formatCurrency(ticketMedio)}</p><p className="text-xs text-muted-foreground">{propostasComRecebimento} proposta(s) com recebimento</p></div><TrendingUp className="h-8 w-8 text-success opacity-60" /></div></CardContent></Card>
       </div>
 
       {/* Comparativo Mensal */}
@@ -312,49 +294,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader><CardTitle className="text-base">Ranking por Valor de Contrato</CardTitle></CardHeader>
-          <CardContent>
-            {vendedorContrato.length > 0 ? (
-              <div className="space-y-4">
-                {vendedorContrato.map((v, i) => (
-                  <div key={v.nome} className="flex items-center gap-4">
-                    <span className="text-lg font-bold text-muted-foreground w-6">{i + 1}.</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{v.nome}</p>
-                      <p className="text-sm text-muted-foreground">{v.contratos} contratos · Ticket médio: {formatCurrency(v.contratos > 0 ? v.total / v.contratos : 0)}</p>
-                    </div>
-                    <span className="text-sm font-semibold text-success">{formatCurrency(v.total)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-center py-12">Sem comissões neste período</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader><CardTitle className="text-base">Ranking por Valor Recebido</CardTitle></CardHeader>
-          <CardContent>
-            {vendedorRecebimento.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {vendedorRecebimento.map((v, i) => (
-                  <div key={v.nome} className="flex items-center gap-4">
-                    <span className="text-lg font-bold text-muted-foreground w-6">{i + 1}.</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{v.nome}</p>
-                      <p className="text-sm text-muted-foreground">{v.contratos} contratos · Ticket médio: {formatCurrency(v.contratos > 0 ? v.total / v.contratos : 0)}</p>
-                    </div>
-                    <span className="text-sm font-semibold text-success">{formatCurrency(v.total)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-center py-12">Sem comissões neste período</p>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

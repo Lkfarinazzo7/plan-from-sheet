@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita, useBulkUpdateReceita, useBulkDeleteReceita } from '@/hooks/useFinancialData';
+import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita, useBulkUpdateReceita, useBulkDeleteReceita, usePropostas } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
 import { Plus, Trash2, Pencil, Upload, Copy, Download, Sparkles, X } from 'lucide-react';
 import { exportToExcel } from '@/lib/exportHelpers';
@@ -44,6 +44,7 @@ export default function Receitas() {
   const { data: receitas = [], isLoading } = useReceitas(month, year);
   const { data: vendedores = [] } = useVendedores();
   const { data: operadoras = [] } = useOperadoras();
+  const { data: propostas = [] } = usePropostas();
   const createReceita = useCreateReceita();
   const updateReceita = useUpdateReceita();
   const deleteReceita = useDeleteReceita();
@@ -248,8 +249,18 @@ export default function Receitas() {
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium">Descrição</label>
-                  <Input value={form.descricao} onChange={e => setForm({ ...form, descricao: e.target.value })} required />
+                  <label className="text-sm font-medium">Proposta</label>
+                  <Input
+                    list="propostas-options"
+                    value={form.descricao}
+                    onChange={e => setForm({ ...form, descricao: e.target.value })}
+                    placeholder="Selecione uma proposta existente ou digite um nome novo"
+                    required
+                  />
+                  <datalist id="propostas-options">
+                    {(propostas as any[]).map(p => <option key={p.id} value={p.nome} />)}
+                  </datalist>
+                  <p className="text-xs text-muted-foreground">Se a proposta não existir, será criada automaticamente.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">

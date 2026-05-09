@@ -1,4 +1,4 @@
-import { LayoutDashboard, ArrowUpCircle, ArrowDownCircle, Users, ClipboardList, LogOut } from 'lucide-react';
+import { LayoutDashboard, ArrowUpCircle, ArrowDownCircle, FileText, ClipboardList, LogOut } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -19,7 +19,7 @@ const menuItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
   { title: 'Receitas', url: '/receitas', icon: ArrowUpCircle },
   { title: 'Despesas', url: '/despesas', icon: ArrowDownCircle },
-  { title: 'Comissões', url: '/comissoes', icon: Users },
+  { title: 'Propostas', url: '/propostas', icon: FileText },
   { title: 'Cadastros', url: '/cadastros', icon: ClipboardList },
 ];
 
