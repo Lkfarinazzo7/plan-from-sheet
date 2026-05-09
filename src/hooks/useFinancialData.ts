@@ -525,3 +525,47 @@ export function useMonthlyComparison() {
     },
   });
 }
+
+export function useSetoresDespesa() {
+  return useQuery({
+    queryKey: ['setores_despesa'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('setores_despesa').select('*').order('nome');
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useCreateSetorDespesa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (nome: string) => {
+      const { error } = await supabase.from('setores_despesa').insert({ nome });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['setores_despesa'] }),
+  });
+}
+
+export function useUpdateSetorDespesa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, nome }: { id: string; nome: string }) => {
+      const { error } = await supabase.from('setores_despesa').update({ nome }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['setores_despesa'] }),
+  });
+}
+
+export function useDeleteSetorDespesa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('setores_despesa').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['setores_despesa'] }),
+  });
+}
