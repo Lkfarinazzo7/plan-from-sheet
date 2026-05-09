@@ -320,27 +320,68 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Charts & Rankings */}
+      {/* Proposta por Operadora e por Vendedor */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <CardHeader><CardTitle className="text-base">Despesas por Categoria</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Proposta por Operadora</CardTitle></CardHeader>
           <CardContent>
-            {pieData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" outerRadius={100} dataKey="value" label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}>
-                    {pieData.map((_, i) => (<Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />))}
-                  </Pie>
-                  <Tooltip formatter={(val: number) => formatCurrency(val)} />
-                </PieChart>
-              </ResponsiveContainer>
+            {propostaPorOperadora.length > 0 ? (
+              <div className="space-y-4">
+                {propostaPorOperadora.map((v, i) => (
+                  <div key={v.nome} className="flex items-center gap-4">
+                    <span className="text-lg font-bold text-muted-foreground w-6">{i + 1}.</span>
+                    <div className="flex-1 min-w-0"><p className="font-medium truncate">{v.nome}</p></div>
+                    <span className="text-sm font-semibold text-primary">{formatCurrency(v.total)}</span>
+                  </div>
+                ))}
+              </div>
             ) : (
-              <p className="text-muted-foreground text-center py-12">Sem despesas neste período</p>
+              <p className="text-muted-foreground text-center py-12">Sem propostas neste período</p>
             )}
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader><CardTitle className="text-base">Proposta por Vendedor</CardTitle></CardHeader>
+          <CardContent>
+            {propostaPorVendedor.length > 0 ? (
+              <div className="space-y-4">
+                {propostaPorVendedor.map((v, i) => (
+                  <div key={v.nome} className="flex items-center gap-4">
+                    <span className="text-lg font-bold text-muted-foreground w-6">{i + 1}.</span>
+                    <div className="flex-1 min-w-0"><p className="font-medium truncate">{v.nome}</p></div>
+                    <span className="text-sm font-semibold text-primary">{formatCurrency(v.total)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-center py-12">Sem propostas neste período</p>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Despesas por Categoria — barras horizontais */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Despesas por Categoria</CardTitle></CardHeader>
+        <CardContent>
+          {barCategoriaData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={Math.max(240, barCategoriaData.length * 40)}>
+              <BarChart data={barCategoriaData} layout="vertical" margin={{ left: 20, right: 30 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" tickFormatter={(v: number) => `R$${(v / 1000).toFixed(0)}k`} />
+                <YAxis type="category" dataKey="name" width={140} />
+                <Tooltip formatter={(val: number) => formatCurrency(val)} />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                  {barCategoriaData.map((_, i) => (<Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-muted-foreground text-center py-12">Sem despesas neste período</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
