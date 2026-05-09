@@ -405,6 +405,28 @@ export function useGenerateRecurringDespesas() {
   });
 }
 
+export function useBulkUpdateReceita() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, updates }: { ids: string[]; updates: Record<string, any> }) => {
+      const { error } = await supabase.from('receitas').update(updates as any).in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['receitas'] }),
+  });
+}
+
+export function useBulkDeleteReceita() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from('receitas').delete().in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['receitas'] }),
+  });
+}
+
 export function useBulkCreateReceita() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
