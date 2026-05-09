@@ -474,13 +474,27 @@ export function useBulkCreateReceita() {
   return useMutation({
     mutationFn: async (rows: Array<{
       data: string; descricao: string; categoria: string; operadora_id: string;
-      valor: number; vendedor_id: string; status: string;
+      valor: number; vendedor_id: string; status: string; unidade_negocio?: string | null;
+      proposta_id?: string | null;
     }>) => {
-      const payload = rows.map(r => ({ ...r, comissao: 0, user_id: user!.id }));
+      const payload: any[] = [];
+      for (const r of rows) {
+        let proposta_id = r.proposta_id || null;
+        if (!proposta_id) {
+          proposta_id = await ensurePropostaId(user!.id, r.descricao, {
+            operadora_id: r.operadora_id, vendedor_id: r.vendedor_id,
+            unidade_negocio: r.unidade_negocio || null, valor_proposta: r.valor,
+          });
+        }
+        payload.push({ ...r, proposta_id, comissao: 0, user_id: user!.id });
+      }
       const { error } = await supabase.from('receitas').insert(payload);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['receitas'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['receitas'] });
+      queryClient.invalidateQueries({ queryKey: ['propostas'] });
+    },
   });
 }
 
