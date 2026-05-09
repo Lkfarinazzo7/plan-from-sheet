@@ -8,10 +8,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
-import { Plus, Trash2, Pencil, Upload, Copy, Download } from 'lucide-react';
+import { Plus, Trash2, Pencil, Upload, Copy, Download, Sparkles } from 'lucide-react';
 import { exportToExcel } from '@/lib/exportHelpers';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
+import { ReceitaPasteDialog } from '@/components/receitas/ReceitaPasteDialog';
 import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
 
@@ -46,6 +47,7 @@ export default function Receitas() {
   const bulkCreateReceita = useBulkCreateReceita();
   const { toast } = useToast();
   const [importOpen, setImportOpen] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
 
   const mapReceitaRow = useCallback((row: Record<string, any>): ParsedRow => {
     const errors: string[] = [];
@@ -170,6 +172,9 @@ export default function Receitas() {
             exportToExcel(rows, `Receitas_${getMonthName(month)}_${year}`);
           }}>
             <Download className="h-4 w-4 mr-1" /> Exportar
+          </Button>
+          <Button variant="outline" onClick={() => setPasteOpen(true)}>
+            <Sparkles className="h-4 w-4 mr-1" /> Colar e identificar
           </Button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-1" /> Importar Excel
@@ -393,6 +398,7 @@ export default function Receitas() {
           'Vendedor': ['Responsável', 'Responsavel'],
         }}
       />
+      <ReceitaPasteDialog open={pasteOpen} onOpenChange={setPasteOpen} />
     </div>
   );
 }
