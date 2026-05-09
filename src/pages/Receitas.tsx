@@ -249,8 +249,18 @@ export default function Receitas() {
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium">Descrição</label>
-                  <Input value={form.descricao} onChange={e => setForm({ ...form, descricao: e.target.value })} required />
+                  <label className="text-sm font-medium">Proposta</label>
+                  <Input
+                    list="propostas-options"
+                    value={form.descricao}
+                    onChange={e => setForm({ ...form, descricao: e.target.value })}
+                    placeholder="Selecione uma proposta existente ou digite um nome novo"
+                    required
+                  />
+                  <datalist id="propostas-options">
+                    {(propostas as any[]).map(p => <option key={p.id} value={p.nome} />)}
+                  </datalist>
+                  <p className="text-xs text-muted-foreground">Se a proposta não existir, será criada automaticamente.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
