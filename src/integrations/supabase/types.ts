@@ -56,71 +56,6 @@ export type Database = {
         }
         Relationships: []
       }
-      comissoes: {
-        Row: {
-          comissao_supervisor: number
-          comissao_vendedor: number
-          created_at: string
-          data: string
-          descricao: string
-          id: string
-          operadora_id: string
-          pct_supervisor: number | null
-          pct_vendedor: number | null
-          status: string
-          supervisor_id: string | null
-          updated_at: string
-          user_id: string
-          valor_proposta: number
-          valor_recebido: number
-          vendedor_id: string
-        }
-        Insert: {
-          comissao_supervisor?: number
-          comissao_vendedor?: number
-          created_at?: string
-          data: string
-          descricao?: string
-          id?: string
-          operadora_id: string
-          pct_supervisor?: number | null
-          pct_vendedor?: number | null
-          status?: string
-          supervisor_id?: string | null
-          updated_at?: string
-          user_id: string
-          valor_proposta?: number
-          valor_recebido?: number
-          vendedor_id: string
-        }
-        Update: {
-          comissao_supervisor?: number
-          comissao_vendedor?: number
-          created_at?: string
-          data?: string
-          descricao?: string
-          id?: string
-          operadora_id?: string
-          pct_supervisor?: number | null
-          pct_vendedor?: number | null
-          status?: string
-          supervisor_id?: string | null
-          updated_at?: string
-          user_id?: string
-          valor_proposta?: number
-          valor_recebido?: number
-          vendedor_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "comissoes_vendedor_id_fkey"
-            columns: ["vendedor_id"]
-            isOneToOne: false
-            referencedRelation: "vendedores"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       despesas: {
         Row: {
           categoria_id: string
@@ -270,6 +205,60 @@ export type Database = {
         }
         Relationships: []
       }
+      propostas: {
+        Row: {
+          created_at: string
+          id: string
+          nome: string
+          operadora_id: string | null
+          unidade_negocio: string | null
+          updated_at: string
+          user_id: string
+          valor_contrato: number | null
+          valor_proposta: number
+          vendedor_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nome: string
+          operadora_id?: string | null
+          unidade_negocio?: string | null
+          updated_at?: string
+          user_id: string
+          valor_contrato?: number | null
+          valor_proposta?: number
+          vendedor_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome?: string
+          operadora_id?: string | null
+          unidade_negocio?: string | null
+          updated_at?: string
+          user_id?: string
+          valor_contrato?: number | null
+          valor_proposta?: number
+          vendedor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "propostas_operadora_id_fkey"
+            columns: ["operadora_id"]
+            isOneToOne: false
+            referencedRelation: "operadoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "propostas_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       receitas: {
         Row: {
           categoria: string
@@ -279,6 +268,7 @@ export type Database = {
           descricao: string
           id: string
           operadora_id: string
+          proposta_id: string | null
           status: string
           unidade_negocio: string | null
           updated_at: string
@@ -294,6 +284,7 @@ export type Database = {
           descricao: string
           id?: string
           operadora_id: string
+          proposta_id?: string | null
           status?: string
           unidade_negocio?: string | null
           updated_at?: string
@@ -309,6 +300,7 @@ export type Database = {
           descricao?: string
           id?: string
           operadora_id?: string
+          proposta_id?: string | null
           status?: string
           unidade_negocio?: string | null
           updated_at?: string
@@ -322,6 +314,13 @@ export type Database = {
             columns: ["operadora_id"]
             isOneToOne: false
             referencedRelation: "operadoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receitas_proposta_id_fkey"
+            columns: ["proposta_id"]
+            isOneToOne: false
+            referencedRelation: "propostas"
             referencedColumns: ["id"]
           },
           {
