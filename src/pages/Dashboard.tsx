@@ -132,7 +132,7 @@ export default function Dashboard() {
 
   // Proposta por Operadora / Vendedor
   const propostaPorOperadora = useMemo(() => Object.values(
-    propostasEscopo.reduce((acc, p) => {
+    propostasEscopo.reduce<Record<string, { nome: string; total: number }>>((acc, p) => {
       const nome = (p.operadoras as any)?.nome || 'Desconhecida';
       if (!acc[nome]) acc[nome] = { nome, total: 0 };
       acc[nome].total += Number(p.valor_proposta || 0);
@@ -141,7 +141,7 @@ export default function Dashboard() {
   ).sort((a, b) => b.total - a.total), [propostasEscopo]);
 
   const propostaPorVendedor = useMemo(() => Object.values(
-    propostasEscopo.reduce((acc, p) => {
+    propostasEscopo.reduce<Record<string, { nome: string; total: number }>>((acc, p) => {
       const nome = (p.vendedores as any)?.nome || 'Desconhecido';
       if (!acc[nome]) acc[nome] = { nome, total: 0 };
       acc[nome].total += Number(p.valor_proposta || 0);
