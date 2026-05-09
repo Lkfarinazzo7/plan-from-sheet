@@ -65,6 +65,7 @@ export default function Despesas() {
 
   const { data: despesas = [], isLoading } = useDespesas(month, year);
   const { data: categorias = [] } = useCategoriasDespesa();
+  const { data: setores = [] } = useSetoresDespesa();
   const createDespesa = useCreateDespesa();
   const updateDespesa = useUpdateDespesa();
   const deleteDespesa = useDeleteDespesa();
