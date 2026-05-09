@@ -104,13 +104,54 @@ export default function Dashboard() {
     }, {} as Record<string, { nome: string; total: number }>)
   ).sort((a, b) => b.total - a.total);
 
-  // Ticket médio de recebimento: total recebido / nº de propostas distintas com recebimento
+  // Propostas no escopo: aquelas vinculadas a receitas filtradas (período/unidade)
+  const propostaIdsNoEscopo = useMemo(
+    () => new Set(receitas.map(r => (r as any).proposta_id).filter(Boolean)),
+    [receitas]
+  );
+  const propostasEscopo = useMemo(
+    () => (propostasAll as any[]).filter(p => propostaIdsNoEscopo.has(p.id)),
+    [propostasAll, propostaIdsNoEscopo]
+  );
+
+  // Ticket médio recebido
   const recebidas = receitas.filter(r => r.status === 'Recebido');
   const totalRecebido = recebidas.reduce((acc, r) => acc + Number(r.valor), 0);
   const propostasComRecebimento = new Set(
     recebidas.map(r => (r as any).proposta_id).filter(Boolean)
   ).size;
   const ticketMedio = propostasComRecebimento > 0 ? totalRecebido / propostasComRecebimento : 0;
+
+  // Ticket médio Contrato e Proposta
+  const propostasComContrato = propostasEscopo.filter(p => p.valor_contrato != null);
+  const totalContrato = propostasComContrato.reduce((a, p) => a + Number(p.valor_contrato), 0);
+  const ticketMedioContrato = propostasComContrato.length > 0 ? totalContrato / propostasComContrato.length : 0;
+
+  const totalProposta = propostasEscopo.reduce((a, p) => a + Number(p.valor_proposta || 0), 0);
+  const ticketMedioProposta = propostasEscopo.length > 0 ? totalProposta / propostasEscopo.length : 0;
+
+  // Proposta por Operadora / Vendedor
+  const propostaPorOperadora = useMemo(() => Object.values(
+    propostasEscopo.reduce((acc, p) => {
+      const nome = (p.operadoras as any)?.nome || 'Desconhecida';
+      if (!acc[nome]) acc[nome] = { nome, total: 0 };
+      acc[nome].total += Number(p.valor_proposta || 0);
+      return acc;
+    }, {} as Record<string, { nome: string; total: number }>)
+  ).sort((a, b) => b.total - a.total), [propostasEscopo]);
+
+  const propostaPorVendedor = useMemo(() => Object.values(
+    propostasEscopo.reduce((acc, p) => {
+      const nome = (p.vendedores as any)?.nome || 'Desconhecido';
+      if (!acc[nome]) acc[nome] = { nome, total: 0 };
+      acc[nome].total += Number(p.valor_proposta || 0);
+      return acc;
+    }, {} as Record<string, { nome: string; total: number }>)
+  ).sort((a, b) => b.total - a.total), [propostasEscopo]);
+
+  // Despesas por categoria (ordenado para barras horizontais)
+  const barCategoriaData = pieData.slice().sort((a, b) => b.value - a.value);
+
 
   const applyRange = () => {
     if (customStart && customEnd) setActiveRange({ start: customStart, end: customEnd });
