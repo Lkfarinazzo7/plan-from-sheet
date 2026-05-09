@@ -357,13 +357,23 @@ export default function Despesas() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
+                    <label className="text-sm font-medium">Setor</label>
+                    <Select value={form.setor_id} onValueChange={v => setForm({ ...form, setor_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        {setores.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
                     <label className="text-sm font-medium">Valor (R$)</label>
                     <Input type="number" step="0.01" min="0" value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} required />
                   </div>
-                  <div className="flex items-end gap-2 pb-1">
-                    <Switch checked={form.recorrente} onCheckedChange={v => setForm({ ...form, recorrente: v })} />
-                    <label className="text-sm">Recorrente</label>
-                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={form.recorrente} onCheckedChange={v => setForm({ ...form, recorrente: v })} />
+                  <label className="text-sm">Recorrente</label>
                 </div>
                 <Button type="submit" className="w-full" disabled={isPending}>
                   {isPending ? 'Salvando...' : editId ? 'Salvar Alterações' : 'Cadastrar Despesa'}
