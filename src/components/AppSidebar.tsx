@@ -1,4 +1,4 @@
-import { LayoutDashboard, ArrowUpCircle, ArrowDownCircle, Users, ClipboardList, LogOut } from 'lucide-react';
+import { LayoutDashboard, ArrowUpCircle, ArrowDownCircle, FileText, ClipboardList, LogOut } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/hooks/useAuth';
 import {
