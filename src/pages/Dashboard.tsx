@@ -180,6 +180,7 @@ export default function Dashboard() {
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Receitas a Receber</p><p className="text-2xl font-bold text-warning">{formatCurrency(receitasAReceber)}</p></div><Clock className="h-8 w-8 text-warning opacity-60" /></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Despesas a Pagar</p><p className="text-2xl font-bold text-warning">{formatCurrency(despesasAPagar)}</p></div><CreditCard className="h-8 w-8 text-warning opacity-60" /></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Despesas Atrasadas</p><p className="text-2xl font-bold text-destructive">{formatCurrency(despesasAtrasadas)}</p></div><AlertTriangle className="h-8 w-8 text-destructive opacity-60" /></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Ticket Médio Recebido</p><p className="text-2xl font-bold text-success">{formatCurrency(ticketMedio)}</p><p className="text-xs text-muted-foreground">{propostasComRecebimento} proposta(s) com recebimento</p></div><TrendingUp className="h-8 w-8 text-success opacity-60" /></div></CardContent></Card>
       </div>
 
       {/* Comparativo Mensal */}
