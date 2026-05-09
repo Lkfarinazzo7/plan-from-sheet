@@ -40,10 +40,6 @@ export default function Dashboard() {
     isCustom ? undefined : month, isCustom ? undefined : year,
     activeRange?.start, activeRange?.end
   );
-  const { data: comissoes = [] } = useComissoes(
-    isCustom ? undefined : month, isCustom ? undefined : year,
-    activeRange?.start, activeRange?.end
-  );
   const { data: vendedores = [] } = useVendedores();
   const { data: monthlyData = [] } = useMonthlyComparison();
 
