@@ -2,6 +2,3 @@ project_id = "hzphyqrvkyjguagyzley"
 
 [functions.extract-receitas]
 verify_jwt = true
-
-[functions.extract-comissoes]
-verify_jwt = true

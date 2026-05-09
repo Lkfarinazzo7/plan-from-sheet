@@ -64,11 +64,7 @@ export type Database = {
           data: string
           descricao: string
           id: string
-          operadora_id: string
-          pct_supervisor: number | null
-          pct_vendedor: number | null
           status: string
-          supervisor_id: string | null
           updated_at: string
           user_id: string
           valor_proposta: number
@@ -82,11 +78,7 @@ export type Database = {
           data: string
           descricao?: string
           id?: string
-          operadora_id: string
-          pct_supervisor?: number | null
-          pct_vendedor?: number | null
           status?: string
-          supervisor_id?: string | null
           updated_at?: string
           user_id: string
           valor_proposta?: number
@@ -100,11 +92,7 @@ export type Database = {
           data?: string
           descricao?: string
           id?: string
-          operadora_id?: string
-          pct_supervisor?: number | null
-          pct_vendedor?: number | null
           status?: string
-          supervisor_id?: string | null
           updated_at?: string
           user_id?: string
           valor_proposta?: number
@@ -130,7 +118,6 @@ export type Database = {
           id: string
           recorrente: boolean
           responsavel: string | null
-          setor_id: string | null
           status: string
           tipo: string
           unidade_negocio: string | null
@@ -146,7 +133,6 @@ export type Database = {
           id?: string
           recorrente?: boolean
           responsavel?: string | null
-          setor_id?: string | null
           status?: string
           tipo: string
           unidade_negocio?: string | null
@@ -162,7 +148,6 @@ export type Database = {
           id?: string
           recorrente?: boolean
           responsavel?: string | null
-          setor_id?: string | null
           status?: string
           tipo?: string
           unidade_negocio?: string | null
@@ -332,27 +317,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      setores_despesa: {
-        Row: {
-          ativo: boolean
-          created_at: string
-          id: string
-          nome: string
-        }
-        Insert: {
-          ativo?: boolean
-          created_at?: string
-          id?: string
-          nome: string
-        }
-        Update: {
-          ativo?: boolean
-          created_at?: string
-          id?: string
-          nome?: string
-        }
-        Relationships: []
       }
       supervisores: {
         Row: {

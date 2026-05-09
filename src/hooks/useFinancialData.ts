@@ -62,7 +62,7 @@ export function useDespesas(month?: number, year?: number, startDate?: string, e
   return useQuery({
     queryKey: ['despesas', month, year, startDate, endDate],
     queryFn: async () => {
-      let query = supabase.from('despesas').select('*, categorias_despesa(nome), setores_despesa(nome)').order('data', { ascending: true });
+      let query = supabase.from('despesas').select('*, categorias_despesa(nome)').order('data', { ascending: true });
       if (startDate && endDate) {
         query = query.gte('data', startDate).lte('data', endDate);
       } else if (month !== undefined && year !== undefined) {
@@ -81,7 +81,7 @@ export function useComissoes(month?: number, year?: number, startDate?: string, 
   return useQuery({
     queryKey: ['comissoes', month, year, startDate, endDate],
     queryFn: async () => {
-      let query = supabase.from('comissoes').select('*, vendedores(nome), operadoras(nome), supervisores(nome)').order('data', { ascending: false });
+      let query = supabase.from('comissoes').select('*, vendedores(nome)').order('data', { ascending: false });
       if (startDate && endDate) {
         query = query.gte('data', startDate).lte('data', endDate);
       } else if (month !== undefined && year !== undefined) {
@@ -175,34 +175,11 @@ export function useCreateComissao() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (comissao: {
-      data: string; descricao: string; vendedor_id: string; operadora_id: string;
-      supervisor_id?: string | null;
+      data: string; descricao: string; vendedor_id: string;
       valor_proposta: number; valor_recebido: number;
-      comissao_vendedor: number; comissao_supervisor: number;
-      pct_vendedor?: number | null; pct_supervisor?: number | null;
-      status: string;
+      comissao_vendedor: number; comissao_supervisor: number; status: string;
     }) => {
-      const { error } = await supabase.from('comissoes').insert({ ...comissao, user_id: user!.id } as any);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['comissoes'] }),
-  });
-}
-
-export function useBulkCreateComissao() {
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
-  return useMutation({
-    mutationFn: async (rows: Array<{
-      data: string; descricao: string; vendedor_id: string; operadora_id: string;
-      supervisor_id?: string | null;
-      valor_proposta: number; valor_recebido: number;
-      comissao_vendedor: number; comissao_supervisor: number;
-      pct_vendedor?: number | null; pct_supervisor?: number | null;
-      status: string;
-    }>) => {
-      const payload = rows.map(r => ({ ...r, user_id: user!.id }));
-      const { error } = await supabase.from('comissoes').insert(payload as any);
+      const { error } = await supabase.from('comissoes').insert({ ...comissao, user_id: user!.id });
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['comissoes'] }),
@@ -523,49 +500,5 @@ export function useMonthlyComparison() {
         return { mes: `${monthNames[parseInt(m) - 1]}/${y.slice(2)}`, ...val };
       });
     },
-  });
-}
-
-export function useSetoresDespesa() {
-  return useQuery({
-    queryKey: ['setores_despesa'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('setores_despesa').select('*').order('nome');
-      if (error) throw error;
-      return data;
-    },
-  });
-}
-
-export function useCreateSetorDespesa() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (nome: string) => {
-      const { error } = await supabase.from('setores_despesa').insert({ nome });
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['setores_despesa'] }),
-  });
-}
-
-export function useUpdateSetorDespesa() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, nome }: { id: string; nome: string }) => {
-      const { error } = await supabase.from('setores_despesa').update({ nome }).eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['setores_despesa'] }),
-  });
-}
-
-export function useDeleteSetorDespesa() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('setores_despesa').delete().eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['setores_despesa'] }),
   });
 }
