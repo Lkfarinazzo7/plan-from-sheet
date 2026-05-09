@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useReceitas, useDespesas, useComissoes, useVendedores, useMonthlyComparison } from '@/hooks/useFinancialData';
+import { useReceitas, useDespesas, useVendedores, useMonthlyComparison } from '@/hooks/useFinancialData';
 import { formatCurrency, getCurrentMonthYear } from '@/lib/format';
 import { ArrowUpCircle, ArrowDownCircle, Wallet, Clock, AlertTriangle, CreditCard, CalendarRange, X, TrendingUp, TrendingDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
