@@ -48,9 +48,14 @@ export default function Receitas() {
   const updateReceita = useUpdateReceita();
   const deleteReceita = useDeleteReceita();
   const bulkCreateReceita = useBulkCreateReceita();
+  const bulkUpdateReceita = useBulkUpdateReceita();
+  const bulkDeleteReceita = useBulkDeleteReceita();
   const { toast } = useToast();
   const [importOpen, setImportOpen] = useState(false);
   const [pasteOpen, setPasteOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDate, setBulkDate] = useState(new Date().toISOString().split('T')[0]);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const mapReceitaRow = useCallback((row: Record<string, any>): ParsedRow => {
     const errors: string[] = [];
