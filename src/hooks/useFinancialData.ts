@@ -98,6 +98,7 @@ export function useCreateProposta() {
     mutationFn: async (p: {
       nome: string; operadora_id?: string | null; vendedor_id?: string | null;
       unidade_negocio?: string | null; valor_proposta?: number; valor_contrato?: number | null;
+      mes_implantacao?: string | null;
     }) => {
       const { data, error } = await supabase.from('propostas').insert({
         nome: p.nome,
@@ -106,8 +107,9 @@ export function useCreateProposta() {
         unidade_negocio: p.unidade_negocio || null,
         valor_proposta: p.valor_proposta ?? 0,
         valor_contrato: p.valor_contrato ?? null,
+        mes_implantacao: p.mes_implantacao || null,
         user_id: user!.id,
-      }).select('*').single();
+      } as any).select('*').single();
       if (error) throw error;
       return data;
     },
