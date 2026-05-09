@@ -164,6 +164,21 @@ export default function Dashboard() {
             </PopoverTrigger>
             <PopoverContent className="w-auto space-y-3" align="end">
               <p className="text-sm font-medium">Selecionar período</p>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" size="sm" onClick={() => {
+                  const y = new Date().getFullYear();
+                  const s = `${y}-01-01`; const e = `${y}-12-31`;
+                  setCustomStart(s); setCustomEnd(e); setActiveRange({ start: s, end: e });
+                }}>Este ano</Button>
+                <Button variant="secondary" size="sm" onClick={() => {
+                  const now = new Date();
+                  const y = now.getFullYear();
+                  const m = String(now.getMonth() + 1).padStart(2, '0');
+                  const last = new Date(y, now.getMonth() + 1, 0).getDate();
+                  const s = `${y}-${m}-01`; const e = `${y}-${m}-${String(last).padStart(2, '0')}`;
+                  setCustomStart(s); setCustomEnd(e); setActiveRange({ start: s, end: e });
+                }}>Este mês</Button>
+              </div>
               <div className="space-y-2">
                 <div><label className="text-xs text-muted-foreground">Início</label><Input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} /></div>
                 <div><label className="text-xs text-muted-foreground">Fim</label><Input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} /></div>

@@ -304,19 +304,6 @@ function UsuariosTab() {
     else { toast.success('Você é admin agora!'); window.location.reload(); }
   };
 
-  const grant = async (grantTo: boolean) => {
-    if (!email.trim()) return;
-    setBusy(true);
-    const { data, error } = await supabase.rpc('grant_role_by_email', {
-      _email: email.trim(), _role: 'adm_pipeline', _grant: grantTo,
-    });
-    setBusy(false);
-    if (error) { toast.error(error.message); return; }
-    if ((data as any)?.ok === false) { toast.error((data as any).error); return; }
-    toast.success(grantTo ? 'ADM Pipeline concedido!' : 'Papel removido');
-    setEmail(''); load();
-  };
-
   const revokeRole = async (uemail: string, role: string) => {
     if (!confirm(`Remover papel "${role}" de ${uemail}?`)) return;
     await supabase.rpc('grant_role_by_email', { _email: uemail, _role: role as any, _grant: false });
@@ -339,15 +326,6 @@ function UsuariosTab() {
 
   return (
     <div className="space-y-4">
-      <div className="border rounded-lg p-4 space-y-2 bg-muted/20">
-        <h3 className="font-semibold text-sm">Conceder acesso "ADM Pipeline"</h3>
-        <p className="text-xs text-muted-foreground">A pessoa precisa ter criado uma conta antes (qualquer e-mail/senha na tela de login).</p>
-        <div className="flex gap-2">
-          <Input placeholder="email@exemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <Button onClick={() => grant(true)} disabled={busy || !email.trim()}>Conceder</Button>
-        </div>
-      </div>
-
       <Table>
         <TableHeader>
           <TableRow><TableHead>E-mail</TableHead><TableHead>Papéis</TableHead><TableHead className="text-right">Ações</TableHead></TableRow>

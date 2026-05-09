@@ -1,7 +1,6 @@
-import { LayoutDashboard, ArrowUpCircle, ArrowDownCircle, Users, ClipboardList, LogOut, KanbanSquare } from 'lucide-react';
+import { LayoutDashboard, ArrowUpCircle, ArrowDownCircle, Users, ClipboardList, LogOut } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/hooks/useAuth';
-import { useIsAdmPipelineOnly } from '@/hooks/useUserRole';
 import {
   Sidebar,
   SidebarContent,
@@ -16,30 +15,25 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 
-const fullMenu = [
+const menuItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
   { title: 'Receitas', url: '/receitas', icon: ArrowUpCircle },
   { title: 'Despesas', url: '/despesas', icon: ArrowDownCircle },
-  { title: 'Pipeline', url: '/pipeline', icon: KanbanSquare },
   { title: 'Comissões', url: '/comissoes', icon: Users },
   { title: 'Cadastros', url: '/cadastros', icon: ClipboardList },
 ];
-
-const pipelineOnlyMenu = [{ title: 'Pipeline', url: '/pipeline', icon: KanbanSquare }];
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const { signOut } = useAuth();
-  const { isAdmPipelineOnly } = useIsAdmPipelineOnly();
-  const menuItems = isAdmPipelineOnly ? pipelineOnlyMenu : fullMenu;
 
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs uppercase tracking-wider">
-            {!collapsed && (isAdmPipelineOnly ? 'ADM Pipeline' : 'Financeiro')}
+            {!collapsed && 'Financeiro'}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
