@@ -114,6 +114,43 @@ export default function Receitas() {
 
   const total = filtered.reduce((acc, r) => acc + Number(r.valor), 0);
 
+  const filteredIds = useMemo(() => filtered.map(r => r.id), [filtered]);
+  useEffect(() => { setSelectedIds(new Set()); }, [month, year, filterVendedor, filterOperadora, filterStatus, filterUnidade]);
+  const allSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.has(id));
+  const someSelected = selectedIds.size > 0 && !allSelected;
+  const toggleAll = () => {
+    if (allSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredIds));
+  };
+  const toggleOne = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const applyBulk = async (updates: Record<string, any>, label: string) => {
+    try {
+      const n = selectedIds.size;
+      await bulkUpdateReceita.mutateAsync({ ids: Array.from(selectedIds), updates });
+      toast({ title: `${label} atualizado em ${n} receita(s)` });
+      setSelectedIds(new Set());
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+  };
+  const handleBulkDelete = async () => {
+    try {
+      const n = selectedIds.size;
+      await bulkDeleteReceita.mutateAsync(Array.from(selectedIds));
+      toast({ title: `${n} receita(s) excluída(s)` });
+      setSelectedIds(new Set());
+      setConfirmDeleteOpen(false);
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+  };
+
   const openNew = () => {
     setEditId(null);
     setForm(emptyForm);
