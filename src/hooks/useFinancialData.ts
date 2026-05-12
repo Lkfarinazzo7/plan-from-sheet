@@ -170,7 +170,7 @@ export function useCreateReceita() {
     mutationFn: async (receita: {
       data: string; descricao: string; categoria: string; operadora_id: string;
       valor: number; vendedor_id: string; status: string; unidade_negocio?: string | null;
-      proposta_id?: string | null;
+      proposta_id?: string | null; observacoes?: string | null;
     }) => {
       let proposta_id = receita.proposta_id || null;
       if (!proposta_id) {
@@ -220,6 +220,7 @@ export function useCreateDespesa() {
     mutationFn: async (despesa: {
       data: string; descricao: string; categoria_id: string; tipo: string;
       valor: number; responsavel?: string; recorrente: boolean; status: string; unidade_negocio?: string | null;
+      observacoes?: string | null;
     }) => {
       const { error } = await supabase.from('despesas').insert({ ...despesa, user_id: user!.id } as any);
       if (error) throw error;
@@ -477,7 +478,7 @@ export function useBulkCreateReceita() {
     mutationFn: async (rows: Array<{
       data: string; descricao: string; categoria: string; operadora_id: string;
       valor: number; vendedor_id: string; status: string; unidade_negocio?: string | null;
-      proposta_id?: string | null;
+      proposta_id?: string | null; observacoes?: string | null;
     }>) => {
       const payload: any[] = [];
       for (const r of rows) {
@@ -507,6 +508,7 @@ export function useBulkCreateDespesa() {
     mutationFn: async (rows: Array<{
       data: string; descricao: string; categoria_id: string; tipo: string;
       valor: number; responsavel?: string; recorrente: boolean; status: string;
+      unidade_negocio?: string | null; observacoes?: string | null;
     }>) => {
       const payload = rows.map(r => ({ ...r, user_id: user!.id }));
       const { error } = await supabase.from('despesas').insert(payload);
