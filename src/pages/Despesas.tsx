@@ -10,7 +10,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
-import { Plus, Trash2, RotateCcw, Pencil, Upload, Check, Copy, Download, X } from 'lucide-react';
+import { Plus, Trash2, RotateCcw, Pencil, Upload, Check, Copy, Download, X, StickyNote } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { exportToExcel } from '@/lib/exportHelpers';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
@@ -27,6 +28,7 @@ const emptyForm = {
   recorrente: false,
   status: 'A pagar',
   unidade_negocio: 'none' as string,
+  observacoes: '',
 };
 
 // Calcula segunda e domingo (BR) da semana atual em YYYY-MM-DD local
@@ -192,6 +194,7 @@ export default function Despesas() {
       recorrente: d.recorrente,
       status: d.status,
       unidade_negocio: d.unidade_negocio || 'none',
+      observacoes: (d as any).observacoes || '',
     });
     setOpen(true);
   };
@@ -204,6 +207,7 @@ export default function Despesas() {
         valor: parseFloat(form.valor),
         responsavel: form.responsavel || undefined,
         unidade_negocio: form.unidade_negocio === 'none' ? null : form.unidade_negocio,
+        observacoes: form.observacoes?.trim() || null,
       };
       if (editId) {
         await updateDespesa.mutateAsync({ id: editId, ...payload });
@@ -361,6 +365,10 @@ export default function Despesas() {
                     <label className="text-sm">Recorrente</label>
                   </div>
                 </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Observações</label>
+                  <Textarea value={form.observacoes} onChange={e => setForm({ ...form, observacoes: e.target.value })} placeholder="Observações livres (opcional)" rows={3} />
+                </div>
                 <Button type="submit" className="w-full" disabled={isPending}>
                   {isPending ? 'Salvando...' : editId ? 'Salvar Alterações' : 'Cadastrar Despesa'}
                 </Button>
@@ -488,7 +496,16 @@ export default function Despesas() {
                       <Checkbox checked={selectedIds.has(d.id)} onCheckedChange={() => toggleOne(d.id)} aria-label="Selecionar linha" />
                     </TableCell>
                     <TableCell>{formatDate(d.data)}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{d.descricao}</TableCell>
+                    <TableCell className="max-w-[240px]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate">{d.descricao}</span>
+                        {(d as any).observacoes && (
+                          <span title={(d as any).observacoes} className="shrink-0 text-muted-foreground cursor-help">
+                            <StickyNote className="h-3.5 w-3.5" />
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>{(d.categorias_despesa as any)?.nome}</TableCell>
                     <TableCell>{d.tipo}</TableCell>
                     <TableCell>{d.responsavel || '—'}</TableCell>
