@@ -496,7 +496,16 @@ export default function Despesas() {
                       <Checkbox checked={selectedIds.has(d.id)} onCheckedChange={() => toggleOne(d.id)} aria-label="Selecionar linha" />
                     </TableCell>
                     <TableCell>{formatDate(d.data)}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{d.descricao}</TableCell>
+                    <TableCell className="max-w-[240px]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate">{d.descricao}</span>
+                        {(d as any).observacoes && (
+                          <span title={(d as any).observacoes} className="shrink-0 text-muted-foreground cursor-help">
+                            <StickyNote className="h-3.5 w-3.5" />
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>{(d.categorias_despesa as any)?.nome}</TableCell>
                     <TableCell>{d.tipo}</TableCell>
                     <TableCell>{d.responsavel || '—'}</TableCell>
