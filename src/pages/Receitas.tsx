@@ -493,9 +493,9 @@ export default function Receitas() {
                       <div className="flex items-center gap-1.5">
                         <span className="truncate">{r.descricao}</span>
                         {(r as any).observacoes && (
-                          <StickyNote className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-label="Observação">
-                            <title>{(r as any).observacoes}</title>
-                          </StickyNote>
+                          <span title={(r as any).observacoes} className="shrink-0 text-muted-foreground cursor-help">
+                            <StickyNote className="h-3.5 w-3.5" />
+                          </span>
                         )}
                       </div>
                     </TableCell>
