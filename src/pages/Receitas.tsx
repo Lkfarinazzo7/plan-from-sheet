@@ -11,7 +11,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita, useBulkUpdateReceita, useBulkDeleteReceita, usePropostas } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
-import { Plus, Trash2, Pencil, Upload, Copy, Download, Sparkles, X } from 'lucide-react';
+import { Plus, Trash2, Pencil, Upload, Copy, Download, Sparkles, X, StickyNote } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { exportToExcel } from '@/lib/exportHelpers';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
@@ -28,6 +29,7 @@ const emptyForm = {
   vendedor_id: '',
   status: 'Aguardando',
   unidade_negocio: 'none' as string,
+  observacoes: '',
 };
 
 export default function Receitas() {
@@ -169,6 +171,7 @@ export default function Receitas() {
       vendedor_id: r.vendedor_id,
       status: r.status,
       unidade_negocio: r.unidade_negocio || 'none',
+      observacoes: (r as any).observacoes || '',
     });
     setOpen(true);
   };
@@ -180,6 +183,7 @@ export default function Receitas() {
         ...form,
         valor: parseFloat(form.valor),
         unidade_negocio: form.unidade_negocio === 'none' ? null : form.unidade_negocio,
+        observacoes: form.observacoes?.trim() || null,
       };
       if (editId) {
         await updateReceita.mutateAsync({ id: editId, ...payload });
@@ -307,6 +311,10 @@ export default function Receitas() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Observações</label>
+                  <Textarea value={form.observacoes} onChange={e => setForm({ ...form, observacoes: e.target.value })} placeholder="Observações livres (opcional)" rows={3} />
                 </div>
                 <Button type="submit" className="w-full" disabled={isPending}>
                   {isPending ? 'Salvando...' : editId ? 'Salvar Alterações' : 'Cadastrar Receita'}
@@ -481,7 +489,16 @@ export default function Receitas() {
                       <Checkbox checked={selectedIds.has(r.id)} onCheckedChange={() => toggleOne(r.id)} aria-label="Selecionar" />
                     </TableCell>
                     <TableCell>{formatDate(r.data)}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{r.descricao}</TableCell>
+                    <TableCell className="max-w-[240px]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate">{r.descricao}</span>
+                        {(r as any).observacoes && (
+                          <StickyNote className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-label="Observação">
+                            <title>{(r as any).observacoes}</title>
+                          </StickyNote>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>{r.categoria}</TableCell>
                     <TableCell>{(r.operadoras as any)?.nome}</TableCell>
                     <TableCell>{(r.vendedores as any)?.nome}</TableCell>
