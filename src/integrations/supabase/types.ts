@@ -63,6 +63,7 @@ export type Database = {
           data: string
           descricao: string
           id: string
+          observacoes: string | null
           recorrente: boolean
           responsavel: string | null
           setor_id: string | null
@@ -79,6 +80,7 @@ export type Database = {
           data: string
           descricao: string
           id?: string
+          observacoes?: string | null
           recorrente?: boolean
           responsavel?: string | null
           setor_id?: string | null
@@ -95,6 +97,7 @@ export type Database = {
           data?: string
           descricao?: string
           id?: string
+          observacoes?: string | null
           recorrente?: boolean
           responsavel?: string | null
           setor_id?: string | null
@@ -270,6 +273,7 @@ export type Database = {
           data: string
           descricao: string
           id: string
+          observacoes: string | null
           operadora_id: string
           proposta_id: string | null
           status: string
@@ -286,6 +290,7 @@ export type Database = {
           data: string
           descricao: string
           id?: string
+          observacoes?: string | null
           operadora_id: string
           proposta_id?: string | null
           status?: string
@@ -302,6 +307,7 @@ export type Database = {
           data?: string
           descricao?: string
           id?: string
+          observacoes?: string | null
           operadora_id?: string
           proposta_id?: string | null
           status?: string
