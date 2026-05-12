@@ -369,6 +369,7 @@ export default function Despesas() {
                   <label className="text-sm font-medium">Observações</label>
                   <Textarea value={form.observacoes} onChange={e => setForm({ ...form, observacoes: e.target.value })} placeholder="Observações livres (opcional)" rows={3} />
                 </div>
+                <Button type="submit" className="w-full" disabled={isPending}>
                   {isPending ? 'Salvando...' : editId ? 'Salvar Alterações' : 'Cadastrar Despesa'}
                 </Button>
               </form>
