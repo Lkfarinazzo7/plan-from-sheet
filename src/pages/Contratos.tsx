@@ -480,6 +480,14 @@ export default function Contratos() {
             {(supervisores as any[]).filter(s => s.ativo).map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={filterCorretor} onValueChange={setFilterCorretor}>
+          <SelectTrigger className={`w-[180px] ${filterCorretor !== 'all' ? activeCls : ''}`}><SelectValue placeholder="Corretor" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos corretores</SelectItem>
+            <SelectItem value="none">Sem corretor</SelectItem>
+            {(vendedores as any[]).filter(v => v.ativo).map(v => <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Select value={filterMes} onValueChange={setFilterMes}>
           <SelectTrigger className={`w-[200px] ${filterMes !== 'all' ? activeCls : ''}`}><SelectValue placeholder="Mês de implantação" /></SelectTrigger>
           <SelectContent>
