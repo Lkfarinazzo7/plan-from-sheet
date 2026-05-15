@@ -227,7 +227,7 @@ export default function Contratos() {
   }, [filtered]);
 
   const filteredIds = useMemo(() => (filtered as any[]).map(c => c.id), [filtered]);
-  useEffect(() => { setSelectedIds(new Set()); }, [search, filterOperadora, filterUnidade, filterSupervisor, filterMes, filterPago]);
+  useEffect(() => { setSelectedIds(new Set()); }, [search, filterOperadora, filterUnidade, filterSupervisor, filterMes, filterDataInicio, filterDataFim, filterPago]);
   const allSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.has(id));
   const someSelected = selectedIds.size > 0 && !allSelected;
   const toggleAll = () => {
