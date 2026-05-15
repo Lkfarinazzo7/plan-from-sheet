@@ -42,7 +42,6 @@ export default function Dashboard() {
   );
   
   const { data: monthlyData = [] } = useMonthlyComparison();
-  const { data: propostasAll = [] } = usePropostas();
 
   // Filtro client-side por unidade de negócio
   const receitas = useMemo(
