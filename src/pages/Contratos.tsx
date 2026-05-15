@@ -545,6 +545,20 @@ export default function Contratos() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ExcelImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Importar Contratos"
+        expectedColumns={['Nome', 'Operadora', 'Unidade', 'Data Implantação', 'Valor Contrato', 'Supervisor A', '% Supervisor A', 'Supervisor B', '% Supervisor B', 'Corretor', '% Corretor', 'Observações']}
+        mapRow={mapContratoRow}
+        onConfirm={async (rows) => { await bulkCreate.mutateAsync(rows as any); }}
+        columnAliases={{
+          'Data Implantação': ['Data de Implantação', 'Data Implantacao', 'Implantação', 'Implantacao'],
+          'Valor Contrato': ['Valor do Contrato', 'Valor (R$)'],
+          'Observações': ['Observacoes', 'Obs'],
+        }}
+      />
     </div>
   );
 }
