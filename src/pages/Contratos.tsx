@@ -67,6 +67,7 @@ export default function Contratos() {
   const [filterOperadora, setFilterOperadora] = useState('all');
   const [filterUnidade, setFilterUnidade] = useState('all');
   const [filterSupervisor, setFilterSupervisor] = useState('all');
+  const [filterCorretor, setFilterCorretor] = useState('all');
   const [filterMes, setFilterMes] = useState('all');
   const [filterDataInicio, setFilterDataInicio] = useState('');
   const [filterDataFim, setFilterDataFim] = useState('');
@@ -168,6 +169,9 @@ export default function Contratos() {
       if (filterSupervisor !== 'all') {
         if (c.supervisor_a_id !== filterSupervisor && c.supervisor_b_id !== filterSupervisor) return false;
       }
+      if (filterCorretor !== 'all') {
+        if ((c.corretor_id || '') !== (filterCorretor === 'none' ? '' : filterCorretor)) return false;
+      }
       if (filterMes !== 'all') {
         const m = c.data_implantacao ? String(c.data_implantacao).slice(0, 7) : '';
         if (filterMes === 'none' ? m !== '' : m !== filterMes) return false;
@@ -186,7 +190,7 @@ export default function Contratos() {
       }
       return true;
     });
-  }, [contratos, search, filterOperadora, filterUnidade, filterSupervisor, filterMes, filterDataInicio, filterDataFim, filterPago]);
+  }, [contratos, search, filterOperadora, filterUnidade, filterSupervisor, filterCorretor, filterMes, filterDataInicio, filterDataFim, filterPago]);
 
   // Resumo
   const resumo = useMemo(() => {
@@ -227,7 +231,7 @@ export default function Contratos() {
   }, [filtered]);
 
   const filteredIds = useMemo(() => (filtered as any[]).map(c => c.id), [filtered]);
-  useEffect(() => { setSelectedIds(new Set()); }, [search, filterOperadora, filterUnidade, filterSupervisor, filterMes, filterDataInicio, filterDataFim, filterPago]);
+  useEffect(() => { setSelectedIds(new Set()); }, [search, filterOperadora, filterUnidade, filterSupervisor, filterCorretor, filterMes, filterDataInicio, filterDataFim, filterPago]);
   const allSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.has(id));
   const someSelected = selectedIds.size > 0 && !allSelected;
   const toggleAll = () => {
@@ -474,6 +478,14 @@ export default function Contratos() {
           <SelectContent>
             <SelectItem value="all">Todos supervisores</SelectItem>
             {(supervisores as any[]).filter(s => s.ativo).map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterCorretor} onValueChange={setFilterCorretor}>
+          <SelectTrigger className={`w-[180px] ${filterCorretor !== 'all' ? activeCls : ''}`}><SelectValue placeholder="Corretor" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos corretores</SelectItem>
+            <SelectItem value="none">Sem corretor</SelectItem>
+            {(vendedores as any[]).filter(v => v.ativo).map(v => <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterMes} onValueChange={setFilterMes}>
