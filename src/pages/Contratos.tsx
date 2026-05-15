@@ -172,6 +172,12 @@ export default function Contratos() {
         const m = c.data_implantacao ? String(c.data_implantacao).slice(0, 7) : '';
         if (filterMes === 'none' ? m !== '' : m !== filterMes) return false;
       }
+      if (filterDataInicio || filterDataFim) {
+        const d = c.data_implantacao ? String(c.data_implantacao).slice(0, 10) : '';
+        if (!d) return false;
+        if (filterDataInicio && d < filterDataInicio) return false;
+        if (filterDataFim && d > filterDataFim) return false;
+      }
       if (filterPago !== 'all') {
         const allPagos = c.supervisor_a_pago && c.supervisor_b_pago && c.corretor_pago;
         const hasAny = c.supervisor_a_id || c.supervisor_b_id || c.corretor_id;
@@ -180,7 +186,7 @@ export default function Contratos() {
       }
       return true;
     });
-  }, [contratos, search, filterOperadora, filterUnidade, filterSupervisor, filterMes, filterPago]);
+  }, [contratos, search, filterOperadora, filterUnidade, filterSupervisor, filterMes, filterDataInicio, filterDataFim, filterPago]);
 
   // Resumo
   const resumo = useMemo(() => {
