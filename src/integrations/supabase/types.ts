@@ -129,7 +129,36 @@ export type Database = {
           user_id?: string
           valor_contrato?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "contratos_corretor_id_fkey"
+            columns: ["corretor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_operadora_id_fkey"
+            columns: ["operadora_id"]
+            isOneToOne: false
+            referencedRelation: "operadoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_supervisor_a_id_fkey"
+            columns: ["supervisor_a_id"]
+            isOneToOne: false
+            referencedRelation: "supervisores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_supervisor_b_id_fkey"
+            columns: ["supervisor_b_id"]
+            isOneToOne: false
+            referencedRelation: "supervisores"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       despesas: {
         Row: {
