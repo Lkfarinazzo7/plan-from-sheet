@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useReceitas, useDespesas, useMonthlyComparison, usePropostas } from '@/hooks/useFinancialData';
+import { useReceitas, useDespesas, useMonthlyComparison } from '@/hooks/useFinancialData';
 import { formatCurrency, getCurrentMonthYear } from '@/lib/format';
 import { ArrowUpCircle, ArrowDownCircle, Wallet, Clock, AlertTriangle, CreditCard, CalendarRange, X, TrendingUp, TrendingDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,6 @@ export default function Dashboard() {
   );
   
   const { data: monthlyData = [] } = useMonthlyComparison();
-  const { data: propostasAll = [] } = usePropostas();
 
   // Filtro client-side por unidade de negócio
   const receitas = useMemo(
@@ -104,52 +103,13 @@ export default function Dashboard() {
     }, {} as Record<string, { nome: string; total: number }>)
   ).sort((a, b) => b.total - a.total);
 
-  // Propostas no escopo: aquelas vinculadas a receitas filtradas (período/unidade)
-  const propostaIdsNoEscopo = useMemo(
-    () => new Set(receitas.map(r => (r as any).proposta_id).filter(Boolean)),
-    [receitas]
-  );
-  const propostasEscopo = useMemo(
-    () => (propostasAll as any[]).filter(p => propostaIdsNoEscopo.has(p.id)),
-    [propostasAll, propostaIdsNoEscopo]
-  );
-
-  // Ticket médio recebido
+  // Ticket médio recebido (por descrição única)
   const recebidas = receitas.filter(r => r.status === 'Recebido');
   const totalRecebido = recebidas.reduce((acc, r) => acc + Number(r.valor), 0);
   const propostasComRecebimento = new Set(
     recebidas.map(r => (r as any).proposta_id).filter(Boolean)
   ).size;
   const ticketMedio = propostasComRecebimento > 0 ? totalRecebido / propostasComRecebimento : 0;
-
-  // Ticket médio Contrato e Proposta
-  const propostasComContrato = propostasEscopo.filter(p => p.valor_contrato != null);
-  const totalContrato = propostasComContrato.reduce((a, p) => a + Number(p.valor_contrato), 0);
-  const ticketMedioContrato = propostasComContrato.length > 0 ? totalContrato / propostasComContrato.length : 0;
-
-  const totalProposta = propostasEscopo.reduce((a, p) => a + Number(p.valor_proposta || 0), 0);
-  const ticketMedioProposta = propostasEscopo.length > 0 ? totalProposta / propostasEscopo.length : 0;
-
-  // Proposta por Operadora / Vendedor
-  const propostaPorOperadora = useMemo(() => {
-    const acc: Record<string, { nome: string; total: number }> = {};
-    for (const p of propostasEscopo) {
-      const nome = (p.operadoras as any)?.nome || 'Desconhecida';
-      if (!acc[nome]) acc[nome] = { nome, total: 0 };
-      acc[nome].total += Number(p.valor_proposta || 0);
-    }
-    return Object.values(acc).sort((a, b) => b.total - a.total);
-  }, [propostasEscopo]);
-
-  const propostaPorVendedor = useMemo(() => {
-    const acc: Record<string, { nome: string; total: number }> = {};
-    for (const p of propostasEscopo) {
-      const nome = (p.vendedores as any)?.nome || 'Desconhecido';
-      if (!acc[nome]) acc[nome] = { nome, total: 0 };
-      acc[nome].total += Number(p.valor_proposta || 0);
-    }
-    return Object.values(acc).sort((a, b) => b.total - a.total);
-  }, [propostasEscopo]);
 
   // Despesas por categoria (ordenado para barras horizontais)
   const barCategoriaData = pieData.slice().sort((a, b) => b.value - a.value);
@@ -225,8 +185,6 @@ export default function Dashboard() {
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Despesas a Pagar</p><p className="text-2xl font-bold text-warning">{formatCurrency(despesasAPagar)}</p></div><CreditCard className="h-8 w-8 text-warning opacity-60" /></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Despesas Atrasadas</p><p className="text-2xl font-bold text-destructive">{formatCurrency(despesasAtrasadas)}</p></div><AlertTriangle className="h-8 w-8 text-destructive opacity-60" /></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Ticket Médio Recebido</p><p className="text-2xl font-bold text-success">{formatCurrency(ticketMedio)}</p><p className="text-xs text-muted-foreground">{propostasComRecebimento} proposta(s) com recebimento</p></div><TrendingUp className="h-8 w-8 text-success opacity-60" /></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Ticket Médio Contrato</p><p className="text-2xl font-bold text-primary">{formatCurrency(ticketMedioContrato)}</p><p className="text-xs text-muted-foreground">{propostasComContrato.length} proposta(s) com contrato</p></div><TrendingUp className="h-8 w-8 text-primary opacity-60" /></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Ticket Médio Proposta</p><p className="text-2xl font-bold text-primary">{formatCurrency(ticketMedioProposta)}</p><p className="text-xs text-muted-foreground">{propostasEscopo.length} proposta(s) no período</p></div><TrendingUp className="h-8 w-8 text-primary opacity-60" /></div></CardContent></Card>
       </div>
 
       {/* Comparativo Mensal */}
@@ -320,46 +278,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Proposta por Operadora e por Vendedor */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader><CardTitle className="text-base">Proposta por Operadora</CardTitle></CardHeader>
-          <CardContent>
-            {propostaPorOperadora.length > 0 ? (
-              <div className="space-y-4">
-                {propostaPorOperadora.map((v, i) => (
-                  <div key={v.nome} className="flex items-center gap-4">
-                    <span className="text-lg font-bold text-muted-foreground w-6">{i + 1}.</span>
-                    <div className="flex-1 min-w-0"><p className="font-medium truncate">{v.nome}</p></div>
-                    <span className="text-sm font-semibold text-primary">{formatCurrency(v.total)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-center py-12">Sem propostas neste período</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base">Proposta por Vendedor</CardTitle></CardHeader>
-          <CardContent>
-            {propostaPorVendedor.length > 0 ? (
-              <div className="space-y-4">
-                {propostaPorVendedor.map((v, i) => (
-                  <div key={v.nome} className="flex items-center gap-4">
-                    <span className="text-lg font-bold text-muted-foreground w-6">{i + 1}.</span>
-                    <div className="flex-1 min-w-0"><p className="font-medium truncate">{v.nome}</p></div>
-                    <span className="text-sm font-semibold text-primary">{formatCurrency(v.total)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-center py-12">Sem propostas neste período</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Despesas por Categoria — barras horizontais */}
       <Card>

@@ -561,3 +561,84 @@ export function useMonthlyComparison() {
     },
   });
 }
+
+// ===== Contratos =====
+
+export type ContratoInput = {
+  nome: string;
+  operadora_id?: string | null;
+  unidade_negocio?: string | null;
+  data_implantacao?: string | null;
+  valor_contrato?: number;
+  supervisor_a_id?: string | null;
+  supervisor_a_percentual?: number | null;
+  supervisor_a_valor?: number | null;
+  supervisor_a_pago?: boolean;
+  supervisor_b_id?: string | null;
+  supervisor_b_percentual?: number | null;
+  supervisor_b_valor?: number | null;
+  supervisor_b_pago?: boolean;
+  corretor_id?: string | null;
+  corretor_percentual?: number | null;
+  corretor_valor?: number | null;
+  corretor_pago?: boolean;
+  observacoes?: string | null;
+};
+
+export function useContratos() {
+  return useQuery({
+    queryKey: ['contratos'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('contratos')
+        .select('*, operadoras(nome), supervisor_a:supervisores!supervisor_a_id(nome), supervisor_b:supervisores!supervisor_b_id(nome), corretor:vendedores!corretor_id(nome)')
+        .order('data_implantacao', { ascending: false, nullsFirst: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+export function useCreateContrato() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (c: ContratoInput) => {
+      const { error } = await (supabase as any).from('contratos').insert({
+        ...c,
+        operadora_id: c.operadora_id || null,
+        unidade_negocio: c.unidade_negocio || null,
+        data_implantacao: c.data_implantacao || null,
+        supervisor_a_id: c.supervisor_a_id || null,
+        supervisor_b_id: c.supervisor_b_id || null,
+        corretor_id: c.corretor_id || null,
+        valor_contrato: c.valor_contrato ?? 0,
+        user_id: user!.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contratos'] }),
+  });
+}
+
+export function useUpdateContrato() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string } & Partial<ContratoInput>) => {
+      const { error } = await (supabase as any).from('contratos').update(updates).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contratos'] }),
+  });
+}
+
+export function useDeleteContrato() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any).from('contratos').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contratos'] }),
+  });
+}

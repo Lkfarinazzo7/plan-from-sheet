@@ -1,18 +1,9 @@
-## Adicionar campo "Observações" em Receitas e Despesas
+## Contratos (atual)
 
-### Banco de dados
-- Migration: adicionar coluna `observacoes text` (nullable) nas tabelas `receitas` e `despesas`.
+Aba criada com tabela `contratos` (RLS por user_id). Campos: nome, operadora, unidade, data_implantacao, valor_contrato, 3 slots de comissão (Sup A, Sup B via `supervisores`; Corretor via `vendedores`) com percentual, valor e checkbox "pago".
 
-### Receitas (`src/pages/Receitas.tsx`)
-- Adicionar campo `<Textarea>` "Observações" no formulário de criação/edição.
-- Exibir indicador (ícone/tooltip) na linha da tabela quando houver observação, mostrando o conteúdo ao passar o mouse.
-- Incluir `observacoes` no payload de create/update.
+Comissão: ao mudar % ou valor do contrato, valor R$ é recalculado automaticamente; usuário pode sobrescrever o R$.
 
-### Despesas (`src/pages/Despesas.tsx`)
-- Mesmo tratamento: campo `<Textarea>` no formulário e indicador na tabela.
+UI: filtros (operadora, unidade, supervisor, mês, status pago/pendente), cards de resumo, checkbox inline na tabela para marcar como pago sem abrir o form.
 
-### Hooks (`src/hooks/useFinancialData.ts`)
-- Atualizar tipos de `useCreateReceita`, `useUpdateReceita`, `useBulkCreateReceita`, `useCreateDespesa`, `useUpdateDespesa`, `useBulkCreateDespesa` para aceitar `observacoes?: string | null`.
-
-### Fora do escopo
-- Filtros por observação, exportação/importação Excel do campo (pode ser feito depois se desejar).
+Propostas: removidas da UI (sidebar, rota, página). Tabela `propostas` e `receitas.proposta_id` mantidas no banco.
