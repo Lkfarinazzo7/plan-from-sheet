@@ -67,6 +67,7 @@ export default function Contratos() {
   const [filterOperadora, setFilterOperadora] = useState('all');
   const [filterUnidade, setFilterUnidade] = useState('all');
   const [filterSupervisor, setFilterSupervisor] = useState('all');
+  const [filterCorretor, setFilterCorretor] = useState('all');
   const [filterMes, setFilterMes] = useState('all');
   const [filterDataInicio, setFilterDataInicio] = useState('');
   const [filterDataFim, setFilterDataFim] = useState('');
