@@ -169,6 +169,9 @@ export default function Contratos() {
       if (filterSupervisor !== 'all') {
         if (c.supervisor_a_id !== filterSupervisor && c.supervisor_b_id !== filterSupervisor) return false;
       }
+      if (filterCorretor !== 'all') {
+        if ((c.corretor_id || '') !== (filterCorretor === 'none' ? '' : filterCorretor)) return false;
+      }
       if (filterMes !== 'all') {
         const m = c.data_implantacao ? String(c.data_implantacao).slice(0, 7) : '';
         if (filterMes === 'none' ? m !== '' : m !== filterMes) return false;
