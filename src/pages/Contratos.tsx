@@ -421,11 +421,126 @@ export default function Contratos() {
         </Select>
       </div>
 
+      {/* Bulk actions bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 p-3 border rounded-lg bg-primary/5 border-primary/30">
+          <span className="text-sm font-medium mr-2">{selectedIds.size} selecionado(s)</span>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Operadora</Button></PopoverTrigger>
+            <PopoverContent className="w-56 space-y-2">
+              <Select onValueChange={v => applyBulk({ operadora_id: v === 'none' ? null : v }, 'Operadora')}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma</SelectItem>
+                  {operadoras.map(o => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Unidade</Button></PopoverTrigger>
+            <PopoverContent className="w-56 space-y-2">
+              <Select onValueChange={v => applyBulk({ unidade_negocio: v === 'none' ? null : v }, 'Unidade')}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma</SelectItem>
+                  {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Supervisor A</Button></PopoverTrigger>
+            <PopoverContent className="w-56 space-y-2">
+              <Select onValueChange={v => applyBulk({ supervisor_a_id: v === 'none' ? null : v }, 'Supervisor A')}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {(supervisores as any[]).filter(s => s.ativo).map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Supervisor B</Button></PopoverTrigger>
+            <PopoverContent className="w-56 space-y-2">
+              <Select onValueChange={v => applyBulk({ supervisor_b_id: v === 'none' ? null : v }, 'Supervisor B')}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {(supervisores as any[]).filter(s => s.ativo).map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Corretor</Button></PopoverTrigger>
+            <PopoverContent className="w-56 space-y-2">
+              <Select onValueChange={v => applyBulk({ corretor_id: v === 'none' ? null : v }, 'Corretor')}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {vendedores.map(v => <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Status comissão</Button></PopoverTrigger>
+            <PopoverContent className="w-56 p-2 space-y-1">
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ supervisor_a_pago: true, supervisor_b_pago: true, corretor_pago: true }, 'Comissões')}>Marcar todas como pagas</Button>
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ supervisor_a_pago: false, supervisor_b_pago: false, corretor_pago: false }, 'Comissões')}>Marcar todas como pendentes</Button>
+              <div className="border-t my-1" />
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ supervisor_a_pago: true }, 'Supervisor A')}>Sup. A: paga</Button>
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ supervisor_a_pago: false }, 'Supervisor A')}>Sup. A: pendente</Button>
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ supervisor_b_pago: true }, 'Supervisor B')}>Sup. B: paga</Button>
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ supervisor_b_pago: false }, 'Supervisor B')}>Sup. B: pendente</Button>
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ corretor_pago: true }, 'Corretor')}>Corretor: paga</Button>
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ corretor_pago: false }, 'Corretor')}>Corretor: pendente</Button>
+            </PopoverContent>
+          </Popover>
+
+          <Button size="sm" variant="destructive" onClick={() => setConfirmBulkDelete(true)}>
+            <Trash2 className="h-4 w-4 mr-1" /> Excluir
+          </Button>
+
+          <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setSelectedIds(new Set())}>
+            <X className="h-4 w-4 mr-1" /> Limpar
+          </Button>
+        </div>
+      )}
+
+      <AlertDialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {selectedIds.size} contrato(s)?</AlertDialogTitle>
+            <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete}>Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={allSelected || (someSelected ? 'indeterminate' : false)}
+                    onCheckedChange={toggleAll}
+                    aria-label="Selecionar todos"
+                  />
+                </TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead>Operadora</TableHead>
                 <TableHead>Unidade</TableHead>
@@ -439,11 +554,14 @@ export default function Contratos() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Nenhum contrato encontrado</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Nenhum contrato encontrado</TableCell></TableRow>
               ) : (filtered as any[]).map(c => (
-                <TableRow key={c.id}>
+                <TableRow key={c.id} data-state={selectedIds.has(c.id) ? 'selected' : undefined}>
+                  <TableCell>
+                    <Checkbox checked={selectedIds.has(c.id)} onCheckedChange={() => toggleOne(c.id)} aria-label="Selecionar" />
+                  </TableCell>
                   <TableCell className="font-medium">{c.nome}</TableCell>
                   <TableCell>{c.operadoras?.nome || '—'}</TableCell>
                   <TableCell className="text-muted-foreground">{c.unidade_negocio || '—'}</TableCell>
