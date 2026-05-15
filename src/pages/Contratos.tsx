@@ -56,6 +56,7 @@ export default function Contratos() {
   const create = useCreateContrato();
   const update = useUpdateContrato();
   const remove = useDeleteContrato();
+  const bulkCreate = useBulkCreateContrato();
   const { toast } = useToast();
 
   const [search, setSearch] = useState('');
@@ -69,6 +70,75 @@ export default function Contratos() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+
+  const mapContratoRow = useCallback((row: Record<string, any>): ParsedRow => {
+    const errors: string[] = [];
+    const nome = String(row['Nome'] ?? '').trim();
+    const operadoraNome = String(row['Operadora'] ?? '').trim();
+    const unidade = String(row['Unidade'] ?? '').trim();
+    const dataImpl = row['Data Implantação'] || row['Data Implantacao'] || '';
+    const valorContrato = parseValorBR(row['Valor Contrato']);
+    const supANome = String(row['Supervisor A'] ?? '').trim();
+    const supBNome = String(row['Supervisor B'] ?? '').trim();
+    const corretorNome = String(row['Corretor'] ?? '').trim();
+    const pctA = parseFloat(String(row['% Supervisor A'] ?? '').replace(',', '.'));
+    const pctB = parseFloat(String(row['% Supervisor B'] ?? '').replace(',', '.'));
+    const pctC = parseFloat(String(row['% Corretor'] ?? '').replace(',', '.'));
+    const obs = String(row['Observações'] ?? row['Observacoes'] ?? '').trim();
+
+    if (!nome) errors.push('Nome obrigatório');
+    if (isNaN(valorContrato)) errors.push('Valor Contrato inválido');
+
+    const findByName = (list: any[], n: string) =>
+      n ? list.find(x => String(x.nome).toLowerCase() === n.toLowerCase()) : null;
+
+    const operadora = operadoraNome ? findByName(operadoras as any[], operadoraNome) : null;
+    if (operadoraNome && !operadora) errors.push(`Operadora "${operadoraNome}" não encontrada`);
+
+    const supA = supANome ? findByName(supervisores as any[], supANome) : null;
+    if (supANome && !supA) errors.push(`Supervisor A "${supANome}" não encontrado`);
+
+    const supB = supBNome ? findByName(supervisores as any[], supBNome) : null;
+    if (supBNome && !supB) errors.push(`Supervisor B "${supBNome}" não encontrado`);
+
+    const corretor = corretorNome ? findByName(vendedores as any[], corretorNome) : null;
+    if (corretorNome && !corretor) errors.push(`Corretor "${corretorNome}" não encontrado`);
+
+    const unidadeMatch = unidade
+      ? UNIDADES_NEGOCIO.find(u => u.toLowerCase() === unidade.toLowerCase())
+      : null;
+    if (unidade && !unidadeMatch) errors.push(`Unidade "${unidade}" inválida`);
+
+    const dateStr = dataImpl ? parseDateFlexible(dataImpl) : '';
+    const valor = isNaN(valorContrato) ? 0 : valorContrato;
+    const calc = (pct: number) => isNaN(pct) ? null : Number(((valor * pct) / 100).toFixed(2));
+
+    return {
+      mapped: {
+        nome,
+        operadora_id: operadora?.id || null,
+        unidade_negocio: unidadeMatch || null,
+        data_implantacao: dateStr || null,
+        valor_contrato: valor,
+        supervisor_a_id: supA?.id || null,
+        supervisor_a_percentual: isNaN(pctA) ? null : pctA,
+        supervisor_a_valor: supA ? calc(pctA) : null,
+        supervisor_a_pago: false,
+        supervisor_b_id: supB?.id || null,
+        supervisor_b_percentual: isNaN(pctB) ? null : pctB,
+        supervisor_b_valor: supB ? calc(pctB) : null,
+        supervisor_b_pago: false,
+        corretor_id: corretor?.id || null,
+        corretor_percentual: isNaN(pctC) ? null : pctC,
+        corretor_valor: corretor ? calc(pctC) : null,
+        corretor_pago: false,
+        observacoes: obs || null,
+      },
+      raw: row,
+      errors,
+    };
+  }, [operadoras, supervisores, vendedores]);
 
   const mesesDisponiveis = useMemo(() => {
     const set = new Set<string>();
