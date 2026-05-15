@@ -96,6 +96,7 @@ export default function Despesas() {
     const recorrenteRaw = row['Recorrente'] || '';
     const status = row['Status'] || 'A pagar';
     const unidade = row['Unidade'] || row['Unidade de Negócio'] || row['Unidade de Negocio'] || '';
+    const observacoes = row['Observações'] || row['Observacoes'] || '';
 
     if (!data) errors.push('Data obrigatória');
     if (!descricao) errors.push('Descrição obrigatória');
