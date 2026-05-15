@@ -487,6 +487,33 @@ export default function Contratos() {
             })}
           </SelectContent>
         </Select>
+        <div className={`flex items-center gap-1 rounded-md border px-2 h-10 ${(filterDataInicio || filterDataFim) ? activeCls : ''}`}>
+          <span className="text-xs text-muted-foreground">De</span>
+          <Input
+            type="date"
+            value={filterDataInicio}
+            onChange={(e) => setFilterDataInicio(e.target.value)}
+            className="h-8 w-[140px] border-0 px-1 focus-visible:ring-0"
+          />
+          <span className="text-xs text-muted-foreground">até</span>
+          <Input
+            type="date"
+            value={filterDataFim}
+            onChange={(e) => setFilterDataFim(e.target.value)}
+            className="h-8 w-[140px] border-0 px-1 focus-visible:ring-0"
+          />
+          {(filterDataInicio || filterDataFim) && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => { setFilterDataInicio(''); setFilterDataFim(''); }}
+              title="Limpar período"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
         <Select value={filterPago} onValueChange={setFilterPago}>
           <SelectTrigger className={`w-[180px] ${filterPago !== 'all' ? activeCls : ''}`}><SelectValue placeholder="Status comissão" /></SelectTrigger>
           <SelectContent>
