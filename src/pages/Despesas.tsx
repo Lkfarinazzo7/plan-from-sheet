@@ -123,6 +123,7 @@ export default function Despesas() {
         recorrente,
         status: ['Pago', 'A pagar', 'Atrasado'].includes(status) ? status : 'A pagar',
         unidade_negocio: unidadeMatch || null,
+        observacoes: String(observacoes).trim() || null,
       },
       raw: row,
       errors,
