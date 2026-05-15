@@ -643,6 +643,28 @@ export function useDeleteContrato() {
   });
 }
 
+export function useBulkUpdateContrato() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, updates }: { ids: string[]; updates: Record<string, any> }) => {
+      const { error } = await (supabase as any).from('contratos').update(updates).in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contratos'] }),
+  });
+}
+
+export function useBulkDeleteContrato() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await (supabase as any).from('contratos').delete().in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contratos'] }),
+  });
+}
+
 export function useBulkCreateContrato() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
