@@ -196,6 +196,28 @@ export default function Contratos() {
     return { totalContrato, totalComissoes, totalPagas, totalPendentes };
   }, [filtered]);
 
+  // Resumo por pessoa (supervisores e corretores)
+  const resumoPorPessoa = useMemo(() => {
+    const supMap = new Map<string, { nome: string; pago: number; pendente: number }>();
+    const corMap = new Map<string, { nome: string; pago: number; pendente: number }>();
+    const add = (map: typeof supMap, id: string | null, nome: string | undefined, valor: number, pago: boolean) => {
+      if (!id || !valor) return;
+      const cur = map.get(id) || { nome: nome || '—', pago: 0, pendente: 0 };
+      if (pago) cur.pago += valor; else cur.pendente += valor;
+      map.set(id, cur);
+    };
+    for (const c of filtered as any[]) {
+      add(supMap, c.supervisor_a_id, c.supervisor_a?.nome, Number(c.supervisor_a_valor || 0), !!c.supervisor_a_pago);
+      add(supMap, c.supervisor_b_id, c.supervisor_b?.nome, Number(c.supervisor_b_valor || 0), !!c.supervisor_b_pago);
+      add(corMap, c.corretor_id, c.corretor?.nome, Number(c.corretor_valor || 0), !!c.corretor_pago);
+    }
+    const sortFn = (a: any, b: any) => a.nome.localeCompare(b.nome);
+    return {
+      supervisores: Array.from(supMap.values()).sort(sortFn),
+      corretores: Array.from(corMap.values()).sort(sortFn),
+    };
+  }, [filtered]);
+
   const filteredIds = useMemo(() => (filtered as any[]).map(c => c.id), [filtered]);
   useEffect(() => { setSelectedIds(new Set()); }, [search, filterOperadora, filterUnidade, filterSupervisor, filterMes, filterPago]);
   const allSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.has(id));
