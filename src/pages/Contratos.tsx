@@ -68,6 +68,8 @@ export default function Contratos() {
   const [filterUnidade, setFilterUnidade] = useState('all');
   const [filterSupervisor, setFilterSupervisor] = useState('all');
   const [filterMes, setFilterMes] = useState('all');
+  const [filterDataInicio, setFilterDataInicio] = useState('');
+  const [filterDataFim, setFilterDataFim] = useState('');
   const [filterPago, setFilterPago] = useState('all'); // all | pendente | pago
 
   const [open, setOpen] = useState(false);
@@ -170,6 +172,12 @@ export default function Contratos() {
         const m = c.data_implantacao ? String(c.data_implantacao).slice(0, 7) : '';
         if (filterMes === 'none' ? m !== '' : m !== filterMes) return false;
       }
+      if (filterDataInicio || filterDataFim) {
+        const d = c.data_implantacao ? String(c.data_implantacao).slice(0, 10) : '';
+        if (!d) return false;
+        if (filterDataInicio && d < filterDataInicio) return false;
+        if (filterDataFim && d > filterDataFim) return false;
+      }
       if (filterPago !== 'all') {
         const allPagos = c.supervisor_a_pago && c.supervisor_b_pago && c.corretor_pago;
         const hasAny = c.supervisor_a_id || c.supervisor_b_id || c.corretor_id;
@@ -178,7 +186,7 @@ export default function Contratos() {
       }
       return true;
     });
-  }, [contratos, search, filterOperadora, filterUnidade, filterSupervisor, filterMes, filterPago]);
+  }, [contratos, search, filterOperadora, filterUnidade, filterSupervisor, filterMes, filterDataInicio, filterDataFim, filterPago]);
 
   // Resumo
   const resumo = useMemo(() => {
@@ -219,7 +227,7 @@ export default function Contratos() {
   }, [filtered]);
 
   const filteredIds = useMemo(() => (filtered as any[]).map(c => c.id), [filtered]);
-  useEffect(() => { setSelectedIds(new Set()); }, [search, filterOperadora, filterUnidade, filterSupervisor, filterMes, filterPago]);
+  useEffect(() => { setSelectedIds(new Set()); }, [search, filterOperadora, filterUnidade, filterSupervisor, filterMes, filterDataInicio, filterDataFim, filterPago]);
   const allSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.has(id));
   const someSelected = selectedIds.size > 0 && !allSelected;
   const toggleAll = () => {
@@ -479,6 +487,33 @@ export default function Contratos() {
             })}
           </SelectContent>
         </Select>
+        <div className={`flex items-center gap-1 rounded-md border px-2 h-10 ${(filterDataInicio || filterDataFim) ? activeCls : ''}`}>
+          <span className="text-xs text-muted-foreground">De</span>
+          <Input
+            type="date"
+            value={filterDataInicio}
+            onChange={(e) => setFilterDataInicio(e.target.value)}
+            className="h-8 w-[140px] border-0 px-1 focus-visible:ring-0"
+          />
+          <span className="text-xs text-muted-foreground">até</span>
+          <Input
+            type="date"
+            value={filterDataFim}
+            onChange={(e) => setFilterDataFim(e.target.value)}
+            className="h-8 w-[140px] border-0 px-1 focus-visible:ring-0"
+          />
+          {(filterDataInicio || filterDataFim) && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => { setFilterDataInicio(''); setFilterDataFim(''); }}
+              title="Limpar período"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
         <Select value={filterPago} onValueChange={setFilterPago}>
           <SelectTrigger className={`w-[180px] ${filterPago !== 'all' ? activeCls : ''}`}><SelectValue placeholder="Status comissão" /></SelectTrigger>
           <SelectContent>
