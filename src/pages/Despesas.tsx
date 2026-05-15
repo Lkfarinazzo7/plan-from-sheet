@@ -636,13 +636,14 @@ export default function Despesas() {
         open={importOpen}
         onOpenChange={setImportOpen}
         title="Importar Despesas"
-        expectedColumns={['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor', 'Responsável', 'Recorrente', 'Status']}
+        expectedColumns={['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor', 'Responsável', 'Recorrente', 'Status', 'Observações']}
         mapRow={mapDespesaRow}
         onConfirm={async (rows) => { await bulkCreateDespesa.mutateAsync(rows as any); }}
         columnAliases={{
           'Valor': ['Valor Real', 'Valor (R$)'],
           'Tipo': ['Tipo (Fixo/Variável)', 'Tipo (Fixo/Variavel)'],
           'Status': ['Status/Pago'],
+          'Observações': ['Observacoes', 'Obs'],
         }}
       />
     </div>
