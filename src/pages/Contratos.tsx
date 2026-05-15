@@ -196,6 +196,43 @@ export default function Contratos() {
     return { totalContrato, totalComissoes, totalPagas, totalPendentes };
   }, [filtered]);
 
+  const filteredIds = useMemo(() => (filtered as any[]).map(c => c.id), [filtered]);
+  useEffect(() => { setSelectedIds(new Set()); }, [search, filterOperadora, filterUnidade, filterSupervisor, filterMes, filterPago]);
+  const allSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.has(id));
+  const someSelected = selectedIds.size > 0 && !allSelected;
+  const toggleAll = () => {
+    if (allSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredIds));
+  };
+  const toggleOne = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const applyBulk = async (updates: Record<string, any>, label: string) => {
+    try {
+      const n = selectedIds.size;
+      await bulkUpdate.mutateAsync({ ids: Array.from(selectedIds), updates });
+      toast({ title: `${label} atualizado em ${n} contrato(s)` });
+      setSelectedIds(new Set());
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+  };
+  const handleBulkDelete = async () => {
+    try {
+      const n = selectedIds.size;
+      await bulkDelete.mutateAsync(Array.from(selectedIds));
+      toast({ title: `${n} contrato(s) excluído(s)` });
+      setSelectedIds(new Set());
+      setConfirmBulkDelete(false);
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+  };
+
   const openNew = () => { setEditId(null); setForm(emptyForm); setOpen(true); };
   const openEdit = (c: any) => {
     setEditId(c.id);
