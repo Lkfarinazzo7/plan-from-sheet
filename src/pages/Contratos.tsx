@@ -398,6 +398,52 @@ export default function Contratos() {
         <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Comissões Pendentes</p><p className="text-2xl font-bold text-warning">{formatCurrency(resumo.totalPendentes)}</p></CardContent></Card>
       </div>
 
+      {/* Resumo por pessoa */}
+      {(resumoPorPessoa.supervisores.length > 0 || resumoPorPessoa.corretores.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm font-semibold mb-3">Comissões por Supervisor</p>
+              {resumoPorPessoa.supervisores.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum supervisor com comissões.</p>
+              ) : (
+                <div className="space-y-2">
+                  {resumoPorPessoa.supervisores.map((p, i) => (
+                    <div key={i} className="flex items-center justify-between gap-3 py-1.5 border-b last:border-0">
+                      <span className="font-medium truncate">{p.nome}</span>
+                      <div className="flex items-center gap-4 text-sm whitespace-nowrap">
+                        <span className="text-success">Pago: <strong>{formatCurrency(p.pago)}</strong></span>
+                        <span className="text-warning">Pendente: <strong>{formatCurrency(p.pendente)}</strong></span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm font-semibold mb-3">Comissões por Corretor</p>
+              {resumoPorPessoa.corretores.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum corretor com comissões.</p>
+              ) : (
+                <div className="space-y-2">
+                  {resumoPorPessoa.corretores.map((p, i) => (
+                    <div key={i} className="flex items-center justify-between gap-3 py-1.5 border-b last:border-0">
+                      <span className="font-medium truncate">{p.nome}</span>
+                      <div className="flex items-center gap-4 text-sm whitespace-nowrap">
+                        <span className="text-success">Pago: <strong>{formatCurrency(p.pago)}</strong></span>
+                        <span className="text-warning">Pendente: <strong>{formatCurrency(p.pendente)}</strong></span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Filtros */}
       <div className="flex flex-wrap gap-3">
         <Select value={filterOperadora} onValueChange={setFilterOperadora}>
