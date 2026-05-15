@@ -19,7 +19,7 @@ const menuItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
   { title: 'Receitas', url: '/receitas', icon: ArrowUpCircle },
   { title: 'Despesas', url: '/despesas', icon: ArrowDownCircle },
-  { title: 'Propostas', url: '/propostas', icon: FileText },
+  { title: 'Contratos', url: '/contratos', icon: FileSignature },
   { title: 'Cadastros', url: '/cadastros', icon: ClipboardList },
 ];
 
