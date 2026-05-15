@@ -56,6 +56,81 @@ export type Database = {
         }
         Relationships: []
       }
+      contratos: {
+        Row: {
+          corretor_id: string | null
+          corretor_pago: boolean
+          corretor_percentual: number | null
+          corretor_valor: number | null
+          created_at: string
+          data_implantacao: string | null
+          id: string
+          nome: string
+          observacoes: string | null
+          operadora_id: string | null
+          supervisor_a_id: string | null
+          supervisor_a_pago: boolean
+          supervisor_a_percentual: number | null
+          supervisor_a_valor: number | null
+          supervisor_b_id: string | null
+          supervisor_b_pago: boolean
+          supervisor_b_percentual: number | null
+          supervisor_b_valor: number | null
+          unidade_negocio: string | null
+          updated_at: string
+          user_id: string
+          valor_contrato: number
+        }
+        Insert: {
+          corretor_id?: string | null
+          corretor_pago?: boolean
+          corretor_percentual?: number | null
+          corretor_valor?: number | null
+          created_at?: string
+          data_implantacao?: string | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          operadora_id?: string | null
+          supervisor_a_id?: string | null
+          supervisor_a_pago?: boolean
+          supervisor_a_percentual?: number | null
+          supervisor_a_valor?: number | null
+          supervisor_b_id?: string | null
+          supervisor_b_pago?: boolean
+          supervisor_b_percentual?: number | null
+          supervisor_b_valor?: number | null
+          unidade_negocio?: string | null
+          updated_at?: string
+          user_id: string
+          valor_contrato?: number
+        }
+        Update: {
+          corretor_id?: string | null
+          corretor_pago?: boolean
+          corretor_percentual?: number | null
+          corretor_valor?: number | null
+          created_at?: string
+          data_implantacao?: string | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          operadora_id?: string | null
+          supervisor_a_id?: string | null
+          supervisor_a_pago?: boolean
+          supervisor_a_percentual?: number | null
+          supervisor_a_valor?: number | null
+          supervisor_b_id?: string | null
+          supervisor_b_pago?: boolean
+          supervisor_b_percentual?: number | null
+          supervisor_b_valor?: number | null
+          unidade_negocio?: string | null
+          updated_at?: string
+          user_id?: string
+          valor_contrato?: number
+        }
+        Relationships: []
+      }
       despesas: {
         Row: {
           categoria_id: string
