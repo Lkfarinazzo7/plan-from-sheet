@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,14 +7,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, Download } from 'lucide-react';
 import {
-  useContratos, useCreateContrato, useUpdateContrato, useDeleteContrato,
+  useContratos, useCreateContrato, useUpdateContrato, useDeleteContrato, useBulkCreateContrato,
   useOperadoras, useSupervisores, useVendedores,
 } from '@/hooks/useFinancialData';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
 import { formatCurrency } from '@/lib/format';
 import { useToast } from '@/hooks/use-toast';
+import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
+import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
+import { exportToExcel } from '@/lib/exportHelpers';
 
 type Slot = 'a' | 'b' | 'c'; // a=Sup A, b=Sup B, c=Corretor
 
