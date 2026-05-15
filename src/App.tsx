@@ -9,7 +9,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Receitas from "./pages/Receitas";
 import Despesas from "./pages/Despesas";
-import Propostas from "./pages/Propostas";
+import Contratos from "./pages/Contratos";
 import Cadastros from "./pages/Cadastros";
 import NotFound from "./pages/NotFound";
 
