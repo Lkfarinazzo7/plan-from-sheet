@@ -59,6 +59,8 @@ export default function Contratos() {
   const update = useUpdateContrato();
   const remove = useDeleteContrato();
   const bulkCreate = useBulkCreateContrato();
+  const bulkUpdate = useBulkUpdateContrato();
+  const bulkDelete = useBulkDeleteContrato();
   const { toast } = useToast();
 
   const [search, setSearch] = useState('');
@@ -72,7 +74,9 @@ export default function Contratos() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const mapContratoRow = useCallback((row: Record<string, any>): ParsedRow => {
     const errors: string[] = [];
