@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,9 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Pencil, Trash2, Upload, Download } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Plus, Pencil, Trash2, Upload, Download, X } from 'lucide-react';
 import {
-  useContratos, useCreateContrato, useUpdateContrato, useDeleteContrato, useBulkCreateContrato,
+  useContratos, useCreateContrato, useUpdateContrato, useDeleteContrato,
+  useBulkCreateContrato, useBulkUpdateContrato, useBulkDeleteContrato,
   useOperadoras, useSupervisores, useVendedores,
 } from '@/hooks/useFinancialData';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
@@ -57,6 +59,8 @@ export default function Contratos() {
   const update = useUpdateContrato();
   const remove = useDeleteContrato();
   const bulkCreate = useBulkCreateContrato();
+  const bulkUpdate = useBulkUpdateContrato();
+  const bulkDelete = useBulkDeleteContrato();
   const { toast } = useToast();
 
   const [search, setSearch] = useState('');
@@ -70,7 +74,9 @@ export default function Contratos() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const mapContratoRow = useCallback((row: Record<string, any>): ParsedRow => {
     const errors: string[] = [];
@@ -189,6 +195,43 @@ export default function Contratos() {
     }
     return { totalContrato, totalComissoes, totalPagas, totalPendentes };
   }, [filtered]);
+
+  const filteredIds = useMemo(() => (filtered as any[]).map(c => c.id), [filtered]);
+  useEffect(() => { setSelectedIds(new Set()); }, [search, filterOperadora, filterUnidade, filterSupervisor, filterMes, filterPago]);
+  const allSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.has(id));
+  const someSelected = selectedIds.size > 0 && !allSelected;
+  const toggleAll = () => {
+    if (allSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredIds));
+  };
+  const toggleOne = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const applyBulk = async (updates: Record<string, any>, label: string) => {
+    try {
+      const n = selectedIds.size;
+      await bulkUpdate.mutateAsync({ ids: Array.from(selectedIds), updates });
+      toast({ title: `${label} atualizado em ${n} contrato(s)` });
+      setSelectedIds(new Set());
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+  };
+  const handleBulkDelete = async () => {
+    try {
+      const n = selectedIds.size;
+      await bulkDelete.mutateAsync(Array.from(selectedIds));
+      toast({ title: `${n} contrato(s) excluído(s)` });
+      setSelectedIds(new Set());
+      setConfirmBulkDelete(false);
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+  };
 
   const openNew = () => { setEditId(null); setForm(emptyForm); setOpen(true); };
   const openEdit = (c: any) => {
@@ -378,11 +421,126 @@ export default function Contratos() {
         </Select>
       </div>
 
+      {/* Bulk actions bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 p-3 border rounded-lg bg-primary/5 border-primary/30">
+          <span className="text-sm font-medium mr-2">{selectedIds.size} selecionado(s)</span>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Operadora</Button></PopoverTrigger>
+            <PopoverContent className="w-56 space-y-2">
+              <Select onValueChange={v => applyBulk({ operadora_id: v === 'none' ? null : v }, 'Operadora')}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma</SelectItem>
+                  {operadoras.map(o => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Unidade</Button></PopoverTrigger>
+            <PopoverContent className="w-56 space-y-2">
+              <Select onValueChange={v => applyBulk({ unidade_negocio: v === 'none' ? null : v }, 'Unidade')}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma</SelectItem>
+                  {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Supervisor A</Button></PopoverTrigger>
+            <PopoverContent className="w-56 space-y-2">
+              <Select onValueChange={v => applyBulk({ supervisor_a_id: v === 'none' ? null : v }, 'Supervisor A')}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {(supervisores as any[]).filter(s => s.ativo).map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Supervisor B</Button></PopoverTrigger>
+            <PopoverContent className="w-56 space-y-2">
+              <Select onValueChange={v => applyBulk({ supervisor_b_id: v === 'none' ? null : v }, 'Supervisor B')}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {(supervisores as any[]).filter(s => s.ativo).map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Corretor</Button></PopoverTrigger>
+            <PopoverContent className="w-56 space-y-2">
+              <Select onValueChange={v => applyBulk({ corretor_id: v === 'none' ? null : v }, 'Corretor')}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {vendedores.map(v => <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Status comissão</Button></PopoverTrigger>
+            <PopoverContent className="w-56 p-2 space-y-1">
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ supervisor_a_pago: true, supervisor_b_pago: true, corretor_pago: true }, 'Comissões')}>Marcar todas como pagas</Button>
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ supervisor_a_pago: false, supervisor_b_pago: false, corretor_pago: false }, 'Comissões')}>Marcar todas como pendentes</Button>
+              <div className="border-t my-1" />
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ supervisor_a_pago: true }, 'Supervisor A')}>Sup. A: paga</Button>
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ supervisor_a_pago: false }, 'Supervisor A')}>Sup. A: pendente</Button>
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ supervisor_b_pago: true }, 'Supervisor B')}>Sup. B: paga</Button>
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ supervisor_b_pago: false }, 'Supervisor B')}>Sup. B: pendente</Button>
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ corretor_pago: true }, 'Corretor')}>Corretor: paga</Button>
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ corretor_pago: false }, 'Corretor')}>Corretor: pendente</Button>
+            </PopoverContent>
+          </Popover>
+
+          <Button size="sm" variant="destructive" onClick={() => setConfirmBulkDelete(true)}>
+            <Trash2 className="h-4 w-4 mr-1" /> Excluir
+          </Button>
+
+          <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setSelectedIds(new Set())}>
+            <X className="h-4 w-4 mr-1" /> Limpar
+          </Button>
+        </div>
+      )}
+
+      <AlertDialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {selectedIds.size} contrato(s)?</AlertDialogTitle>
+            <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete}>Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={allSelected || (someSelected ? 'indeterminate' : false)}
+                    onCheckedChange={toggleAll}
+                    aria-label="Selecionar todos"
+                  />
+                </TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead>Operadora</TableHead>
                 <TableHead>Unidade</TableHead>
@@ -396,11 +554,14 @@ export default function Contratos() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Nenhum contrato encontrado</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Nenhum contrato encontrado</TableCell></TableRow>
               ) : (filtered as any[]).map(c => (
-                <TableRow key={c.id}>
+                <TableRow key={c.id} data-state={selectedIds.has(c.id) ? 'selected' : undefined}>
+                  <TableCell>
+                    <Checkbox checked={selectedIds.has(c.id)} onCheckedChange={() => toggleOne(c.id)} aria-label="Selecionar" />
+                  </TableCell>
                   <TableCell className="font-medium">{c.nome}</TableCell>
                   <TableCell>{c.operadoras?.nome || '—'}</TableCell>
                   <TableCell className="text-muted-foreground">{c.unidade_negocio || '—'}</TableCell>
