@@ -196,6 +196,28 @@ export default function Contratos() {
     return { totalContrato, totalComissoes, totalPagas, totalPendentes };
   }, [filtered]);
 
+  // Resumo por pessoa (supervisores e corretores)
+  const resumoPorPessoa = useMemo(() => {
+    const supMap = new Map<string, { nome: string; pago: number; pendente: number }>();
+    const corMap = new Map<string, { nome: string; pago: number; pendente: number }>();
+    const add = (map: typeof supMap, id: string | null, nome: string | undefined, valor: number, pago: boolean) => {
+      if (!id || !valor) return;
+      const cur = map.get(id) || { nome: nome || '—', pago: 0, pendente: 0 };
+      if (pago) cur.pago += valor; else cur.pendente += valor;
+      map.set(id, cur);
+    };
+    for (const c of filtered as any[]) {
+      add(supMap, c.supervisor_a_id, c.supervisor_a?.nome, Number(c.supervisor_a_valor || 0), !!c.supervisor_a_pago);
+      add(supMap, c.supervisor_b_id, c.supervisor_b?.nome, Number(c.supervisor_b_valor || 0), !!c.supervisor_b_pago);
+      add(corMap, c.corretor_id, c.corretor?.nome, Number(c.corretor_valor || 0), !!c.corretor_pago);
+    }
+    const sortFn = (a: any, b: any) => a.nome.localeCompare(b.nome);
+    return {
+      supervisores: Array.from(supMap.values()).sort(sortFn),
+      corretores: Array.from(corMap.values()).sort(sortFn),
+    };
+  }, [filtered]);
+
   const filteredIds = useMemo(() => (filtered as any[]).map(c => c.id), [filtered]);
   useEffect(() => { setSelectedIds(new Set()); }, [search, filterOperadora, filterUnidade, filterSupervisor, filterMes, filterPago]);
   const allSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.has(id));
@@ -375,6 +397,52 @@ export default function Contratos() {
         <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Comissões Pagas</p><p className="text-2xl font-bold text-success">{formatCurrency(resumo.totalPagas)}</p></CardContent></Card>
         <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Comissões Pendentes</p><p className="text-2xl font-bold text-warning">{formatCurrency(resumo.totalPendentes)}</p></CardContent></Card>
       </div>
+
+      {/* Resumo por pessoa */}
+      {(resumoPorPessoa.supervisores.length > 0 || resumoPorPessoa.corretores.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm font-semibold mb-3">Comissões por Supervisor</p>
+              {resumoPorPessoa.supervisores.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum supervisor com comissões.</p>
+              ) : (
+                <div className="space-y-2">
+                  {resumoPorPessoa.supervisores.map((p, i) => (
+                    <div key={i} className="flex items-center justify-between gap-3 py-1.5 border-b last:border-0">
+                      <span className="font-medium truncate">{p.nome}</span>
+                      <div className="flex items-center gap-4 text-sm whitespace-nowrap">
+                        <span className="text-success">Pago: <strong>{formatCurrency(p.pago)}</strong></span>
+                        <span className="text-warning">Pendente: <strong>{formatCurrency(p.pendente)}</strong></span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm font-semibold mb-3">Comissões por Corretor</p>
+              {resumoPorPessoa.corretores.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum corretor com comissões.</p>
+              ) : (
+                <div className="space-y-2">
+                  {resumoPorPessoa.corretores.map((p, i) => (
+                    <div key={i} className="flex items-center justify-between gap-3 py-1.5 border-b last:border-0">
+                      <span className="font-medium truncate">{p.nome}</span>
+                      <div className="flex items-center gap-4 text-sm whitespace-nowrap">
+                        <span className="text-success">Pago: <strong>{formatCurrency(p.pago)}</strong></span>
+                        <span className="text-warning">Pendente: <strong>{formatCurrency(p.pendente)}</strong></span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-3">
