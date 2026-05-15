@@ -281,6 +281,7 @@ export default function Despesas() {
               Valor: Number(d.valor),
               Status: d.status,
               Recorrente: d.recorrente ? 'Sim' : 'Não',
+              Observações: (d as any).observacoes || '',
             }));
             exportToExcel(rows, `Despesas_${getMonthName(month)}_${year}`);
           }}>
