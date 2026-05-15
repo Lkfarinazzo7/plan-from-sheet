@@ -278,46 +278,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Proposta por Operadora e por Vendedor */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader><CardTitle className="text-base">Proposta por Operadora</CardTitle></CardHeader>
-          <CardContent>
-            {propostaPorOperadora.length > 0 ? (
-              <div className="space-y-4">
-                {propostaPorOperadora.map((v, i) => (
-                  <div key={v.nome} className="flex items-center gap-4">
-                    <span className="text-lg font-bold text-muted-foreground w-6">{i + 1}.</span>
-                    <div className="flex-1 min-w-0"><p className="font-medium truncate">{v.nome}</p></div>
-                    <span className="text-sm font-semibold text-primary">{formatCurrency(v.total)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-center py-12">Sem propostas neste período</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base">Proposta por Vendedor</CardTitle></CardHeader>
-          <CardContent>
-            {propostaPorVendedor.length > 0 ? (
-              <div className="space-y-4">
-                {propostaPorVendedor.map((v, i) => (
-                  <div key={v.nome} className="flex items-center gap-4">
-                    <span className="text-lg font-bold text-muted-foreground w-6">{i + 1}.</span>
-                    <div className="flex-1 min-w-0"><p className="font-medium truncate">{v.nome}</p></div>
-                    <span className="text-sm font-semibold text-primary">{formatCurrency(v.total)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-center py-12">Sem propostas neste período</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Despesas por Categoria — barras horizontais */}
       <Card>
