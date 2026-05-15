@@ -291,8 +291,36 @@ export default function Contratos() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-2xl font-bold">Contratos</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Input placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="w-60" />
+          <Button variant="outline" onClick={() => {
+            const rows = (filtered as any[]).map(c => ({
+              Nome: c.nome,
+              Operadora: c.operadoras?.nome || '',
+              Unidade: c.unidade_negocio || '',
+              'Data Implantação': c.data_implantacao ? formatDateBR(c.data_implantacao) : '',
+              'Valor Contrato': Number(c.valor_contrato || 0),
+              'Supervisor A': c.supervisor_a?.nome || '',
+              '% Supervisor A': c.supervisor_a_percentual ?? '',
+              'Valor Supervisor A': Number(c.supervisor_a_valor || 0),
+              'Pago Supervisor A': c.supervisor_a_pago ? 'Sim' : 'Não',
+              'Supervisor B': c.supervisor_b?.nome || '',
+              '% Supervisor B': c.supervisor_b_percentual ?? '',
+              'Valor Supervisor B': Number(c.supervisor_b_valor || 0),
+              'Pago Supervisor B': c.supervisor_b_pago ? 'Sim' : 'Não',
+              Corretor: c.corretor?.nome || '',
+              '% Corretor': c.corretor_percentual ?? '',
+              'Valor Corretor': Number(c.corretor_valor || 0),
+              'Pago Corretor': c.corretor_pago ? 'Sim' : 'Não',
+              Observações: c.observacoes || '',
+            }));
+            exportToExcel(rows, 'Contratos');
+          }}>
+            <Download className="h-4 w-4 mr-1" /> Exportar
+          </Button>
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4 mr-1" /> Importar Excel
+          </Button>
           <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Novo Contrato</Button>
         </div>
       </div>
