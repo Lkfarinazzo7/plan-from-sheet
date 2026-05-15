@@ -642,3 +642,26 @@ export function useDeleteContrato() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contratos'] }),
   });
 }
+
+export function useBulkCreateContrato() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (rows: ContratoInput[]) => {
+      const payload = rows.map(c => ({
+        ...c,
+        operadora_id: c.operadora_id || null,
+        unidade_negocio: c.unidade_negocio || null,
+        data_implantacao: c.data_implantacao || null,
+        supervisor_a_id: c.supervisor_a_id || null,
+        supervisor_b_id: c.supervisor_b_id || null,
+        corretor_id: c.corretor_id || null,
+        valor_contrato: c.valor_contrato ?? 0,
+        user_id: user!.id,
+      }));
+      const { error } = await (supabase as any).from('contratos').insert(payload);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contratos'] }),
+  });
+}

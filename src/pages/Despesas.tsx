@@ -96,6 +96,7 @@ export default function Despesas() {
     const recorrenteRaw = row['Recorrente'] || '';
     const status = row['Status'] || 'A pagar';
     const unidade = row['Unidade'] || row['Unidade de Negócio'] || row['Unidade de Negocio'] || '';
+    const observacoes = row['Observações'] || row['Observacoes'] || '';
 
     if (!data) errors.push('Data obrigatória');
     if (!descricao) errors.push('Descrição obrigatória');
@@ -122,6 +123,7 @@ export default function Despesas() {
         recorrente,
         status: ['Pago', 'A pagar', 'Atrasado'].includes(status) ? status : 'A pagar',
         unidade_negocio: unidadeMatch || null,
+        observacoes: String(observacoes).trim() || null,
       },
       raw: row,
       errors,
@@ -279,6 +281,7 @@ export default function Despesas() {
               Valor: Number(d.valor),
               Status: d.status,
               Recorrente: d.recorrente ? 'Sim' : 'Não',
+              Observações: (d as any).observacoes || '',
             }));
             exportToExcel(rows, `Despesas_${getMonthName(month)}_${year}`);
           }}>
@@ -633,13 +636,14 @@ export default function Despesas() {
         open={importOpen}
         onOpenChange={setImportOpen}
         title="Importar Despesas"
-        expectedColumns={['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor', 'Responsável', 'Recorrente', 'Status']}
+        expectedColumns={['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor', 'Responsável', 'Recorrente', 'Status', 'Observações']}
         mapRow={mapDespesaRow}
         onConfirm={async (rows) => { await bulkCreateDespesa.mutateAsync(rows as any); }}
         columnAliases={{
           'Valor': ['Valor Real', 'Valor (R$)'],
           'Tipo': ['Tipo (Fixo/Variável)', 'Tipo (Fixo/Variavel)'],
           'Status': ['Status/Pago'],
+          'Observações': ['Observacoes', 'Obs'],
         }}
       />
     </div>

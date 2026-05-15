@@ -1,9 +1,15 @@
 ## Contratos (atual)
 
-Aba criada com tabela `contratos` (RLS por user_id). Campos: nome, operadora, unidade, data_implantacao, valor_contrato, 3 slots de comissão (Sup A, Sup B via `supervisores`; Corretor via `vendedores`) com percentual, valor e checkbox "pago".
+Tabela `contratos` com FKs para `operadoras`, `supervisores` (A e B) e `vendedores` (corretor) — `ON DELETE SET NULL`. Joins via PostgREST funcionam.
 
-Comissão: ao mudar % ou valor do contrato, valor R$ é recalculado automaticamente; usuário pode sobrescrever o R$.
+Comissão: ao mudar % ou valor do contrato, valor R$ é recalculado automaticamente; usuário pode sobrescrever o R$. Checkbox "pago" inline na tabela.
 
-UI: filtros (operadora, unidade, supervisor, mês, status pago/pendente), cards de resumo, checkbox inline na tabela para marcar como pago sem abrir o form.
+Filtros: operadora, unidade, supervisor, mês, status pago/pendente. Cards de resumo (valor total, comissões totais/pagas/pendentes).
 
-Propostas: removidas da UI (sidebar, rota, página). Tabela `propostas` e `receitas.proposta_id` mantidas no banco.
+Importação Excel: colunas `Nome, Operadora, Unidade, Data Implantação, Valor Contrato, Supervisor A, % Supervisor A, Supervisor B, % Supervisor B, Corretor, % Corretor, Observações`. Operadora/supervisor/corretor resolvidos por nome (case-insensitive). Comissões calculadas automaticamente do %, todas entram como pendentes.
+
+Exportação Excel: baseada nos filtros ativos.
+
+Despesas: campo `observacoes` em form, ícone na tabela, e agora também no import/export Excel.
+
+Propostas: removidas da UI. Tabela `propostas` e `receitas.proposta_id` mantidas no banco.
