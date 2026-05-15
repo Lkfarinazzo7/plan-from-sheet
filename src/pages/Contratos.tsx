@@ -190,7 +190,7 @@ export default function Contratos() {
       }
       return true;
     });
-  }, [contratos, search, filterOperadora, filterUnidade, filterSupervisor, filterMes, filterDataInicio, filterDataFim, filterPago]);
+  }, [contratos, search, filterOperadora, filterUnidade, filterSupervisor, filterCorretor, filterMes, filterDataInicio, filterDataFim, filterPago]);
 
   // Resumo
   const resumo = useMemo(() => {
