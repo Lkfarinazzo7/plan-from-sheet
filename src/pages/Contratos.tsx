@@ -68,6 +68,8 @@ export default function Contratos() {
   const [filterUnidade, setFilterUnidade] = useState('all');
   const [filterSupervisor, setFilterSupervisor] = useState('all');
   const [filterMes, setFilterMes] = useState('all');
+  const [filterDataInicio, setFilterDataInicio] = useState('');
+  const [filterDataFim, setFilterDataFim] = useState('');
   const [filterPago, setFilterPago] = useState('all'); // all | pendente | pago
 
   const [open, setOpen] = useState(false);
