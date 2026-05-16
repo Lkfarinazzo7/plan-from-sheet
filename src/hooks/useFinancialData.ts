@@ -560,9 +560,9 @@ export function useBulkCreateDespesa() {
   });
 }
 
-export function useMonthlyComparison() {
+export function useMonthlyComparison(unidade?: string) {
   return useQuery({
-    queryKey: ['monthly-comparison'],
+    queryKey: ['monthly-comparison', unidade || 'all'],
     queryFn: async () => {
       const now = new Date();
       const startM = now.getMonth() - 5;
@@ -571,10 +571,13 @@ export function useMonthlyComparison() {
       const startDate = toDateStr(startY, startMonth, 1);
       const endDate = toDateStr(now.getFullYear(), now.getMonth(), new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate());
 
-      const [receitasRes, despesasRes] = await Promise.all([
-        supabase.from('receitas').select('data, valor').gte('data', startDate).lte('data', endDate),
-        supabase.from('despesas').select('data, valor').gte('data', startDate).lte('data', endDate),
-      ]);
+      let rq = supabase.from('receitas').select('data, valor, unidade_negocio').gte('data', startDate).lte('data', endDate);
+      let dq = supabase.from('despesas').select('data, valor, unidade_negocio').gte('data', startDate).lte('data', endDate);
+      if (unidade) {
+        rq = rq.eq('unidade_negocio', unidade);
+        dq = dq.eq('unidade_negocio', unidade);
+      }
+      const [receitasRes, despesasRes] = await Promise.all([rq, dq]);
 
       if (receitasRes.error) throw receitasRes.error;
       if (despesasRes.error) throw despesasRes.error;
