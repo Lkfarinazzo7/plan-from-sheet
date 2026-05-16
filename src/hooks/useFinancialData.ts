@@ -220,7 +220,7 @@ export function useCreateDespesa() {
     mutationFn: async (despesa: {
       data: string; descricao: string; categoria_id: string; tipo: string;
       valor: number; responsavel?: string; recorrente: boolean; status: string; unidade_negocio?: string | null;
-      observacoes?: string | null;
+      observacoes?: string | null; setor_id?: string | null;
     }) => {
       const { error } = await supabase.from('despesas').insert({ ...despesa, user_id: user!.id } as any);
       if (error) throw error;
