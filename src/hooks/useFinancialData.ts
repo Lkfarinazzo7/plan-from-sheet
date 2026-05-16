@@ -508,7 +508,7 @@ export function useBulkCreateDespesa() {
     mutationFn: async (rows: Array<{
       data: string; descricao: string; categoria_id: string; tipo: string;
       valor: number; responsavel?: string; recorrente: boolean; status: string;
-      unidade_negocio?: string | null; observacoes?: string | null;
+      unidade_negocio?: string | null; observacoes?: string | null; setor_id?: string | null;
     }>) => {
       const payload = rows.map(r => ({ ...r, user_id: user!.id }));
       const { error } = await supabase.from('despesas').insert(payload);
