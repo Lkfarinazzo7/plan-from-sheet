@@ -367,7 +367,47 @@ export function useDeleteCategoriaDespesa() {
   });
 }
 
-export function useSupervisores() {
+// ===== Setores de Despesa =====
+export function useSetoresDespesa() {
+  return useQuery({
+    queryKey: ['setores_despesa'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('setores_despesa').select('*').eq('ativo', true).order('nome');
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+export function useAllSetoresDespesa() {
+  return useQuery({
+    queryKey: ['setores_despesa', 'all'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('setores_despesa').select('*').order('nome');
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+export function useCreateSetorDespesa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (nome: string) => {
+      const { error } = await supabase.from('setores_despesa').insert({ nome });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['setores_despesa'] }),
+  });
+}
+export function useUpdateSetorDespesa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string; nome?: string; ativo?: boolean }) => {
+      const { error } = await supabase.from('setores_despesa').update(updates).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['setores_despesa'] }),
+  });
+}
   return useQuery({
     queryKey: ['supervisores'],
     queryFn: async () => {
