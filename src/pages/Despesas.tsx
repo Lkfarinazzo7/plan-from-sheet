@@ -372,6 +372,16 @@ export default function Despesas() {
                     </Select>
                   </div>
                 </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Setor</label>
+                  <Select value={form.setor_id} onValueChange={v => setForm({ ...form, setor_id: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {setores.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-sm font-medium">Valor (R$)</label>
