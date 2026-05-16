@@ -28,6 +28,7 @@ const emptyForm = {
   recorrente: false,
   status: 'A pagar',
   unidade_negocio: 'none' as string,
+  setor_id: 'none' as string,
   observacoes: '',
 };
 
