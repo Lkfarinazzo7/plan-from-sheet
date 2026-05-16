@@ -149,6 +149,10 @@ export default function Despesas() {
       const u = (d as any).unidade_negocio || '';
       if (filterUnidade === 'none' ? u !== '' : u !== filterUnidade) return false;
     }
+    if (filterSetor !== 'all') {
+      const s = (d as any).setor_id || '';
+      if (filterSetor === 'none' ? s !== '' : s !== filterSetor) return false;
+    }
     if (filterPeriodo === 'semana') {
       const { start, end } = getThisWeekRange();
       if (d.data < start || d.data > end) return false;
@@ -163,7 +167,7 @@ export default function Despesas() {
     const catB = ((b.categorias_despesa as any)?.nome || '').toLowerCase();
     if (catA !== catB) return catA.localeCompare(catB, 'pt-BR');
     return (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR');
-  }), [despesas, filterCategoria, filterStatus, filterTipo, filterResponsavel, filterUnidade, filterPeriodo, customStart, customEnd]);
+  }), [despesas, filterCategoria, filterStatus, filterTipo, filterResponsavel, filterUnidade, filterSetor, filterPeriodo, customStart, customEnd]);
 
   const total = filtered.reduce((acc, d) => acc + Number(d.valor), 0);
 
