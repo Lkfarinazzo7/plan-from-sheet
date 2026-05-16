@@ -461,6 +461,24 @@ export default function Contratos() {
               )}
             </CardContent>
           </Card>
+          {resumoPorPessoa.contratosPorCorretor.length > 0 && (
+            <Card className="lg:col-span-2">
+              <CardContent className="pt-6">
+                <p className="text-sm font-semibold mb-3">Contratos por Corretor</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {resumoPorPessoa.contratosPorCorretor.map((p, i) => (
+                    <div key={i} className="flex items-center justify-between gap-3 py-1.5 px-3 rounded-md border bg-accent/30">
+                      <span className="font-medium truncate">{p.nome}</span>
+                      <div className="flex items-center gap-3 text-sm whitespace-nowrap">
+                        <span className="text-muted-foreground">{p.qtd} contrato{p.qtd !== 1 ? 's' : ''}</span>
+                        <span className="font-semibold text-primary">{formatCurrency(p.total)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
