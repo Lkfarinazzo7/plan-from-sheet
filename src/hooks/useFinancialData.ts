@@ -408,6 +408,8 @@ export function useUpdateSetorDespesa() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['setores_despesa'] }),
   });
 }
+
+export function useSupervisores() {
   return useQuery({
     queryKey: ['supervisores'],
     queryFn: async () => {
