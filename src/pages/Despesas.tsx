@@ -547,6 +547,7 @@ export default function Despesas() {
                     <TableCell>{d.tipo}</TableCell>
                     <TableCell>{d.responsavel || '—'}</TableCell>
                     <TableCell className="text-muted-foreground">{(d as any).unidade_negocio || '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{(d as any).setores_despesa?.nome || '—'}</TableCell>
                     <TableCell className="text-right font-medium text-destructive">{formatCurrency(Number(d.valor))}</TableCell>
                     <TableCell>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
