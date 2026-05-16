@@ -230,7 +230,53 @@ function SupervisoresTab() {
   );
 }
 
-function CanaisVendaTab() {
+function SetoresTab() {
+  const { data: setores = [] } = useAllSetoresDespesa();
+  const createMut = useCreateSetorDespesa();
+  const updateMut = useUpdateSetorDespesa();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [nome, setNome] = useState('');
+
+  const openAdd = () => { setEditId(null); setNome(''); setDialogOpen(true); };
+  const openEdit = (s: any) => { setEditId(s.id); setNome(s.nome); setDialogOpen(true); };
+  const save = async () => {
+    if (!nome.trim()) return;
+    try {
+      if (editId) await updateMut.mutateAsync({ id: editId, nome });
+      else await createMut.mutateAsync(nome);
+      toast.success(editId ? 'Setor atualizado!' : 'Setor criado!');
+      setDialogOpen(false);
+    } catch { toast.error('Erro ao salvar setor.'); }
+  };
+  const toggleAtivo = async (s: any) => {
+    await updateMut.mutateAsync({ id: s.id, ativo: !s.ativo });
+    toast.success(s.ativo ? 'Setor desativado.' : 'Setor ativado.');
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end"><Button onClick={openAdd}><Plus className="mr-2 h-4 w-4" />Adicionar</Button></div>
+      <Table>
+        <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
+        <TableBody>
+          {setores.map(s => (
+            <TableRow key={s.id}>
+              <TableCell>{s.nome}</TableCell>
+              <TableCell><Badge variant={s.ativo ? 'default' : 'secondary'}>{s.ativo ? 'Ativo' : 'Inativo'}</Badge></TableCell>
+              <TableCell className="text-right space-x-2">
+                <Button size="sm" variant="ghost" onClick={() => openEdit(s)}><Pencil className="h-4 w-4" /></Button>
+                <Button size="sm" variant="ghost" onClick={() => toggleAtivo(s)}>{s.ativo ? 'Desativar' : 'Ativar'}</Button>
+              </TableCell>
+            </TableRow>
+          ))}
+          {!setores.length && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground">Nenhum setor cadastrado.</TableCell></TableRow>}
+        </TableBody>
+      </Table>
+      <CrudDialog open={dialogOpen} onOpenChange={setDialogOpen} title={editId ? 'Editar Setor' : 'Novo Setor'} value={nome} onChange={setNome} onSave={save} />
+    </div>
+  );
+}
   const [items, setItems] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
