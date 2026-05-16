@@ -55,6 +55,7 @@ export default function Despesas() {
   const [filterTipo, setFilterTipo] = useState<string>('all');
   const [filterResponsavel, setFilterResponsavel] = useState<string>('all');
   const [filterUnidade, setFilterUnidade] = useState<string>('all');
+  const [filterSetor, setFilterSetor] = useState<string>('all');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
@@ -64,9 +65,11 @@ export default function Despesas() {
   const [bulkData, setBulkData] = useState('');
   const [bulkStatus, setBulkStatus] = useState<string>('none');
   const [bulkUnidade, setBulkUnidade] = useState<string>('none');
+  const [bulkSetor, setBulkSetor] = useState<string>('none');
 
   const { data: despesas = [], isLoading } = useDespesas(month, year);
   const { data: categorias = [] } = useCategoriasDespesa();
+  const { data: setores = [] } = useSetoresDespesa();
   const createDespesa = useCreateDespesa();
   const updateDespesa = useUpdateDespesa();
   const deleteDespesa = useDeleteDespesa();
