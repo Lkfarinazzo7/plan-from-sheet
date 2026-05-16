@@ -292,6 +292,7 @@ export default function Despesas() {
               Tipo: d.tipo,
               Responsável: d.responsavel || '',
               'Unidade de Negócio': (d as any).unidade_negocio || '',
+              Setor: (d as any).setores_despesa?.nome || '',
               Valor: Number(d.valor),
               Status: d.status,
               Recorrente: d.recorrente ? 'Sim' : 'Não',
