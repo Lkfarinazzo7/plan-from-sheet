@@ -463,10 +463,18 @@ export default function Despesas() {
             {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
           </SelectContent>
         </Select>
-        {(filterCategoria !== 'all' || filterStatus !== 'all' || filterPeriodo !== 'all' || filterTipo !== 'all' || filterResponsavel !== 'all' || filterUnidade !== 'all') && (
+        <Select value={filterSetor} onValueChange={setFilterSetor}>
+          <SelectTrigger className={`w-[160px] ${filterSetor !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Setor" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos setores</SelectItem>
+            <SelectItem value="none">Sem setor</SelectItem>
+            {setores.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {(filterCategoria !== 'all' || filterStatus !== 'all' || filterPeriodo !== 'all' || filterTipo !== 'all' || filterResponsavel !== 'all' || filterUnidade !== 'all' || filterSetor !== 'all') && (
           <Button variant="ghost" size="sm" onClick={() => {
             setFilterCategoria('all'); setFilterStatus('all'); setFilterPeriodo('all');
-            setFilterTipo('all'); setFilterResponsavel('all'); setFilterUnidade('all');
+            setFilterTipo('all'); setFilterResponsavel('all'); setFilterUnidade('all'); setFilterSetor('all');
             setCustomStart(''); setCustomEnd('');
           }}>
             <X className="h-4 w-4 mr-1" /> Limpar filtros
