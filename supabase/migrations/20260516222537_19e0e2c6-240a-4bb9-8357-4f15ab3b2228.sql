@@ -1,0 +1,1 @@
+ALTER TABLE public.despesas ADD CONSTRAINT despesas_setor_id_fkey FOREIGN KEY (setor_id) REFERENCES public.setores_despesa(id) ON DELETE SET NULL;
