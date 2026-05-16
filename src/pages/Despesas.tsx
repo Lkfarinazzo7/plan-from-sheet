@@ -197,6 +197,7 @@ export default function Despesas() {
       recorrente: d.recorrente,
       status: d.status,
       unidade_negocio: d.unidade_negocio || 'none',
+      setor_id: d.setor_id || 'none',
       observacoes: (d as any).observacoes || '',
     });
     setOpen(true);
