@@ -62,7 +62,7 @@ export function useDespesas(month?: number, year?: number, startDate?: string, e
   return useQuery({
     queryKey: ['despesas', month, year, startDate, endDate],
     queryFn: async () => {
-      let query = supabase.from('despesas').select('*, categorias_despesa(nome)').order('data', { ascending: true });
+      let query = supabase.from('despesas').select('*, categorias_despesa(nome), setores_despesa(nome)').order('data', { ascending: true });
       if (startDate && endDate) {
         query = query.gte('data', startDate).lte('data', endDate);
       } else if (month !== undefined && year !== undefined) {
@@ -220,7 +220,7 @@ export function useCreateDespesa() {
     mutationFn: async (despesa: {
       data: string; descricao: string; categoria_id: string; tipo: string;
       valor: number; responsavel?: string; recorrente: boolean; status: string; unidade_negocio?: string | null;
-      observacoes?: string | null;
+      observacoes?: string | null; setor_id?: string | null;
     }) => {
       const { error } = await supabase.from('despesas').insert({ ...despesa, user_id: user!.id } as any);
       if (error) throw error;
@@ -367,6 +367,48 @@ export function useDeleteCategoriaDespesa() {
   });
 }
 
+// ===== Setores de Despesa =====
+export function useSetoresDespesa() {
+  return useQuery({
+    queryKey: ['setores_despesa'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('setores_despesa').select('*').eq('ativo', true).order('nome');
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+export function useAllSetoresDespesa() {
+  return useQuery({
+    queryKey: ['setores_despesa', 'all'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('setores_despesa').select('*').order('nome');
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+export function useCreateSetorDespesa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (nome: string) => {
+      const { error } = await supabase.from('setores_despesa').insert({ nome });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['setores_despesa'] }),
+  });
+}
+export function useUpdateSetorDespesa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string; nome?: string; ativo?: boolean }) => {
+      const { error } = await supabase.from('setores_despesa').update(updates).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['setores_despesa'] }),
+  });
+}
+
 export function useSupervisores() {
   return useQuery({
     queryKey: ['supervisores'],
@@ -508,7 +550,7 @@ export function useBulkCreateDespesa() {
     mutationFn: async (rows: Array<{
       data: string; descricao: string; categoria_id: string; tipo: string;
       valor: number; responsavel?: string; recorrente: boolean; status: string;
-      unidade_negocio?: string | null; observacoes?: string | null;
+      unidade_negocio?: string | null; observacoes?: string | null; setor_id?: string | null;
     }>) => {
       const payload = rows.map(r => ({ ...r, user_id: user!.id }));
       const { error } = await supabase.from('despesas').insert(payload);
@@ -518,9 +560,9 @@ export function useBulkCreateDespesa() {
   });
 }
 
-export function useMonthlyComparison() {
+export function useMonthlyComparison(unidade?: string) {
   return useQuery({
-    queryKey: ['monthly-comparison'],
+    queryKey: ['monthly-comparison', unidade || 'all'],
     queryFn: async () => {
       const now = new Date();
       const startM = now.getMonth() - 5;
@@ -529,10 +571,13 @@ export function useMonthlyComparison() {
       const startDate = toDateStr(startY, startMonth, 1);
       const endDate = toDateStr(now.getFullYear(), now.getMonth(), new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate());
 
-      const [receitasRes, despesasRes] = await Promise.all([
-        supabase.from('receitas').select('data, valor').gte('data', startDate).lte('data', endDate),
-        supabase.from('despesas').select('data, valor').gte('data', startDate).lte('data', endDate),
-      ]);
+      let rq = supabase.from('receitas').select('data, valor, unidade_negocio').gte('data', startDate).lte('data', endDate);
+      let dq = supabase.from('despesas').select('data, valor, unidade_negocio').gte('data', startDate).lte('data', endDate);
+      if (unidade) {
+        rq = rq.eq('unidade_negocio', unidade);
+        dq = dq.eq('unidade_negocio', unidade);
+      }
+      const [receitasRes, despesasRes] = await Promise.all([rq, dq]);
 
       if (receitasRes.error) throw receitasRes.error;
       if (despesasRes.error) throw despesasRes.error;

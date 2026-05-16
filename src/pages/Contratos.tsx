@@ -212,6 +212,7 @@ export default function Contratos() {
   const resumoPorPessoa = useMemo(() => {
     const supMap = new Map<string, { nome: string; pago: number; pendente: number }>();
     const corMap = new Map<string, { nome: string; pago: number; pendente: number }>();
+    const contratosCorMap = new Map<string, { nome: string; qtd: number; total: number }>();
     const add = (map: typeof supMap, id: string | null, nome: string | undefined, valor: number, pago: boolean) => {
       if (!id || !valor) return;
       const cur = map.get(id) || { nome: nome || '—', pago: 0, pendente: 0 };
@@ -222,11 +223,18 @@ export default function Contratos() {
       add(supMap, c.supervisor_a_id, c.supervisor_a?.nome, Number(c.supervisor_a_valor || 0), !!c.supervisor_a_pago);
       add(supMap, c.supervisor_b_id, c.supervisor_b?.nome, Number(c.supervisor_b_valor || 0), !!c.supervisor_b_pago);
       add(corMap, c.corretor_id, c.corretor?.nome, Number(c.corretor_valor || 0), !!c.corretor_pago);
+      if (c.corretor_id) {
+        const cur = contratosCorMap.get(c.corretor_id) || { nome: c.corretor?.nome || '—', qtd: 0, total: 0 };
+        cur.qtd += 1;
+        cur.total += Number(c.valor_contrato || 0);
+        contratosCorMap.set(c.corretor_id, cur);
+      }
     }
     const sortFn = (a: any, b: any) => a.nome.localeCompare(b.nome);
     return {
       supervisores: Array.from(supMap.values()).sort(sortFn),
       corretores: Array.from(corMap.values()).sort(sortFn),
+      contratosPorCorretor: Array.from(contratosCorMap.values()).sort((a, b) => b.total - a.total),
     };
   }, [filtered]);
 
@@ -453,6 +461,24 @@ export default function Contratos() {
               )}
             </CardContent>
           </Card>
+          {resumoPorPessoa.contratosPorCorretor.length > 0 && (
+            <Card className="lg:col-span-2">
+              <CardContent className="pt-6">
+                <p className="text-sm font-semibold mb-3">Contratos por Corretor</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {resumoPorPessoa.contratosPorCorretor.map((p, i) => (
+                    <div key={i} className="flex items-center justify-between gap-3 py-1.5 px-3 rounded-md border bg-accent/30">
+                      <span className="font-medium truncate">{p.nome}</span>
+                      <div className="flex items-center gap-3 text-sm whitespace-nowrap">
+                        <span className="text-muted-foreground">{p.qtd} contrato{p.qtd !== 1 ? 's' : ''}</span>
+                        <span className="font-semibold text-primary">{formatCurrency(p.total)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 

@@ -41,7 +41,7 @@ export default function Dashboard() {
     activeRange?.start, activeRange?.end
   );
   
-  const { data: monthlyData = [] } = useMonthlyComparison();
+  const { data: monthlyData = [] } = useMonthlyComparison(filterUnidade === 'all' ? undefined : filterUnidade);
 
   // Filtro client-side por unidade de negócio
   const receitas = useMemo(

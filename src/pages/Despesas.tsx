@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa } from '@/hooks/useFinancialData';
+import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa, useSetoresDespesa } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
 import { Plus, Trash2, RotateCcw, Pencil, Upload, Check, Copy, Download, X, StickyNote } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
@@ -28,6 +28,7 @@ const emptyForm = {
   recorrente: false,
   status: 'A pagar',
   unidade_negocio: 'none' as string,
+  setor_id: 'none' as string,
   observacoes: '',
 };
 
@@ -54,6 +55,7 @@ export default function Despesas() {
   const [filterTipo, setFilterTipo] = useState<string>('all');
   const [filterResponsavel, setFilterResponsavel] = useState<string>('all');
   const [filterUnidade, setFilterUnidade] = useState<string>('all');
+  const [filterSetor, setFilterSetor] = useState<string>('all');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
@@ -63,9 +65,11 @@ export default function Despesas() {
   const [bulkData, setBulkData] = useState('');
   const [bulkStatus, setBulkStatus] = useState<string>('none');
   const [bulkUnidade, setBulkUnidade] = useState<string>('none');
+  const [bulkSetor, setBulkSetor] = useState<string>('none');
 
   const { data: despesas = [], isLoading } = useDespesas(month, year);
   const { data: categorias = [] } = useCategoriasDespesa();
+  const { data: setores = [] } = useSetoresDespesa();
   const createDespesa = useCreateDespesa();
   const updateDespesa = useUpdateDespesa();
   const deleteDespesa = useDeleteDespesa();
@@ -96,6 +100,7 @@ export default function Despesas() {
     const recorrenteRaw = row['Recorrente'] || '';
     const status = row['Status'] || 'A pagar';
     const unidade = row['Unidade'] || row['Unidade de Negócio'] || row['Unidade de Negocio'] || '';
+    const setorNome = row['Setor'] || '';
     const observacoes = row['Observações'] || row['Observacoes'] || '';
 
     if (!data) errors.push('Data obrigatória');
@@ -111,6 +116,8 @@ export default function Despesas() {
     const recorrente = ['sim', 'true', '1', 'yes'].includes(String(recorrenteRaw).toLowerCase());
     const dateStr = parseDateFlexible(data);
     const unidadeMatch = UNIDADES_NEGOCIO.find(u => u.toLowerCase() === String(unidade).toLowerCase());
+    const setor = setorNome ? setores.find(s => s.nome.toLowerCase() === String(setorNome).toLowerCase()) : null;
+    if (setorNome && !setor) errors.push(`Setor "${setorNome}" não encontrado`);
 
     return {
       mapped: {
@@ -123,12 +130,13 @@ export default function Despesas() {
         recorrente,
         status: ['Pago', 'A pagar', 'Atrasado'].includes(status) ? status : 'A pagar',
         unidade_negocio: unidadeMatch || null,
+        setor_id: setor?.id || null,
         observacoes: String(observacoes).trim() || null,
       },
       raw: row,
       errors,
     };
-  }, [categorias]);
+  }, [categorias, setores]);
 
   const [form, setForm] = useState(emptyForm);
 
@@ -140,6 +148,10 @@ export default function Despesas() {
     if (filterUnidade !== 'all') {
       const u = (d as any).unidade_negocio || '';
       if (filterUnidade === 'none' ? u !== '' : u !== filterUnidade) return false;
+    }
+    if (filterSetor !== 'all') {
+      const s = (d as any).setor_id || '';
+      if (filterSetor === 'none' ? s !== '' : s !== filterSetor) return false;
     }
     if (filterPeriodo === 'semana') {
       const { start, end } = getThisWeekRange();
@@ -155,7 +167,7 @@ export default function Despesas() {
     const catB = ((b.categorias_despesa as any)?.nome || '').toLowerCase();
     if (catA !== catB) return catA.localeCompare(catB, 'pt-BR');
     return (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR');
-  }), [despesas, filterCategoria, filterStatus, filterTipo, filterResponsavel, filterUnidade, filterPeriodo, customStart, customEnd]);
+  }), [despesas, filterCategoria, filterStatus, filterTipo, filterResponsavel, filterUnidade, filterSetor, filterPeriodo, customStart, customEnd]);
 
   const total = filtered.reduce((acc, d) => acc + Number(d.valor), 0);
 
@@ -196,6 +208,7 @@ export default function Despesas() {
       recorrente: d.recorrente,
       status: d.status,
       unidade_negocio: d.unidade_negocio || 'none',
+      setor_id: d.setor_id || 'none',
       observacoes: (d as any).observacoes || '',
     });
     setOpen(true);
@@ -209,6 +222,7 @@ export default function Despesas() {
         valor: parseFloat(form.valor),
         responsavel: form.responsavel || undefined,
         unidade_negocio: form.unidade_negocio === 'none' ? null : form.unidade_negocio,
+        setor_id: form.setor_id === 'none' ? null : form.setor_id,
         observacoes: form.observacoes?.trim() || null,
       };
       if (editId) {
@@ -278,6 +292,7 @@ export default function Despesas() {
               Tipo: d.tipo,
               Responsável: d.responsavel || '',
               'Unidade de Negócio': (d as any).unidade_negocio || '',
+              Setor: (d as any).setores_despesa?.nome || '',
               Valor: Number(d.valor),
               Status: d.status,
               Recorrente: d.recorrente ? 'Sim' : 'Não',
@@ -357,6 +372,16 @@ export default function Despesas() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Setor</label>
+                  <Select value={form.setor_id} onValueChange={v => setForm({ ...form, setor_id: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {setores.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
@@ -439,10 +464,18 @@ export default function Despesas() {
             {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
           </SelectContent>
         </Select>
-        {(filterCategoria !== 'all' || filterStatus !== 'all' || filterPeriodo !== 'all' || filterTipo !== 'all' || filterResponsavel !== 'all' || filterUnidade !== 'all') && (
+        <Select value={filterSetor} onValueChange={setFilterSetor}>
+          <SelectTrigger className={`w-[160px] ${filterSetor !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Setor" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos setores</SelectItem>
+            <SelectItem value="none">Sem setor</SelectItem>
+            {setores.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {(filterCategoria !== 'all' || filterStatus !== 'all' || filterPeriodo !== 'all' || filterTipo !== 'all' || filterResponsavel !== 'all' || filterUnidade !== 'all' || filterSetor !== 'all') && (
           <Button variant="ghost" size="sm" onClick={() => {
             setFilterCategoria('all'); setFilterStatus('all'); setFilterPeriodo('all');
-            setFilterTipo('all'); setFilterResponsavel('all'); setFilterUnidade('all');
+            setFilterTipo('all'); setFilterResponsavel('all'); setFilterUnidade('all'); setFilterSetor('all');
             setCustomStart(''); setCustomEnd('');
           }}>
             <X className="h-4 w-4 mr-1" /> Limpar filtros
@@ -481,6 +514,7 @@ export default function Despesas() {
                 <TableHead>Tipo</TableHead>
                 <TableHead>Responsável</TableHead>
                 <TableHead>Unidade</TableHead>
+                <TableHead>Setor</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Rec.</TableHead>
@@ -489,9 +523,9 @@ export default function Despesas() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Nenhuma despesa encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhuma despesa encontrada</TableCell></TableRow>
               ) : (
                 filtered.map(d => (
                   <TableRow key={d.id} data-state={selectedIds.has(d.id) ? 'selected' : undefined}>
@@ -513,6 +547,7 @@ export default function Despesas() {
                     <TableCell>{d.tipo}</TableCell>
                     <TableCell>{d.responsavel || '—'}</TableCell>
                     <TableCell className="text-muted-foreground">{(d as any).unidade_negocio || '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{(d as any).setores_despesa?.nome || '—'}</TableCell>
                     <TableCell className="text-right font-medium text-destructive">{formatCurrency(Number(d.valor))}</TableCell>
                     <TableCell>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -636,7 +671,7 @@ export default function Despesas() {
         open={importOpen}
         onOpenChange={setImportOpen}
         title="Importar Despesas"
-        expectedColumns={['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor', 'Responsável', 'Recorrente', 'Status', 'Observações']}
+        expectedColumns={['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor', 'Responsável', 'Recorrente', 'Status', 'Setor', 'Observações']}
         mapRow={mapDespesaRow}
         onConfirm={async (rows) => { await bulkCreateDespesa.mutateAsync(rows as any); }}
         columnAliases={{
