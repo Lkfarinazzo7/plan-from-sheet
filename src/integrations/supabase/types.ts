@@ -220,6 +220,13 @@ export type Database = {
             referencedRelation: "categorias_despesa"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "despesas_setor_id_fkey"
+            columns: ["setor_id"]
+            isOneToOne: false
+            referencedRelation: "setores_despesa"
+            referencedColumns: ["id"]
+          },
         ]
       }
       operadoras: {
