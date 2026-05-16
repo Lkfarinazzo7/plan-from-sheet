@@ -12,6 +12,7 @@ import {
   useAllOperadoras, useCreateOperadora, useUpdateOperadora,
   useCategoriasDespesa, useCreateCategoriaDespesa, useUpdateCategoriaDespesa, useDeleteCategoriaDespesa,
   useSupervisores, useCreateSupervisor, useUpdateSupervisor,
+  useAllSetoresDespesa, useCreateSetorDespesa, useUpdateSetorDespesa,
 } from '@/hooks/useFinancialData';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
