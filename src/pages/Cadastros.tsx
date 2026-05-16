@@ -412,6 +412,7 @@ export default function Cadastros() {
           <TabsTrigger value="operadoras">Operadoras</TabsTrigger>
           <TabsTrigger value="categorias">Categorias de Despesa</TabsTrigger>
           <TabsTrigger value="supervisores">Supervisores</TabsTrigger>
+          <TabsTrigger value="setores">Setores</TabsTrigger>
           <TabsTrigger value="canais">Canais de Venda</TabsTrigger>
           <TabsTrigger value="usuarios">Usuários</TabsTrigger>
         </TabsList>
@@ -419,6 +420,7 @@ export default function Cadastros() {
         <TabsContent value="operadoras"><OperadorasTab /></TabsContent>
         <TabsContent value="categorias"><CategoriasTab /></TabsContent>
         <TabsContent value="supervisores"><SupervisoresTab /></TabsContent>
+        <TabsContent value="setores"><SetoresTab /></TabsContent>
         <TabsContent value="canais"><CanaisVendaTab /></TabsContent>
         <TabsContent value="usuarios"><UsuariosTab /></TabsContent>
       </Tabs>
