@@ -100,6 +100,7 @@ export default function Despesas() {
     const recorrenteRaw = row['Recorrente'] || '';
     const status = row['Status'] || 'A pagar';
     const unidade = row['Unidade'] || row['Unidade de Negócio'] || row['Unidade de Negocio'] || '';
+    const setorNome = row['Setor'] || '';
     const observacoes = row['Observações'] || row['Observacoes'] || '';
 
     if (!data) errors.push('Data obrigatória');
@@ -115,6 +116,8 @@ export default function Despesas() {
     const recorrente = ['sim', 'true', '1', 'yes'].includes(String(recorrenteRaw).toLowerCase());
     const dateStr = parseDateFlexible(data);
     const unidadeMatch = UNIDADES_NEGOCIO.find(u => u.toLowerCase() === String(unidade).toLowerCase());
+    const setor = setorNome ? setores.find(s => s.nome.toLowerCase() === String(setorNome).toLowerCase()) : null;
+    if (setorNome && !setor) errors.push(`Setor "${setorNome}" não encontrado`);
 
     return {
       mapped: {
@@ -127,12 +130,13 @@ export default function Despesas() {
         recorrente,
         status: ['Pago', 'A pagar', 'Atrasado'].includes(status) ? status : 'A pagar',
         unidade_negocio: unidadeMatch || null,
+        setor_id: setor?.id || null,
         observacoes: String(observacoes).trim() || null,
       },
       raw: row,
       errors,
     };
-  }, [categorias]);
+  }, [categorias, setores]);
 
   const [form, setForm] = useState(emptyForm);
 
