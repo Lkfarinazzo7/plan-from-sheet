@@ -523,9 +523,9 @@ export default function Despesas() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Nenhuma despesa encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhuma despesa encontrada</TableCell></TableRow>
               ) : (
                 filtered.map(d => (
                   <TableRow key={d.id} data-state={selectedIds.has(d.id) ? 'selected' : undefined}>
@@ -671,7 +671,7 @@ export default function Despesas() {
         open={importOpen}
         onOpenChange={setImportOpen}
         title="Importar Despesas"
-        expectedColumns={['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor', 'Responsável', 'Recorrente', 'Status', 'Observações']}
+        expectedColumns={['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor', 'Responsável', 'Recorrente', 'Status', 'Setor', 'Observações']}
         mapRow={mapDespesaRow}
         onConfirm={async (rows) => { await bulkCreateDespesa.mutateAsync(rows as any); }}
         columnAliases={{
