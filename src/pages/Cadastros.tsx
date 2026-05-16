@@ -277,6 +277,8 @@ function SetoresTab() {
     </div>
   );
 }
+
+function CanaisVendaTab() {
   const [items, setItems] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
