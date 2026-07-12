@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita, useBulkUpdateReceita, useBulkDeleteReceita, usePropostas } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
-import { Plus, Trash2, Pencil, Upload, Copy, Download, Sparkles, X, StickyNote } from 'lucide-react';
+import { Plus, Trash2, Pencil, Upload, Copy, Download, Sparkles, X, StickyNote, Check } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { exportToExcel } from '@/lib/exportHelpers';
 import { useToast } from '@/hooks/use-toast';
@@ -511,6 +511,24 @@ export default function Receitas() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
+                        {r.status !== 'Recebido' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-success hover:text-success hover:bg-success/10"
+                            title="Marcar como recebido"
+                            onClick={async () => {
+                              try {
+                                await updateReceita.mutateAsync({ id: r.id, status: 'Recebido' } as any);
+                                toast({ title: 'Receita marcada como recebida!' });
+                              } catch (err: any) {
+                                toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+                              }
+                            }}
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
