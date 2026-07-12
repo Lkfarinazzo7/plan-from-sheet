@@ -661,6 +661,17 @@ export default function Despesas() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Novo setor</label>
+              <Select value={bulkSetor} onValueChange={setBulkSetor}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Não alterar</SelectItem>
+                  <SelectItem value="clear">Remover setor</SelectItem>
+                  {setores.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <Button className="w-full" onClick={applyBulkEdit} disabled={updateDespesa.isPending}>
               {updateDespesa.isPending ? 'Aplicando...' : `Aplicar a ${selectedIds.size} despesa(s)`}
             </Button>
