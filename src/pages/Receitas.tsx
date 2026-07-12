@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita, useBulkUpdateReceita, useBulkDeleteReceita, usePropostas } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
-import { Plus, Trash2, Pencil, Upload, Copy, Download, Sparkles, X, StickyNote } from 'lucide-react';
+import { Plus, Trash2, Pencil, Upload, Copy, Download, Sparkles, X, StickyNote, Check } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { exportToExcel } from '@/lib/exportHelpers';
 import { useToast } from '@/hooks/use-toast';
