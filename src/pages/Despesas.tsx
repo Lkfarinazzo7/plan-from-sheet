@@ -259,6 +259,7 @@ export default function Despesas() {
     if (bulkData) updates.data = bulkData;
     if (bulkStatus !== 'none') updates.status = bulkStatus;
     if (bulkUnidade !== 'none') updates.unidade_negocio = bulkUnidade === 'clear' ? null : bulkUnidade;
+    if (bulkSetor !== 'none') updates.setor_id = bulkSetor === 'clear' ? null : bulkSetor;
 
     if (Object.keys(updates).length === 0) {
       toast({ title: 'Nada para atualizar', description: 'Preencha ao menos um campo.', variant: 'destructive' });
@@ -269,7 +270,7 @@ export default function Despesas() {
       await Promise.all(ids.map(id => updateDespesa.mutateAsync({ id, ...updates })));
       toast({ title: `${ids.length} despesas atualizadas com sucesso!` });
       setBulkOpen(false);
-      setBulkData(''); setBulkStatus('none'); setBulkUnidade('none');
+      setBulkData(''); setBulkStatus('none'); setBulkUnidade('none'); setBulkSetor('none');
       clearSelection();
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
