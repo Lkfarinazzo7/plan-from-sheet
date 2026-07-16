@@ -596,7 +596,10 @@ export function useMonthlyComparison(unidade?: string) {
 
       let rq = supabase.from('receitas').select('data, valor, unidade_negocio').gte('data', startDate).lte('data', endDate);
       let dq = supabase.from('despesas').select('data, valor, unidade_negocio').gte('data', startDate).lte('data', endDate);
-      if (unidade) {
+      if (unidade === 'none') {
+        rq = rq.is('unidade_negocio', null);
+        dq = dq.is('unidade_negocio', null);
+      } else if (unidade) {
         rq = rq.eq('unidade_negocio', unidade);
         dq = dq.eq('unidade_negocio', unidade);
       }
