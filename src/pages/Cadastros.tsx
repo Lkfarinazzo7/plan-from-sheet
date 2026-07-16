@@ -379,15 +379,6 @@ function UsuariosTab() {
   };
   useEffect(() => { if (isAdmin) load(); }, [isAdmin]);
 
-  const claimAdmin = async () => {
-    if (!user) return;
-    setBusy(true);
-    const { error } = await supabase.from('user_roles').insert({ user_id: user.id, role: 'admin' });
-    setBusy(false);
-    if (error) toast.error('Já existe um admin. Peça para te conceder o papel.');
-    else { toast.success('Você é admin agora!'); window.location.reload(); }
-  };
-
   const revokeRole = async (uemail: string, role: string) => {
     if (!confirm(`Remover papel "${role}" de ${uemail}?`)) return;
     await supabase.rpc('grant_role_by_email', { _email: uemail, _role: role as any, _grant: false });
@@ -397,16 +388,15 @@ function UsuariosTab() {
   if (!isAdmin) {
     return (
       <div className="space-y-3 max-w-md">
+        <p className="text-sm font-medium">Acesso restrito</p>
         <p className="text-sm text-muted-foreground">
-          Você ainda não tem o papel de administrador. Se você é o primeiro usuário deste sistema, clique abaixo para se tornar admin.
+          Apenas administradores podem gerenciar usuários. Peça para um administrador atual conceder-lhe o papel de <code>admin</code>.
         </p>
         <p className="text-xs text-muted-foreground">Seus papéis atuais: {roles.length ? roles.join(', ') : 'nenhum'}</p>
-        <Button onClick={claimAdmin} disabled={busy}>
-          <Shield className="h-4 w-4 mr-1" /> Tornar-me admin
-        </Button>
       </div>
     );
   }
+
 
   return (
     <div className="space-y-4">
