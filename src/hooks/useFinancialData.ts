@@ -755,3 +755,101 @@ export function useBulkCreateContrato() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contratos'] }),
   });
 }
+
+// ===== Vínculo Contrato ↔ Receitas (por nome da proposta/descrição) =====
+
+export type ReceitaResumo = { recebido: number; aguardando: number; qtd: number };
+
+function normalizeNome(s: string): string {
+  return (s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+/**
+ * Agrupa todas as receitas pela descrição normalizada (que corresponde ao nome
+ * da proposta/contrato). Permite calcular quanto cada contrato já recebeu.
+ */
+export function useReceitasResumoPorNome() {
+  return useQuery({
+    queryKey: ['receitas-resumo-por-nome'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('receitas')
+        .select('descricao, valor, status');
+      if (error) throw error;
+      const map = new Map<string, ReceitaResumo>();
+      for (const r of data || []) {
+        const key = normalizeNome(r.descricao);
+        if (!key) continue;
+        const cur = map.get(key) || { recebido: 0, aguardando: 0, qtd: 0 };
+        if (r.status === 'Recebido') cur.recebido += Number(r.valor);
+        else cur.aguardando += Number(r.valor);
+        cur.qtd += 1;
+        map.set(key, cur);
+      }
+      return map;
+    },
+  });
+}
+
+export function getResumoContrato(
+  resumo: Map<string, ReceitaResumo> | undefined,
+  nomeContrato: string,
+): ReceitaResumo | null {
+  if (!resumo) return null;
+  return resumo.get(normalizeNome(nomeContrato)) || null;
+}
+
+// ===== Comissões (derivadas dos contratos) =====
+
+export type ComissaoItem = {
+  contratoId: string;
+  contratoNome: string;
+  operadoraNome: string;
+  dataImplantacao: string | null;
+  papel: 'Supervisor A' | 'Supervisor B' | 'Corretor';
+  campoPago: 'supervisor_a_pago' | 'supervisor_b_pago' | 'corretor_pago';
+  pessoaId: string;
+  pessoaNome: string;
+  percentual: number | null;
+  valor: number;
+  pago: boolean;
+};
+
+/** Explode os contratos em itens de comissão, ignorando papéis sem responsável. */
+export function extractComissoes(contratos: any[]): ComissaoItem[] {
+  const itens: ComissaoItem[] = [];
+  for (const c of contratos || []) {
+    const base = Number(c.valor_contrato) || 0;
+    const push = (
+      papel: ComissaoItem['papel'],
+      campoPago: ComissaoItem['campoPago'],
+      pessoaId: string | null,
+      pessoaNome: string | undefined,
+      percentual: number | null,
+      valorSalvo: number | null,
+      pago: boolean,
+    ) => {
+      // Sem responsável = não é comissão real, ignora (evita "pagamentos fantasmas")
+      if (!pessoaId) return;
+      const valor = valorSalvo != null && Number(valorSalvo) > 0
+        ? Number(valorSalvo)
+        : percentual != null ? (base * Number(percentual)) / 100 : 0;
+      itens.push({
+        contratoId: c.id,
+        contratoNome: c.nome,
+        operadoraNome: c.operadoras?.nome || '—',
+        dataImplantacao: c.data_implantacao || null,
+        papel, campoPago,
+        pessoaId,
+        pessoaNome: pessoaNome || 'Desconhecido',
+        percentual: percentual != null ? Number(percentual) : null,
+        valor,
+        pago: !!pago,
+      });
+    };
+    push('Supervisor A', 'supervisor_a_pago', c.supervisor_a_id, c.supervisor_a?.nome, c.supervisor_a_percentual, c.supervisor_a_valor, c.supervisor_a_pago);
+    push('Supervisor B', 'supervisor_b_pago', c.supervisor_b_id, c.supervisor_b?.nome, c.supervisor_b_percentual, c.supervisor_b_valor, c.supervisor_b_pago);
+    push('Corretor', 'corretor_pago', c.corretor_id, c.corretor?.nome, c.corretor_percentual, c.corretor_valor, c.corretor_pago);
+  }
+  return itens;
+}

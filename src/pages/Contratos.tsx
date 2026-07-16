@@ -13,6 +13,7 @@ import {
   useContratos, useCreateContrato, useUpdateContrato, useDeleteContrato,
   useBulkCreateContrato, useBulkUpdateContrato, useBulkDeleteContrato,
   useOperadoras, useSupervisores, useVendedores,
+  useReceitasResumoPorNome, getResumoContrato,
 } from '@/hooks/useFinancialData';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
 import { formatCurrency } from '@/lib/format';
@@ -54,6 +55,7 @@ export default function Contratos() {
   const { data: operadoras = [] } = useOperadoras();
   const { data: supervisores = [] } = useSupervisores();
   const { data: vendedores = [] } = useVendedores();
+  const { data: resumoReceitas } = useReceitasResumoPorNome();
 
   const create = useCreateContrato();
   const update = useUpdateContrato();
@@ -372,6 +374,32 @@ export default function Contratos() {
     }
   };
 
+
+  // Multiplicador médio por operadora (só contratos com valor e algum recebimento)
+  const multiplicadores = useMemo(() => {
+    const porOperadora = new Map<string, { soma: number; qtd: number }>();
+    let somaGeral = 0, qtdGeral = 0;
+    for (const c of (filtered as any[])) {
+      const base = Number(c.valor_contrato) || 0;
+      if (base <= 0) continue;
+      const rz = getResumoContrato(resumoReceitas, c.nome);
+      if (!rz || rz.recebido <= 0) continue;
+      const mult = rz.recebido / base;
+      somaGeral += mult; qtdGeral += 1;
+      const op = c.operadoras?.nome || 'Sem operadora';
+      const cur = porOperadora.get(op) || { soma: 0, qtd: 0 };
+      cur.soma += mult; cur.qtd += 1;
+      porOperadora.set(op, cur);
+    }
+    return {
+      geral: qtdGeral > 0 ? somaGeral / qtdGeral : null,
+      qtdGeral,
+      porOperadora: Array.from(porOperadora.entries())
+        .map(([nome, v]) => ({ nome, media: v.soma / v.qtd, qtd: v.qtd }))
+        .sort((a, b) => b.qtd - a.qtd),
+    };
+  }, [filtered, resumoReceitas]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -670,6 +698,28 @@ export default function Contratos() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {multiplicadores.geral != null && (
+        <Card>
+          <CardContent className="py-4">
+            <div className="flex items-center gap-6 flex-wrap">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Multiplicador médio</p>
+                <p className="text-2xl font-bold text-primary">{multiplicadores.geral.toFixed(2)}x</p>
+                <p className="text-xs text-muted-foreground">{multiplicadores.qtdGeral} contrato(s) com recebimento</p>
+              </div>
+              <div className="flex gap-4 flex-wrap">
+                {multiplicadores.porOperadora.slice(0, 6).map(op => (
+                  <div key={op.nome} className="border rounded-md px-3 py-2">
+                    <p className="text-xs text-muted-foreground">{op.nome}</p>
+                    <p className="font-semibold">{op.media.toFixed(2)}x <span className="text-xs font-normal text-muted-foreground">({op.qtd})</span></p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <Table>
@@ -687,6 +737,8 @@ export default function Contratos() {
                 <TableHead>Unidade</TableHead>
                 <TableHead>Implantação</TableHead>
                 <TableHead className="text-right">Valor Contrato</TableHead>
+                <TableHead className="text-right">Recebido</TableHead>
+                <TableHead className="text-right">Mult.</TableHead>
                 <TableHead>Supervisor A</TableHead>
                 <TableHead>Supervisor B</TableHead>
                 <TableHead>Corretor</TableHead>
@@ -695,9 +747,9 @@ export default function Contratos() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Nenhum contrato encontrado</TableCell></TableRow>
+                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhum contrato encontrado</TableCell></TableRow>
               ) : (filtered as any[]).map(c => (
                 <TableRow key={c.id} data-state={selectedIds.has(c.id) ? 'selected' : undefined}>
                   <TableCell>
@@ -708,6 +760,26 @@ export default function Contratos() {
                   <TableCell className="text-muted-foreground">{c.unidade_negocio || '—'}</TableCell>
                   <TableCell className="text-muted-foreground">{formatDateBR(c.data_implantacao)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(Number(c.valor_contrato))}</TableCell>
+                  {(() => {
+                    const rz = getResumoContrato(resumoReceitas, c.nome);
+                    const base = Number(c.valor_contrato) || 0;
+                    const mult = rz && base > 0 ? rz.recebido / base : null;
+                    return (<>
+                      <TableCell className="text-right">
+                        {rz ? (
+                          <div>
+                            <span className="text-success font-medium">{formatCurrency(rz.recebido)}</span>
+                            {rz.aguardando > 0 && <p className="text-xs text-muted-foreground">+{formatCurrency(rz.aguardando)} aguard.</p>}
+                          </div>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {mult != null && mult > 0
+                          ? <span className={mult >= 2 ? 'text-success font-semibold' : 'font-medium'}>{mult.toFixed(2)}x</span>
+                          : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                    </>);
+                  })()}
                   <ComissaoCell
                     nome={c.supervisor_a?.nome}
                     pct={c.supervisor_a_percentual}
