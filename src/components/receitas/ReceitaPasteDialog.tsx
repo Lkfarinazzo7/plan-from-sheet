@@ -27,6 +27,9 @@ const todayStr = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+const MAX_IMAGE_SIZE = 3 * 1024 * 1024;
+const MAX_TEXT_LENGTH = 20_000;
+
 const norm = (s: string) =>
   (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
@@ -66,6 +69,21 @@ export function ReceitaPasteDialog({
     }
   }, [open]);
 
+  const loadImage = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Selecione um arquivo de imagem válido', variant: 'destructive' });
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      toast({ title: 'Imagem muito grande', description: 'O limite é 3 MB.', variant: 'destructive' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setImageData(reader.result as string);
+    reader.onerror = () => toast({ title: 'Não foi possível abrir a imagem', variant: 'destructive' });
+    reader.readAsDataURL(file);
+  };
+
   const handlePaste = (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items) return;
@@ -73,9 +91,7 @@ export function ReceitaPasteDialog({
       if (item.type.startsWith('image/')) {
         const file = item.getAsFile();
         if (file) {
-          const reader = new FileReader();
-          reader.onload = () => setImageData(reader.result as string);
-          reader.readAsDataURL(file);
+          loadImage(file);
           e.preventDefault();
           return;
         }
@@ -85,9 +101,7 @@ export function ReceitaPasteDialog({
 
   const handleFile = (file: File | null) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setImageData(reader.result as string);
-    reader.readAsDataURL(file);
+    loadImage(file);
   };
 
   const analyze = async () => {
@@ -143,7 +157,8 @@ export function ReceitaPasteDialog({
     if (!rows) return;
     const selected = rows.filter((r) => r.selected);
     const invalid = selected.filter(
-      (r) => !r.descricao || !r.valor || !r.operadora_id || !r.vendedor_id || !r.data
+      (r) => !r.descricao || !r.valor || !Number.isFinite(Number(r.valor)) ||
+        !r.operadora_id || !r.vendedor_id || !r.data
     );
     if (invalid.length > 0) {
       toast({
@@ -165,7 +180,7 @@ export function ReceitaPasteDialog({
           categoria: r.categoria,
           operadora_id: r.operadora_id,
           vendedor_id: r.vendedor_id,
-          valor: parseFloat(r.valor) || 0,
+          valor: Number(r.valor),
           status: r.status,
         }))
       );
@@ -212,6 +227,7 @@ export function ReceitaPasteDialog({
                 <Textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
+                  maxLength={MAX_TEXT_LENGTH}
                   placeholder="Cole o texto aqui ou pressione Ctrl+V para colar uma imagem..."
                   rows={8}
                   className="border-0 focus-visible:ring-0 resize-none"
@@ -241,6 +257,7 @@ export function ReceitaPasteDialog({
               <Textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
+                maxLength={MAX_TEXT_LENGTH}
                 placeholder="(Opcional) Texto adicional..."
                 rows={3}
               />

@@ -14,6 +14,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
+import { useIsAdmPipelineOnly } from '@/hooks/useUserRole';
 
 const menuItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
@@ -28,6 +29,10 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const { signOut } = useAuth();
+  const { canManageCadastros, roles, isLoading, isError } = useIsAdmPipelineOnly();
+  const visibleItems = menuItems.filter(
+    item => item.url !== '/cadastros' || (!isLoading && !isError && (canManageCadastros || roles.length === 0)),
+  );
 
   return (
     <Sidebar collapsible="icon">
@@ -38,7 +43,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {visibleItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink

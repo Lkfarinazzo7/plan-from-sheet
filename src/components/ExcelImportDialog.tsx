@@ -1,5 +1,4 @@
 import { useState, useRef, useMemo } from 'react';
-import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -26,6 +25,8 @@ interface ExcelImportDialogProps {
 }
 
 type Step = 'upload' | 'mapping' | 'preview';
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_ROWS = 5_000;
 
 export function ExcelImportDialog({ open, onOpenChange, title, expectedColumns, mapRow, onConfirm, columnAliases }: ExcelImportDialogProps) {
   const [rawData, setRawData] = useState<Record<string, any>[]>([]);
@@ -41,22 +42,50 @@ export function ExcelImportDialog({ open, onOpenChange, title, expectedColumns, 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX_FILE_SIZE) {
+      toast({ title: 'Arquivo muito grande', description: 'O limite para importação é 10 MB.', variant: 'destructive' });
+      e.target.value = '';
+      return;
+    }
     setFileName(file.name);
     const reader = new FileReader();
-    reader.onload = (evt) => {
-      const wb = XLSX.read(evt.target?.result, { type: 'array', cellDates: true });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: '' });
-      if (jsonData.length === 0) {
-        toast({ title: 'Planilha vazia', variant: 'destructive' });
-        return;
+    reader.onload = async (evt) => {
+      try {
+        const XLSX = await import('xlsx');
+        const wb = XLSX.read(evt.target?.result, { type: 'array', cellDates: true });
+        const firstSheetName = wb.SheetNames[0];
+        const ws = firstSheetName ? wb.Sheets[firstSheetName] : undefined;
+        if (!ws) throw new Error('A planilha não contém uma aba válida.');
+        const jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: '' });
+        if (jsonData.length === 0) {
+          toast({ title: 'Planilha vazia', variant: 'destructive' });
+          if (fileRef.current) fileRef.current.value = '';
+          setFileName('');
+          return;
+        }
+        if (jsonData.length > MAX_ROWS) {
+          throw new Error(`A planilha excede o limite de ${MAX_ROWS.toLocaleString('pt-BR')} linhas.`);
+        }
+        const detected = Object.keys(jsonData[0]);
+        setHeaders(detected);
+        setRawData(jsonData);
+        const autoMap = autoMapColumns(expectedColumns, detected, columnAliases);
+        setColumnMapping(autoMap);
+        setStep('mapping');
+      } catch (error) {
+        toast({
+          title: 'Não foi possível ler a planilha',
+          description: error instanceof Error ? error.message : 'Formato inválido ou arquivo corrompido.',
+          variant: 'destructive',
+        });
+        if (fileRef.current) fileRef.current.value = '';
+        setFileName('');
       }
-      const detected = Object.keys(jsonData[0]);
-      setHeaders(detected);
-      setRawData(jsonData);
-      const autoMap = autoMapColumns(expectedColumns, detected, columnAliases);
-      setColumnMapping(autoMap);
-      setStep('mapping');
+    };
+    reader.onerror = () => {
+      toast({ title: 'Erro ao abrir o arquivo', variant: 'destructive' });
+      if (fileRef.current) fileRef.current.value = '';
+      setFileName('');
     };
     reader.readAsArrayBuffer(file);
   };

@@ -40,8 +40,10 @@ export function useCategoriasDespesa() {
 }
 
 export function useReceitas(month?: number, year?: number, startDate?: string, endDate?: string) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ['receitas', month, year, startDate, endDate],
+    queryKey: ['receitas', user?.id, month, year, startDate, endDate],
+    enabled: !!user,
     queryFn: async () => {
       let query = supabase.from('receitas').select('*, vendedores(nome), operadoras(nome)').order('data', { ascending: true });
       if (startDate && endDate) {
@@ -59,8 +61,10 @@ export function useReceitas(month?: number, year?: number, startDate?: string, e
 }
 
 export function useDespesas(month?: number, year?: number, startDate?: string, endDate?: string) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ['despesas', month, year, startDate, endDate],
+    queryKey: ['despesas', user?.id, month, year, startDate, endDate],
+    enabled: !!user,
     queryFn: async () => {
       let query = supabase.from('despesas').select('*, categorias_despesa(nome), setores_despesa(nome)').order('data', { ascending: true });
       if (startDate && endDate) {
@@ -78,8 +82,10 @@ export function useDespesas(month?: number, year?: number, startDate?: string, e
 }
 
 export function usePropostas() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ['propostas'],
+    queryKey: ['propostas', user?.id],
+    enabled: !!user,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('propostas')
@@ -138,6 +144,7 @@ export function useDeleteProposta() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['propostas'] });
       queryClient.invalidateQueries({ queryKey: ['receitas'] });
+      queryClient.invalidateQueries({ queryKey: ['contratos'] });
     },
   });
 }
@@ -150,8 +157,9 @@ async function ensurePropostaId(
   const trimmed = (nome || '').trim();
   if (!trimmed) throw new Error('Descrição da proposta vazia');
   // .limit(1) em vez de .maybeSingle(): se já existirem duplicatas no banco, usa a primeira em vez de quebrar
-  const { data: existing } = await supabase
+  const { data: existing, error: findError } = await supabase
     .from('propostas').select('id').eq('user_id', userId).eq('nome', trimmed).limit(1);
+  if (findError) throw findError;
   if (existing?.[0]?.id) return existing[0].id;
   const { data, error } = await supabase.from('propostas').insert({
     user_id: userId, nome: trimmed,
@@ -160,6 +168,12 @@ async function ensurePropostaId(
     unidade_negocio: fallback.unidade_negocio || null,
     valor_proposta: fallback.valor_proposta ?? 0,
   }).select('id').single();
+  if (error?.code === '23505') {
+    const { data: concurrent, error: selectError } = await supabase
+      .from('propostas').select('id').eq('user_id', userId).eq('nome', trimmed).limit(1);
+    if (selectError || !concurrent?.[0]?.id) throw selectError || error;
+    return concurrent[0].id;
+  }
   if (error) throw error;
   return data!.id;
 }
@@ -188,6 +202,7 @@ export function useCreateReceita() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['receitas'] });
       queryClient.invalidateQueries({ queryKey: ['propostas'] });
+      queryClient.invalidateQueries({ queryKey: ['receitas-resumo-por-proposta'] });
     },
   });
 }
@@ -199,7 +214,10 @@ export function useUpdateReceita() {
       const { error } = await supabase.from('receitas').update(updates as any).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['receitas'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['receitas'] });
+      queryClient.invalidateQueries({ queryKey: ['receitas-resumo-por-proposta'] });
+    },
   });
 }
 
@@ -210,7 +228,10 @@ export function useDeleteReceita() {
       const { error } = await supabase.from('receitas').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['receitas'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['receitas'] });
+      queryClient.invalidateQueries({ queryKey: ['receitas-resumo-por-proposta'] });
+    },
   });
 }
 
@@ -472,21 +493,43 @@ export function useGenerateRecurringDespesas() {
       const targetEnd = toDateStr(targetYear, targetMonth, new Date(targetYear, targetMonth + 1, 0).getDate());
       const { data: existing, error: existingError } = await supabase
         .from('despesas')
-        .select('descricao, valor')
+        .select('descricao, valor, categoria_id, tipo, responsavel, unidade_negocio, setor_id, origem_recorrencia_id')
         .eq('recorrente', true)
         .gte('data', targetStart)
         .lte('data', targetEnd);
       if (existingError) throw existingError;
-      const existingKeys = new Set((existing || []).map(e => `${e.descricao}|${Number(e.valor)}`));
+      const identity = (d: {
+        descricao: string; valor: number; categoria_id: string; tipo: string;
+        responsavel?: string | null; unidade_negocio?: string | null; setor_id?: string | null;
+      }) => [
+        d.descricao.trim().toLocaleLowerCase('pt-BR'), Number(d.valor), d.categoria_id,
+        d.tipo, d.responsavel || '', d.unidade_negocio || '', d.setor_id || '',
+      ].join('|');
+      const existingOrigins = new Set(
+        (existing || []).map(d => d.origem_recorrencia_id).filter((id): id is string => !!id),
+      );
+      const legacyIdentityCounts = new Map<string, number>();
+      for (const item of existing || []) {
+        if (item.origem_recorrencia_id) continue;
+        const key = identity(item);
+        legacyIdentityCounts.set(key, (legacyIdentityCounts.get(key) || 0) + 1);
+      }
 
       const lastDayTarget = new Date(targetYear, targetMonth + 1, 0).getDate();
-      const newDespesas = recurring
-        .filter(d => !existingKeys.has(`${d.descricao}|${Number(d.valor)}`))
-        .map(d => {
+      const newDespesas = recurring.flatMap(d => {
+          const originId = d.origem_recorrencia_id ?? d.id;
+          if (existingOrigins.has(originId)) return [];
+          const key = identity(d);
+          const legacyMatches = legacyIdentityCounts.get(key) || 0;
+          if (legacyMatches > 0) {
+            legacyIdentityCounts.set(key, legacyMatches - 1);
+            return [];
+          }
+          existingOrigins.add(originId);
           // Extrair o dia direto da string YYYY-MM-DD (new Date() interpretaria como UTC e voltaria 1 dia)
           const originalDay = parseInt(String(d.data).slice(8, 10), 10);
           const day = Math.min(originalDay, lastDayTarget);
-          return {
+          return [{
             data: toDateStr(targetYear, targetMonth, day),
             descricao: d.descricao,
             categoria_id: d.categoria_id,
@@ -498,17 +541,27 @@ export function useGenerateRecurringDespesas() {
             unidade_negocio: (d as any).unidade_negocio ?? null,
             setor_id: (d as any).setor_id ?? null,
             observacoes: (d as any).observacoes ?? null,
+            origem_recorrencia_id: originId,
             user_id: user!.id,
-          };
+          }];
         });
 
       if (!newDespesas.length) {
         throw new Error('Todas as despesas recorrentes desse mês já existem no mês de destino. Nada foi duplicado.');
       }
 
-      const { error } = await supabase.from('despesas').insert(newDespesas);
+      const { data: inserted, error } = await supabase
+        .from('despesas')
+        .upsert(newDespesas, {
+          onConflict: 'user_id,origem_recorrencia_id,data',
+          ignoreDuplicates: true,
+        })
+        .select('id');
       if (error) throw error;
-      return newDespesas.length;
+      if (!inserted?.length) {
+        throw new Error('Todas as despesas recorrentes desse mês já existem no mês de destino. Nada foi duplicado.');
+      }
+      return inserted.length;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['despesas'] }),
   });
@@ -521,7 +574,10 @@ export function useBulkUpdateReceita() {
       const { error } = await supabase.from('receitas').update(updates as any).in('id', ids);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['receitas'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['receitas'] });
+      queryClient.invalidateQueries({ queryKey: ['receitas-resumo-por-proposta'] });
+    },
   });
 }
 
@@ -532,7 +588,10 @@ export function useBulkDeleteReceita() {
       const { error } = await supabase.from('receitas').delete().in('id', ids);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['receitas'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['receitas'] });
+      queryClient.invalidateQueries({ queryKey: ['receitas-resumo-por-proposta'] });
+    },
   });
 }
 
@@ -562,6 +621,7 @@ export function useBulkCreateReceita() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['receitas'] });
       queryClient.invalidateQueries({ queryKey: ['propostas'] });
+      queryClient.invalidateQueries({ queryKey: ['receitas-resumo-por-proposta'] });
     },
   });
 }
@@ -584,8 +644,10 @@ export function useBulkCreateDespesa() {
 }
 
 export function useMonthlyComparison(unidade?: string) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ['monthly-comparison', unidade || 'all'],
+    queryKey: ['monthly-comparison', user?.id, unidade || 'all'],
+    enabled: !!user,
     queryFn: async () => {
       const now = new Date();
       const startM = now.getMonth() - 5;
@@ -634,6 +696,7 @@ export function useMonthlyComparison(unidade?: string) {
 
 export type ContratoInput = {
   nome: string;
+  proposta_id?: string | null;
   operadora_id?: string | null;
   unidade_negocio?: string | null;
   data_implantacao?: string | null;
@@ -654,8 +717,10 @@ export type ContratoInput = {
 };
 
 export function useContratos() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ['contratos'],
+    queryKey: ['contratos', user?.id],
+    enabled: !!user,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('contratos')
@@ -674,6 +739,7 @@ export function useCreateContrato() {
     mutationFn: async (c: ContratoInput) => {
       const { error } = await (supabase as any).from('contratos').insert({
         ...c,
+        proposta_id: c.proposta_id || null,
         operadora_id: c.operadora_id || null,
         unidade_negocio: c.unidade_negocio || null,
         data_implantacao: c.data_implantacao || null,
@@ -740,6 +806,7 @@ export function useBulkCreateContrato() {
     mutationFn: async (rows: ContratoInput[]) => {
       const payload = rows.map(c => ({
         ...c,
+        proposta_id: c.proposta_id || null,
         operadora_id: c.operadora_id || null,
         unidade_negocio: c.unidade_negocio || null,
         data_implantacao: c.data_implantacao || null,
@@ -756,29 +823,27 @@ export function useBulkCreateContrato() {
   });
 }
 
-// ===== Vínculo Contrato ↔ Receitas (por nome da proposta/descrição) =====
+// ===== Vínculo Contrato ↔ Receitas (por proposta_id) =====
 
 export type ReceitaResumo = { recebido: number; aguardando: number; qtd: number };
 
-function normalizeNome(s: string): string {
-  return (s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-}
-
 /**
- * Agrupa todas as receitas pela descrição normalizada (que corresponde ao nome
- * da proposta/contrato). Permite calcular quanto cada contrato já recebeu.
+ * Agrupa receitas pela FK de proposta. Nomes são apenas rótulos e nunca são
+ * usados como chave, evitando atribuição duplicada entre contratos homônimos.
  */
-export function useReceitasResumoPorNome() {
+export function useReceitasResumoPorProposta() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ['receitas-resumo-por-nome'],
+    queryKey: ['receitas-resumo-por-proposta', user?.id],
+    enabled: !!user,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('receitas')
-        .select('descricao, valor, status');
+        .select('proposta_id, valor, status');
       if (error) throw error;
       const map = new Map<string, ReceitaResumo>();
       for (const r of data || []) {
-        const key = normalizeNome(r.descricao);
+        const key = r.proposta_id;
         if (!key) continue;
         const cur = map.get(key) || { recebido: 0, aguardando: 0, qtd: 0 };
         if (r.status === 'Recebido') cur.recebido += Number(r.valor);
@@ -793,63 +858,8 @@ export function useReceitasResumoPorNome() {
 
 export function getResumoContrato(
   resumo: Map<string, ReceitaResumo> | undefined,
-  nomeContrato: string,
+  propostaId?: string | null,
 ): ReceitaResumo | null {
-  if (!resumo) return null;
-  return resumo.get(normalizeNome(nomeContrato)) || null;
-}
-
-// ===== Comissões (derivadas dos contratos) =====
-
-export type ComissaoItem = {
-  contratoId: string;
-  contratoNome: string;
-  operadoraNome: string;
-  dataImplantacao: string | null;
-  papel: 'Supervisor A' | 'Supervisor B' | 'Corretor';
-  campoPago: 'supervisor_a_pago' | 'supervisor_b_pago' | 'corretor_pago';
-  pessoaId: string;
-  pessoaNome: string;
-  percentual: number | null;
-  valor: number;
-  pago: boolean;
-};
-
-/** Explode os contratos em itens de comissão, ignorando papéis sem responsável. */
-export function extractComissoes(contratos: any[]): ComissaoItem[] {
-  const itens: ComissaoItem[] = [];
-  for (const c of contratos || []) {
-    const base = Number(c.valor_contrato) || 0;
-    const push = (
-      papel: ComissaoItem['papel'],
-      campoPago: ComissaoItem['campoPago'],
-      pessoaId: string | null,
-      pessoaNome: string | undefined,
-      percentual: number | null,
-      valorSalvo: number | null,
-      pago: boolean,
-    ) => {
-      // Sem responsável = não é comissão real, ignora (evita "pagamentos fantasmas")
-      if (!pessoaId) return;
-      const valor = valorSalvo != null && Number(valorSalvo) > 0
-        ? Number(valorSalvo)
-        : percentual != null ? (base * Number(percentual)) / 100 : 0;
-      itens.push({
-        contratoId: c.id,
-        contratoNome: c.nome,
-        operadoraNome: c.operadoras?.nome || '—',
-        dataImplantacao: c.data_implantacao || null,
-        papel, campoPago,
-        pessoaId,
-        pessoaNome: pessoaNome || 'Desconhecido',
-        percentual: percentual != null ? Number(percentual) : null,
-        valor,
-        pago: !!pago,
-      });
-    };
-    push('Supervisor A', 'supervisor_a_pago', c.supervisor_a_id, c.supervisor_a?.nome, c.supervisor_a_percentual, c.supervisor_a_valor, c.supervisor_a_pago);
-    push('Supervisor B', 'supervisor_b_pago', c.supervisor_b_id, c.supervisor_b?.nome, c.supervisor_b_percentual, c.supervisor_b_valor, c.supervisor_b_pago);
-    push('Corretor', 'corretor_pago', c.corretor_id, c.corretor?.nome, c.corretor_percentual, c.corretor_valor, c.corretor_pago);
-  }
-  return itens;
+  if (!resumo || !propostaId) return null;
+  return resumo.get(propostaId) || null;
 }

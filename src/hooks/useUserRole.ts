@@ -21,8 +21,18 @@ export function useUserRoles() {
 }
 
 export function useIsAdmPipelineOnly() {
-  const { data: roles = [], isLoading } = useUserRoles();
+  const { data: roles = [], isLoading, isError } = useUserRoles();
   const isAdmPipeline = roles.includes('adm_pipeline');
-  const isAdmin = roles.includes('admin') || roles.includes('gestor');
-  return { isLoading, isAdmPipelineOnly: isAdmPipeline && !isAdmin, isAdmin, roles };
+  const isAdmin = roles.includes('admin');
+  const isGestor = roles.includes('gestor');
+  const canManageCadastros = isAdmin || isGestor;
+  return {
+    isLoading,
+    isError,
+    isAdmPipelineOnly: isAdmPipeline && !canManageCadastros,
+    isAdmin,
+    isGestor,
+    canManageCadastros,
+    roles,
+  };
 }

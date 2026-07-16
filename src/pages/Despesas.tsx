@@ -72,6 +72,7 @@ export default function Despesas() {
   const { data: setores = [] } = useSetoresDespesa();
   const createDespesa = useCreateDespesa();
   const updateDespesa = useUpdateDespesa();
+  const updateDespesaAsync = updateDespesa.mutateAsync;
   const deleteDespesa = useDeleteDespesa();
   const generateRecurring = useGenerateRecurringDespesas();
   const bulkCreateDespesa = useBulkCreateDespesa();
@@ -86,8 +87,8 @@ export default function Despesas() {
     const overdue = despesas.filter(d => d.status === 'A pagar' && d.data < todayStr && !autoOverdueRan.current.has(d.id));
     if (overdue.length === 0) return;
     overdue.forEach(d => autoOverdueRan.current.add(d.id));
-    Promise.all(overdue.map(d => updateDespesa.mutateAsync({ id: d.id, status: 'Atrasado' }))).catch(() => {});
-  }, [despesas]);
+    Promise.all(overdue.map(d => updateDespesaAsync({ id: d.id, status: 'Atrasado' }))).catch(() => {});
+  }, [despesas, updateDespesaAsync]);
 
   const mapDespesaRow = useCallback((row: Record<string, any>): ParsedRow => {
     const errors: string[] = [];
@@ -300,7 +301,9 @@ export default function Despesas() {
               Recorrente: d.recorrente ? 'Sim' : 'Não',
               Observações: (d as any).observacoes || '',
             }));
-            exportToExcel(rows, `Despesas_${getMonthName(month)}_${year}`);
+            void exportToExcel(rows, `Despesas_${getMonthName(month)}_${year}`).catch((error) => {
+              toast({ title: 'Erro ao exportar', description: error.message, variant: 'destructive' });
+            });
           }}>
             <Download className="h-4 w-4 mr-1" /> Exportar
           </Button>
@@ -600,6 +603,8 @@ export default function Despesas() {
                                 recorrente: d.recorrente,
                                 status: 'A pagar',
                                 unidade_negocio: (d as any).unidade_negocio || null,
+                                setor_id: (d as any).setor_id || null,
+                                observacoes: (d as any).observacoes || null,
                               });
                               toast({ title: 'Despesa duplicada com sucesso!' });
                             } catch (err: any) {
@@ -684,13 +689,14 @@ export default function Despesas() {
         open={importOpen}
         onOpenChange={setImportOpen}
         title="Importar Despesas"
-        expectedColumns={['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor', 'Responsável', 'Recorrente', 'Status', 'Setor', 'Observações']}
+        expectedColumns={['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor', 'Responsável', 'Recorrente', 'Status', 'Unidade de Negócio', 'Setor', 'Observações']}
         mapRow={mapDespesaRow}
         onConfirm={async (rows) => { await bulkCreateDespesa.mutateAsync(rows as any); }}
         columnAliases={{
           'Valor': ['Valor Real', 'Valor (R$)'],
           'Tipo': ['Tipo (Fixo/Variável)', 'Tipo (Fixo/Variavel)'],
           'Status': ['Status/Pago'],
+          'Unidade de Negócio': ['Unidade', 'Unidade de Negocio'],
           'Observações': ['Observacoes', 'Obs'],
         }}
       />
