@@ -329,29 +329,28 @@ export function useUpdateOperadora() {
   });
 }
 
+export type CategoriaPayload = { nome: string; tipo_dre?: 'operacional' | 'custo_fixo' | 'imposto' };
+
 export function useCreateCategoriaDespesa() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (nome: string) => {
-      const { error } = await supabase.from('categorias_despesa').insert({ nome });
+    mutationFn: async (payload: string | CategoriaPayload) => {
+      const body = typeof payload === 'string' ? { nome: payload } : payload;
+      const { error } = await supabase.from('categorias_despesa').insert(body);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categorias_despesa'] });
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categorias_despesa'] }); },
   });
 }
 
 export function useUpdateCategoriaDespesa() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, nome }: { id: string; nome: string }) => {
-      const { error } = await supabase.from('categorias_despesa').update({ nome }).eq('id', id);
+    mutationFn: async ({ id, ...rest }: { id: string } & Partial<CategoriaPayload>) => {
+      const { error } = await supabase.from('categorias_despesa').update(rest).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categorias_despesa'] });
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categorias_despesa'] }); },
   });
 }
 
