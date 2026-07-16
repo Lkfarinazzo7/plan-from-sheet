@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa, useSetoresDespesa } from '@/hooks/useFinancialData';
-import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
+import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName, todayStr } from '@/lib/format';
 import { Plus, Trash2, RotateCcw, Pencil, Upload, Check, Copy, Download, X, StickyNote } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { exportToExcel } from '@/lib/exportHelpers';
@@ -19,7 +19,7 @@ import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
 
 const emptyForm = {
-  data: new Date().toISOString().split('T')[0],
+  data: todayStr(),
   descricao: '',
   categoria_id: '',
   tipo: 'Fixo',
@@ -78,12 +78,14 @@ export default function Despesas() {
   const { toast } = useToast();
   const [importOpen, setImportOpen] = useState(false);
 
-  // Auto-marca como Atrasado: status "A pagar" com data < hoje
+  // Auto-marca como Atrasado: status "A pagar" com data < hoje.
+  // Set é reiniciado ao trocar de mês/ano para reprocessar corretamente após mudança de contexto.
   const autoOverdueRan = useRef<Set<string>>(new Set());
+  useEffect(() => { autoOverdueRan.current = new Set(); }, [month, year]);
   useEffect(() => {
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    const overdue = despesas.filter(d => d.status === 'A pagar' && d.data < todayStr && !autoOverdueRan.current.has(d.id));
+    if (updateDespesa.isPending) return;
+    const today = todayStr();
+    const overdue = despesas.filter(d => d.status === 'A pagar' && d.data < today && !autoOverdueRan.current.has(d.id));
     if (overdue.length === 0) return;
     overdue.forEach(d => autoOverdueRan.current.add(d.id));
     Promise.all(overdue.map(d => updateDespesa.mutateAsync({ id: d.id, status: 'Atrasado' }))).catch(() => {});
@@ -588,10 +590,8 @@ export default function Despesas() {
                           title="Duplicar"
                           onClick={async () => {
                             try {
-                              const today = new Date();
-                              const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
                               await createDespesa.mutateAsync({
-                                data: todayStr,
+                                data: todayStr(),
                                 descricao: d.descricao,
                                 categoria_id: d.categoria_id,
                                 tipo: d.tipo,

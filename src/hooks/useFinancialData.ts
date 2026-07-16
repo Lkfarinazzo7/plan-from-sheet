@@ -329,29 +329,28 @@ export function useUpdateOperadora() {
   });
 }
 
+export type CategoriaPayload = { nome: string; tipo_dre?: 'operacional' | 'custo_fixo' | 'imposto' };
+
 export function useCreateCategoriaDespesa() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (nome: string) => {
-      const { error } = await supabase.from('categorias_despesa').insert({ nome });
+    mutationFn: async (payload: string | CategoriaPayload) => {
+      const body = typeof payload === 'string' ? { nome: payload } : payload;
+      const { error } = await supabase.from('categorias_despesa').insert(body);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categorias_despesa'] });
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categorias_despesa'] }); },
   });
 }
 
 export function useUpdateCategoriaDespesa() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, nome }: { id: string; nome: string }) => {
-      const { error } = await supabase.from('categorias_despesa').update({ nome }).eq('id', id);
+    mutationFn: async ({ id, ...rest }: { id: string } & Partial<CategoriaPayload>) => {
+      const { error } = await supabase.from('categorias_despesa').update(rest).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categorias_despesa'] });
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categorias_despesa'] }); },
   });
 }
 
@@ -596,7 +595,10 @@ export function useMonthlyComparison(unidade?: string) {
 
       let rq = supabase.from('receitas').select('data, valor, unidade_negocio').gte('data', startDate).lte('data', endDate);
       let dq = supabase.from('despesas').select('data, valor, unidade_negocio').gte('data', startDate).lte('data', endDate);
-      if (unidade) {
+      if (unidade === 'none') {
+        rq = rq.is('unidade_negocio', null);
+        dq = dq.is('unidade_negocio', null);
+      } else if (unidade) {
         rq = rq.eq('unidade_negocio', unidade);
         dq = dq.eq('unidade_negocio', unidade);
       }
@@ -853,3 +855,157 @@ export function extractComissoes(contratos: any[]): ComissaoItem[] {
   }
   return itens;
 }
+
+// ===== DRE (cascata) e DFC =====
+
+type PeriodArgs = { month?: number; year?: number; startDate?: string; endDate?: string; unidade?: string };
+
+function resolveRange(a: PeriodArgs): { sd: string; ed: string } | null {
+  if (a.startDate && a.endDate) return { sd: a.startDate, ed: a.endDate };
+  if (a.month !== undefined && a.year !== undefined) {
+    return {
+      sd: toDateStr(a.year, a.month, 1),
+      ed: toDateStr(a.year, a.month, new Date(a.year, a.month + 1, 0).getDate()),
+    };
+  }
+  return null;
+}
+
+function applyUnidade<T extends { eq: any; is: any }>(q: T, unidade?: string): T {
+  if (!unidade || unidade === 'all') return q;
+  if (unidade === 'none') return q.is('unidade_negocio', null);
+  return q.eq('unidade_negocio', unidade);
+}
+
+export type DREResult = {
+  receitaBruta: number;
+  despesasOperacionais: number;
+  margemOperacional: number;
+  custosFixos: number;
+  margemContribuicao: number;
+  impostos: number;
+  resultadoLiquido: number;
+};
+
+export function useDRE(args: PeriodArgs) {
+  return useQuery({
+    queryKey: ['dre', args.month, args.year, args.startDate, args.endDate, args.unidade || 'all'],
+    enabled: !!resolveRange(args),
+    queryFn: async (): Promise<DREResult> => {
+      const r = resolveRange(args)!;
+      let rq: any = supabase.from('receitas').select('valor, unidade_negocio, status').eq('status', 'Recebido').gte('data', r.sd).lte('data', r.ed);
+      let dq: any = supabase.from('despesas').select('valor, unidade_negocio, categorias_despesa(tipo_dre)').gte('data', r.sd).lte('data', r.ed);
+      rq = applyUnidade(rq, args.unidade);
+      dq = applyUnidade(dq, args.unidade);
+      const [rr, dr] = await Promise.all([rq, dq]);
+      if (rr.error) throw rr.error;
+      if (dr.error) throw dr.error;
+      const receitaBruta = (rr.data || []).reduce((a: number, x: any) => a + Number(x.valor), 0);
+      let despesasOperacionais = 0, custosFixos = 0, impostos = 0;
+      for (const d of dr.data || []) {
+        const t = (d.categorias_despesa as any)?.tipo_dre || 'operacional';
+        const v = Number(d.valor);
+        if (t === 'custo_fixo') custosFixos += v;
+        else if (t === 'imposto') impostos += v;
+        else despesasOperacionais += v;
+      }
+      const margemOperacional = receitaBruta - despesasOperacionais;
+      const margemContribuicao = margemOperacional - custosFixos;
+      const resultadoLiquido = margemContribuicao - impostos;
+      return { receitaBruta, despesasOperacionais, margemOperacional, custosFixos, margemContribuicao, impostos, resultadoLiquido };
+    },
+  });
+}
+
+export type DFCRealizado = {
+  entradasRealizadas: number;
+  saidasRealizadas: number;
+  entradasPrevistas: number;
+  saidasPrevistas: number;
+  saldoRealizado: number;
+  saldoTotal: number;
+};
+
+export function useDFCRealizado(args: PeriodArgs) {
+  return useQuery({
+    queryKey: ['dfc-realizado', args.month, args.year, args.startDate, args.endDate, args.unidade || 'all'],
+    enabled: !!resolveRange(args),
+    queryFn: async (): Promise<DFCRealizado> => {
+      const r = resolveRange(args)!;
+      let rq: any = supabase.from('receitas').select('valor, status, unidade_negocio').gte('data', r.sd).lte('data', r.ed);
+      let dq: any = supabase.from('despesas').select('valor, status, unidade_negocio').gte('data', r.sd).lte('data', r.ed);
+      rq = applyUnidade(rq, args.unidade);
+      dq = applyUnidade(dq, args.unidade);
+      const [rr, dr] = await Promise.all([rq, dq]);
+      if (rr.error) throw rr.error;
+      if (dr.error) throw dr.error;
+      let entradasRealizadas = 0, entradasPrevistas = 0;
+      for (const x of rr.data || []) {
+        if (x.status === 'Recebido') entradasRealizadas += Number(x.valor);
+        else entradasPrevistas += Number(x.valor);
+      }
+      let saidasRealizadas = 0, saidasPrevistas = 0;
+      for (const x of dr.data || []) {
+        if (x.status === 'Pago') saidasRealizadas += Number(x.valor);
+        else saidasPrevistas += Number(x.valor);
+      }
+      const saldoRealizado = entradasRealizadas - saidasRealizadas;
+      const saldoTotal = (entradasRealizadas + entradasPrevistas) - (saidasRealizadas + saidasPrevistas);
+      return { entradasRealizadas, saidasRealizadas, entradasPrevistas, saidasPrevistas, saldoRealizado, saldoTotal };
+    },
+  });
+}
+
+export type DFCProjetadoPonto = { semana: string; sd: string; ed: string; entradas: number; saidas: number; saldo: number; saldoAcumulado: number };
+
+/**
+ * Projeção semanal do fluxo de caixa nos próximos N dias (a partir de hoje).
+ * Entradas: receitas com status "Aguardando" (data futura).
+ * Saídas: despesas com status "A pagar" ou "Atrasado" (data futura ou vencidas).
+ */
+export function useDFCProjetado(unidade?: string, daysAhead = 90) {
+  return useQuery({
+    queryKey: ['dfc-projetado', unidade || 'all', daysAhead],
+    queryFn: async (): Promise<DFCProjetadoPonto[]> => {
+      const today = new Date();
+      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const end = new Date(start);
+      end.setDate(start.getDate() + daysAhead);
+      const sd = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+      const ed = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+
+      let rq: any = supabase.from('receitas').select('data, valor, status, unidade_negocio').eq('status', 'Aguardando').gte('data', sd).lte('data', ed);
+      let dq: any = supabase.from('despesas').select('data, valor, status, unidade_negocio').in('status', ['A pagar', 'Atrasado']).gte('data', sd).lte('data', ed);
+      rq = applyUnidade(rq, unidade);
+      dq = applyUnidade(dq, unidade);
+      const [rr, dr] = await Promise.all([rq, dq]);
+      if (rr.error) throw rr.error;
+      if (dr.error) throw dr.error;
+
+      // Buckets semanais (7d) a partir de hoje
+      const weeks = Math.ceil(daysAhead / 7);
+      const buckets: DFCProjetadoPonto[] = [];
+      for (let i = 0; i < weeks; i++) {
+        const ws = new Date(start); ws.setDate(start.getDate() + i * 7);
+        const we = new Date(start); we.setDate(start.getDate() + i * 7 + 6);
+        const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        buckets.push({
+          semana: `${String(ws.getDate()).padStart(2, '0')}/${String(ws.getMonth() + 1).padStart(2, '0')}`,
+          sd: fmt(ws), ed: fmt(we),
+          entradas: 0, saidas: 0, saldo: 0, saldoAcumulado: 0,
+        });
+      }
+      const findBucket = (dStr: string) => buckets.find(b => dStr >= b.sd && dStr <= b.ed);
+      for (const x of rr.data || []) { const b = findBucket(x.data); if (b) b.entradas += Number(x.valor); }
+      for (const x of dr.data || []) { const b = findBucket(x.data); if (b) b.saidas += Number(x.valor); }
+      let acc = 0;
+      for (const b of buckets) {
+        b.saldo = b.entradas - b.saidas;
+        acc += b.saldo;
+        b.saldoAcumulado = acc;
+      }
+      return buckets;
+    },
+  });
+}
+

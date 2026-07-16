@@ -1,6 +1,7 @@
-import { LayoutDashboard, ArrowUpCircle, ArrowDownCircle, FileSignature, HandCoins, ClipboardList, LogOut } from 'lucide-react';
+import { LayoutDashboard, ArrowUpCircle, ArrowDownCircle, FileSignature, HandCoins, ClipboardList, LogOut, TrendingUp } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsAdmPipelineOnly } from '@/hooks/useUserRole';
 import {
   Sidebar,
   SidebarContent,
@@ -15,19 +16,28 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 
-const menuItems = [
+const allMenuItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
   { title: 'Receitas', url: '/receitas', icon: ArrowUpCircle },
   { title: 'Despesas', url: '/despesas', icon: ArrowDownCircle },
+  { title: 'Fluxo de Caixa', url: '/fluxo-caixa', icon: TrendingUp },
   { title: 'Contratos', url: '/contratos', icon: FileSignature },
   { title: 'Comissões', url: '/comissoes', icon: HandCoins },
   { title: 'Cadastros', url: '/cadastros', icon: ClipboardList },
 ];
 
+// Restrição de menu para usuários "adm_pipeline" (sem acesso ao financeiro completo)
+const admPipelineAllowed = new Set(['/contratos', '/comissoes']);
+
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const { signOut } = useAuth();
+  const { isAdmPipelineOnly } = useIsAdmPipelineOnly();
+
+  const menuItems = isAdmPipelineOnly
+    ? allMenuItems.filter(m => admPipelineAllowed.has(m.url))
+    : allMenuItems;
 
   return (
     <Sidebar collapsible="icon">

@@ -4,6 +4,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const MAX_TEXT_CHARS = 20_000;
+const MAX_IMAGE_CHARS = 7_500_000; // ~5MB em base64
+const MAX_LIST_ITEMS = 500;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -11,16 +15,35 @@ Deno.serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const body = await req.json();
-    const image: string | undefined = body.image;
-    const text: string | undefined = body.text;
-    const operadoras: string[] = Array.isArray(body.operadoras) ? body.operadoras : [];
-    const vendedores: string[] = Array.isArray(body.vendedores) ? body.vendedores : [];
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: "JSON inválido" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const image: string | undefined = typeof body.image === "string" ? body.image : undefined;
+    const text: string | undefined = typeof body.text === "string" ? body.text : undefined;
+    const operadoras: string[] = Array.isArray(body.operadoras) ? body.operadoras.slice(0, MAX_LIST_ITEMS).map(String) : [];
+    const vendedores: string[] = Array.isArray(body.vendedores) ? body.vendedores.slice(0, MAX_LIST_ITEMS).map(String) : [];
 
     if (!image && !text) {
       return new Response(JSON.stringify({ error: "Forneça imagem ou texto" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (text && text.length > MAX_TEXT_CHARS) {
+      return new Response(JSON.stringify({ error: `Texto muito grande (máx ${MAX_TEXT_CHARS} caracteres).` }), {
+        status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (image && image.length > MAX_IMAGE_CHARS) {
+      return new Response(JSON.stringify({ error: "Imagem muito grande (máx ~5MB). Reduza a resolução ou recorte." }), {
+        status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -95,7 +118,7 @@ Retorne TODAS as linhas detectadas, sem agrupar nem deduplicar.`;
         });
       }
       if (resp.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos da IA esgotados. Adicione créditos em Settings > Workspace > Usage." }), {
+        return new Response(JSON.stringify({ error: "Créditos da IA esgotados. Adicione créditos no workspace." }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }

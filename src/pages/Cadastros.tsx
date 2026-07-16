@@ -4,6 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, Shield, ShieldOff } from 'lucide-react';
 import { toast } from 'sonner';
@@ -132,6 +133,12 @@ function OperadorasTab() {
   );
 }
 
+const TIPO_DRE_LABEL: Record<string, string> = {
+  operacional: 'Operacional (variável)',
+  custo_fixo: 'Custo fixo',
+  imposto: 'Imposto',
+};
+
 function CategoriasTab() {
   const { data: categorias = [] } = useCategoriasDespesa();
   const createMut = useCreateCategoriaDespesa();
@@ -140,14 +147,15 @@ function CategoriasTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [nome, setNome] = useState('');
+  const [tipoDre, setTipoDre] = useState<'operacional' | 'custo_fixo' | 'imposto'>('operacional');
 
-  const openAdd = () => { setEditId(null); setNome(''); setDialogOpen(true); };
-  const openEdit = (c: any) => { setEditId(c.id); setNome(c.nome); setDialogOpen(true); };
+  const openAdd = () => { setEditId(null); setNome(''); setTipoDre('operacional'); setDialogOpen(true); };
+  const openEdit = (c: any) => { setEditId(c.id); setNome(c.nome); setTipoDre(c.tipo_dre || 'operacional'); setDialogOpen(true); };
   const save = async () => {
     if (!nome.trim()) return;
     try {
-      if (editId) await updateMut.mutateAsync({ id: editId, nome });
-      else await createMut.mutateAsync(nome);
+      if (editId) await updateMut.mutateAsync({ id: editId, nome, tipo_dre: tipoDre });
+      else await createMut.mutateAsync({ nome, tipo_dre: tipoDre });
       toast.success(editId ? 'Categoria atualizada!' : 'Categoria criada!');
       setDialogOpen(false);
     } catch { toast.error('Erro ao salvar categoria.'); }
@@ -163,21 +171,48 @@ function CategoriasTab() {
     <div className="space-y-4">
       <div className="flex justify-end"><Button onClick={openAdd}><Plus className="mr-2 h-4 w-4" />Adicionar</Button></div>
       <Table>
-        <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
+        <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Tipo (DRE)</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
         <TableBody>
-          {categorias.map(c => (
+          {categorias.map((c: any) => (
             <TableRow key={c.id}>
               <TableCell>{c.nome}</TableCell>
+              <TableCell className="text-muted-foreground">{TIPO_DRE_LABEL[c.tipo_dre || 'operacional']}</TableCell>
               <TableCell className="text-right space-x-2">
                 <Button size="sm" variant="ghost" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
                 <Button size="sm" variant="ghost" className="text-destructive" onClick={() => remove(c.id)}><Trash2 className="h-4 w-4" /></Button>
               </TableCell>
             </TableRow>
           ))}
-          {!categorias.length && <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground">Nenhuma categoria cadastrada.</TableCell></TableRow>}
+          {!categorias.length && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground">Nenhuma categoria cadastrada.</TableCell></TableRow>}
         </TableBody>
       </Table>
-      <CrudDialog open={dialogOpen} onOpenChange={setDialogOpen} title={editId ? 'Editar Categoria' : 'Nova Categoria'} value={nome} onChange={setNome} onSave={save} />
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editId ? 'Editar Categoria' : 'Nova Categoria'}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium">Nome</label>
+              <Input value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex.: Aluguel" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Tipo no DRE</label>
+              <Select value={tipoDre} onValueChange={(v: any) => setTipoDre(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="operacional">Operacional (variável)</SelectItem>
+                  <SelectItem value="custo_fixo">Custo fixo</SelectItem>
+                  <SelectItem value="imposto">Imposto</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">Define em qual linha do DRE em cascata a despesa aparece.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={save}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -344,15 +379,6 @@ function UsuariosTab() {
   };
   useEffect(() => { if (isAdmin) load(); }, [isAdmin]);
 
-  const claimAdmin = async () => {
-    if (!user) return;
-    setBusy(true);
-    const { error } = await supabase.from('user_roles').insert({ user_id: user.id, role: 'admin' });
-    setBusy(false);
-    if (error) toast.error('Já existe um admin. Peça para te conceder o papel.');
-    else { toast.success('Você é admin agora!'); window.location.reload(); }
-  };
-
   const revokeRole = async (uemail: string, role: string) => {
     if (!confirm(`Remover papel "${role}" de ${uemail}?`)) return;
     await supabase.rpc('grant_role_by_email', { _email: uemail, _role: role as any, _grant: false });
@@ -362,16 +388,15 @@ function UsuariosTab() {
   if (!isAdmin) {
     return (
       <div className="space-y-3 max-w-md">
+        <p className="text-sm font-medium">Acesso restrito</p>
         <p className="text-sm text-muted-foreground">
-          Você ainda não tem o papel de administrador. Se você é o primeiro usuário deste sistema, clique abaixo para se tornar admin.
+          Apenas administradores podem gerenciar usuários. Peça para um administrador atual conceder-lhe o papel de <code>admin</code>.
         </p>
         <p className="text-xs text-muted-foreground">Seus papéis atuais: {roles.length ? roles.join(', ') : 'nenhum'}</p>
-        <Button onClick={claimAdmin} disabled={busy}>
-          <Shield className="h-4 w-4 mr-1" /> Tornar-me admin
-        </Button>
       </div>
     );
   }
+
 
   return (
     <div className="space-y-4">

@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita, useBulkUpdateReceita, useBulkDeleteReceita, usePropostas } from '@/hooks/useFinancialData';
-import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName } from '@/lib/format';
+import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName, todayStr } from '@/lib/format';
 import { Plus, Trash2, Pencil, Upload, Copy, Download, Sparkles, X, StickyNote, Check } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { exportToExcel } from '@/lib/exportHelpers';
@@ -21,7 +21,7 @@ import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
 
 const emptyForm = {
-  data: new Date().toISOString().split('T')[0],
+  data: todayStr(),
   descricao: '',
   categoria: 'Bancária',
   operadora_id: '',
@@ -57,7 +57,7 @@ export default function Receitas() {
   const [importOpen, setImportOpen] = useState(false);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkDate, setBulkDate] = useState(new Date().toISOString().split('T')[0]);
+  const [bulkDate, setBulkDate] = useState(todayStr());
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const mapReceitaRow = useCallback((row: Record<string, any>): ParsedRow => {
