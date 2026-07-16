@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useReceitas, useDespesas, useMonthlyComparison } from '@/hooks/useFinancialData';
+import { useReceitas, useDespesas, useMonthlyComparison, useDRE } from '@/hooks/useFinancialData';
+import { DREWaterfall } from '@/components/DREWaterfall';
 import { formatCurrency, getCurrentMonthYear } from '@/lib/format';
 import { ArrowUpCircle, ArrowDownCircle, Wallet, Clock, AlertTriangle, CreditCard, CalendarRange, X, TrendingUp, TrendingDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -42,6 +43,13 @@ export default function Dashboard() {
   );
   
   const { data: monthlyData = [] } = useMonthlyComparison(filterUnidade === 'all' ? undefined : filterUnidade);
+  const { data: dreData } = useDRE({
+    month: isCustom ? undefined : month,
+    year: isCustom ? undefined : year,
+    startDate: activeRange?.start,
+    endDate: activeRange?.end,
+    unidade: filterUnidade,
+  });
 
   // Filtro client-side por unidade de negócio
   const receitas = useMemo(
@@ -210,6 +218,10 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* DRE em cascata */}
+      <DREWaterfall dre={dreData} />
+
 
       {/* Custos Fixos vs Variáveis */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
