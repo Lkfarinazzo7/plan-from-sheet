@@ -17,6 +17,8 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsAdmPipelineOnly } from '@/hooks/useUserRole';
+import type { AppRole } from '@/hooks/useUserRole';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 function CrudDialog({ open, onOpenChange, title, value, onChange, onSave }: {
   open: boolean; onOpenChange: (v: boolean) => void; title: string;
@@ -49,15 +51,17 @@ function VendedoresTab() {
   const save = async () => {
     if (!nome.trim()) return;
     try {
-      if (editId) await updateMut.mutateAsync({ id: editId, nome });
-      else await createMut.mutateAsync(nome);
+      if (editId) await updateMut.mutateAsync({ id: editId, nome: nome.trim() });
+      else await createMut.mutateAsync(nome.trim());
       toast.success(editId ? 'Vendedor atualizado!' : 'Vendedor criado!');
       setDialogOpen(false);
     } catch { toast.error('Erro ao salvar vendedor.'); }
   };
   const toggleAtivo = async (v: any) => {
-    await updateMut.mutateAsync({ id: v.id, ativo: !v.ativo });
-    toast.success(v.ativo ? 'Vendedor desativado.' : 'Vendedor ativado.');
+    try {
+      await updateMut.mutateAsync({ id: v.id, ativo: !v.ativo });
+      toast.success(v.ativo ? 'Vendedor desativado.' : 'Vendedor ativado.');
+    } catch { toast.error('Erro ao alterar o vendedor.'); }
   };
 
   return (
@@ -97,15 +101,17 @@ function OperadorasTab() {
   const save = async () => {
     if (!nome.trim()) return;
     try {
-      if (editId) await updateMut.mutateAsync({ id: editId, nome });
-      else await createMut.mutateAsync(nome);
+      if (editId) await updateMut.mutateAsync({ id: editId, nome: nome.trim() });
+      else await createMut.mutateAsync(nome.trim());
       toast.success(editId ? 'Operadora atualizada!' : 'Operadora criada!');
       setDialogOpen(false);
     } catch { toast.error('Erro ao salvar operadora.'); }
   };
   const toggleAtiva = async (o: any) => {
-    await updateMut.mutateAsync({ id: o.id, ativa: !o.ativa });
-    toast.success(o.ativa ? 'Operadora desativada.' : 'Operadora ativada.');
+    try {
+      await updateMut.mutateAsync({ id: o.id, ativa: !o.ativa });
+      toast.success(o.ativa ? 'Operadora desativada.' : 'Operadora ativada.');
+    } catch { toast.error('Erro ao alterar a operadora.'); }
   };
 
   return (
@@ -146,8 +152,8 @@ function CategoriasTab() {
   const save = async () => {
     if (!nome.trim()) return;
     try {
-      if (editId) await updateMut.mutateAsync({ id: editId, nome });
-      else await createMut.mutateAsync(nome);
+      if (editId) await updateMut.mutateAsync({ id: editId, nome: nome.trim() });
+      else await createMut.mutateAsync(nome.trim());
       toast.success(editId ? 'Categoria atualizada!' : 'Categoria criada!');
       setDialogOpen(false);
     } catch { toast.error('Erro ao salvar categoria.'); }
@@ -195,15 +201,17 @@ function SupervisoresTab() {
   const save = async () => {
     if (!nome.trim()) return;
     try {
-      if (editId) await updateMut.mutateAsync({ id: editId, nome });
-      else await createMut.mutateAsync(nome);
+      if (editId) await updateMut.mutateAsync({ id: editId, nome: nome.trim() });
+      else await createMut.mutateAsync(nome.trim());
       toast.success(editId ? 'Supervisor atualizado!' : 'Supervisor criado!');
       setDialogOpen(false);
     } catch { toast.error('Erro ao salvar supervisor.'); }
   };
   const toggleAtivo = async (s: any) => {
-    await updateMut.mutateAsync({ id: s.id, ativo: !s.ativo });
-    toast.success(s.ativo ? 'Supervisor desativado.' : 'Supervisor ativado.');
+    try {
+      await updateMut.mutateAsync({ id: s.id, ativo: !s.ativo });
+      toast.success(s.ativo ? 'Supervisor desativado.' : 'Supervisor ativado.');
+    } catch { toast.error('Erro ao alterar o supervisor.'); }
   };
 
   return (
@@ -243,15 +251,17 @@ function SetoresTab() {
   const save = async () => {
     if (!nome.trim()) return;
     try {
-      if (editId) await updateMut.mutateAsync({ id: editId, nome });
-      else await createMut.mutateAsync(nome);
+      if (editId) await updateMut.mutateAsync({ id: editId, nome: nome.trim() });
+      else await createMut.mutateAsync(nome.trim());
       toast.success(editId ? 'Setor atualizado!' : 'Setor criado!');
       setDialogOpen(false);
     } catch { toast.error('Erro ao salvar setor.'); }
   };
   const toggleAtivo = async (s: any) => {
-    await updateMut.mutateAsync({ id: s.id, ativo: !s.ativo });
-    toast.success(s.ativo ? 'Setor desativado.' : 'Setor ativado.');
+    try {
+      await updateMut.mutateAsync({ id: s.id, ativo: !s.ativo });
+      toast.success(s.ativo ? 'Setor desativado.' : 'Setor ativado.');
+    } catch { toast.error('Erro ao alterar o setor.'); }
   };
 
   return (
@@ -285,20 +295,24 @@ function CanaisVendaTab() {
   const [nome, setNome] = useState('');
 
   const load = async () => {
-    const { data } = await supabase.from('canais_venda').select('*').order('nome');
+    const { data, error } = await supabase.from('canais_venda').select('*').order('nome');
+    if (error) { toast.error(error.message); return; }
     setItems(data ?? []);
   };
   useEffect(() => { load(); }, []);
 
   const save = async () => {
     if (!nome.trim()) return;
-    if (editId) await supabase.from('canais_venda').update({ nome }).eq('id', editId);
-    else await supabase.from('canais_venda').insert({ nome });
+    const { error } = editId
+      ? await supabase.from('canais_venda').update({ nome: nome.trim() }).eq('id', editId)
+      : await supabase.from('canais_venda').insert({ nome: nome.trim() });
+    if (error) { toast.error(error.message); return; }
     toast.success(editId ? 'Canal atualizado!' : 'Canal criado!');
     setOpen(false); setNome(''); setEditId(null); load();
   };
   const toggle = async (c: any) => {
-    await supabase.from('canais_venda').update({ ativo: !c.ativo }).eq('id', c.id);
+    const { error } = await supabase.from('canais_venda').update({ ativo: !c.ativo }).eq('id', c.id);
+    if (error) { toast.error(error.message); return; }
     load();
   };
 
@@ -335,11 +349,12 @@ function UsuariosTab() {
   const { roles, isAdmin } = useIsAdmPipelineOnly();
   const [users, setUsers] = useState<{ user_id: string; email: string; roles: string[] }[]>([]);
   const [email, setEmail] = useState('');
+  const [roleToGrant, setRoleToGrant] = useState<AppRole>('adm_pipeline');
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
     const { data, error } = await supabase.rpc('list_users_with_roles');
-    if (error) { console.error(error); return; }
+    if (error) { toast.error(error.message); return; }
     setUsers((data as any) ?? []);
   };
   useEffect(() => { if (isAdmin) load(); }, [isAdmin]);
@@ -347,15 +362,43 @@ function UsuariosTab() {
   const claimAdmin = async () => {
     if (!user) return;
     setBusy(true);
-    const { error } = await supabase.from('user_roles').insert({ user_id: user.id, role: 'admin' });
+    const { data, error } = await supabase.rpc('bootstrap_first_admin');
     setBusy(false);
-    if (error) toast.error('Já existe um admin. Peça para te conceder o papel.');
-    else { toast.success('Você é admin agora!'); window.location.reload(); }
+    if (error) { toast.error(error.message); return; }
+    if (!data) { toast.error('Já existe um admin. Peça para te conceder o papel.'); return; }
+    toast.success('Você é admin agora!');
+    window.location.reload();
   };
 
   const revokeRole = async (uemail: string, role: string) => {
     if (!confirm(`Remover papel "${role}" de ${uemail}?`)) return;
-    await supabase.rpc('grant_role_by_email', { _email: uemail, _role: role as any, _grant: false });
+    const { data, error } = await supabase.rpc('grant_role_by_email', { _email: uemail, _role: role as any, _grant: false });
+    if (error) { toast.error(error.message); return; }
+    if (!(data as { ok?: boolean; error?: string } | null)?.ok) {
+      toast.error((data as { error?: string } | null)?.error || 'Não foi possível remover o papel.');
+      return;
+    }
+    toast.success('Papel removido.');
+    load();
+  };
+
+  const grantRole = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) return;
+    setBusy(true);
+    const { data, error } = await supabase.rpc('grant_role_by_email', {
+      _email: normalizedEmail,
+      _role: roleToGrant,
+      _grant: true,
+    });
+    setBusy(false);
+    if (error) { toast.error(error.message); return; }
+    if (!(data as { ok?: boolean; error?: string } | null)?.ok) {
+      toast.error((data as { error?: string } | null)?.error || 'Não foi possível conceder o papel.');
+      return;
+    }
+    toast.success(`Papel ${roleToGrant} concedido a ${normalizedEmail}.`);
+    setEmail('');
     load();
   };
 
@@ -375,6 +418,26 @@ function UsuariosTab() {
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row gap-2 rounded-md border p-3">
+        <Input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          placeholder="usuario@empresa.com"
+          className="flex-1"
+        />
+        <Select value={roleToGrant} onValueChange={v => setRoleToGrant(v as AppRole)}>
+          <SelectTrigger className="sm:w-[180px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="adm_pipeline">ADM Pipeline</SelectItem>
+            <SelectItem value="gestor">Gestor</SelectItem>
+            <SelectItem value="admin">Administrador</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button onClick={grantRole} disabled={busy || !email.trim()}>
+          <Shield className="h-4 w-4 mr-1" /> Conceder papel
+        </Button>
+      </div>
       <Table>
         <TableHeader>
           <TableRow><TableHead>E-mail</TableHead><TableHead>Papéis</TableHead><TableHead className="text-right">Ações</TableHead></TableRow>
@@ -387,11 +450,17 @@ function UsuariosTab() {
                 {u.roles.map(r => <Badge key={r} variant="secondary">{r}</Badge>)}
               </TableCell>
               <TableCell className="text-right space-x-1">
-                {u.roles.includes('adm_pipeline') && (
-                  <Button size="sm" variant="ghost" onClick={() => revokeRole(u.email, 'adm_pipeline')}>
-                    <ShieldOff className="h-4 w-4" /> Remover ADM Pipeline
+                {u.roles.map(role => (
+                  <Button
+                    key={role}
+                    size="sm"
+                    variant="ghost"
+                    disabled={u.user_id === user?.id && role === 'admin'}
+                    onClick={() => revokeRole(u.email, role)}
+                  >
+                    <ShieldOff className="h-4 w-4" /> Remover {role}
                   </Button>
-                )}
+                ))}
               </TableCell>
             </TableRow>
           ))}
@@ -403,6 +472,23 @@ function UsuariosTab() {
 }
 
 export default function Cadastros() {
+  const { roles, isAdmin, canManageCadastros, isLoading, isError } = useIsAdmPipelineOnly();
+
+  if (isLoading) return <p className="text-muted-foreground">Carregando permissões...</p>;
+  if (isError) return <p className="text-destructive">Não foi possível verificar suas permissões. Tente novamente.</p>;
+  if (!canManageCadastros) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold">Cadastros</h1>
+        {roles.length === 0 ? (
+          <UsuariosTab />
+        ) : (
+          <p className="text-sm text-muted-foreground">Seu usuário não tem permissão para alterar cadastros globais.</p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Cadastros</h1>
@@ -414,7 +500,7 @@ export default function Cadastros() {
           <TabsTrigger value="supervisores">Supervisores</TabsTrigger>
           <TabsTrigger value="setores">Setores</TabsTrigger>
           <TabsTrigger value="canais">Canais de Venda</TabsTrigger>
-          <TabsTrigger value="usuarios">Usuários</TabsTrigger>
+          {isAdmin && <TabsTrigger value="usuarios">Usuários</TabsTrigger>}
         </TabsList>
         <TabsContent value="vendedores"><VendedoresTab /></TabsContent>
         <TabsContent value="operadoras"><OperadorasTab /></TabsContent>
@@ -422,7 +508,7 @@ export default function Cadastros() {
         <TabsContent value="supervisores"><SupervisoresTab /></TabsContent>
         <TabsContent value="setores"><SetoresTab /></TabsContent>
         <TabsContent value="canais"><CanaisVendaTab /></TabsContent>
-        <TabsContent value="usuarios"><UsuariosTab /></TabsContent>
+        {isAdmin && <TabsContent value="usuarios"><UsuariosTab /></TabsContent>}
       </Tabs>
     </div>
   );

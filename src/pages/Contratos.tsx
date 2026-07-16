@@ -12,8 +12,8 @@ import { Plus, Pencil, Trash2, Upload, Download, X } from 'lucide-react';
 import {
   useContratos, useCreateContrato, useUpdateContrato, useDeleteContrato,
   useBulkCreateContrato, useBulkUpdateContrato, useBulkDeleteContrato,
-  useOperadoras, useSupervisores, useVendedores,
-  useReceitasResumoPorNome, getResumoContrato,
+  useOperadoras, useSupervisores, useVendedores, usePropostas,
+  useReceitasResumoPorProposta, getResumoContrato,
 } from '@/hooks/useFinancialData';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
 import { formatCurrency } from '@/lib/format';
@@ -21,11 +21,13 @@ import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
 import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
 import { exportToExcel } from '@/lib/exportHelpers';
+import { calculateCommissionValue } from '@/lib/commissionHelpers';
 
 type Slot = 'a' | 'b' | 'c'; // a=Sup A, b=Sup B, c=Corretor
 
 const emptyForm = {
   nome: '',
+  proposta_id: 'none',
   operadora_id: 'none',
   unidade_negocio: 'none',
   data_implantacao: '',
@@ -50,12 +52,34 @@ function calcValor(valorContrato: number, pct: string): string {
   return ((valorContrato * p) / 100).toFixed(2);
 }
 
+function commissionAmount(c: any, slot: 'supervisor_a' | 'supervisor_b' | 'corretor'): number {
+  return calculateCommissionValue(
+    c.valor_contrato,
+    c[`${slot}_id`],
+    c[`${slot}_percentual`],
+    c[`${slot}_valor`],
+  );
+}
+
+function assignedCommissionSlots(c: any) {
+  return [
+    { assigned: !!c.supervisor_a_id, paid: !!c.supervisor_a_pago },
+    { assigned: !!c.supervisor_b_id, paid: !!c.supervisor_b_pago },
+    { assigned: !!c.corretor_id, paid: !!c.corretor_pago },
+  ].filter(slot => slot.assigned);
+}
+
+function parsePaid(value: unknown): boolean {
+  return ['sim', 'true', '1', 'yes', 'pago'].includes(String(value ?? '').trim().toLowerCase());
+}
+
 export default function Contratos() {
   const { data: contratos = [], isLoading } = useContratos();
   const { data: operadoras = [] } = useOperadoras();
   const { data: supervisores = [] } = useSupervisores();
   const { data: vendedores = [] } = useVendedores();
-  const { data: resumoReceitas } = useReceitasResumoPorNome();
+  const { data: propostas = [] } = usePropostas();
+  const { data: resumoReceitas } = useReceitasResumoPorProposta();
 
   const create = useCreateContrato();
   const update = useUpdateContrato();
@@ -86,6 +110,7 @@ export default function Contratos() {
   const mapContratoRow = useCallback((row: Record<string, any>): ParsedRow => {
     const errors: string[] = [];
     const nome = String(row['Nome'] ?? '').trim();
+    const propostaNome = String(row['Proposta'] ?? '').trim();
     const operadoraNome = String(row['Operadora'] ?? '').trim();
     const unidade = String(row['Unidade'] ?? '').trim();
     const dataImpl = row['Data Implantação'] || row['Data Implantacao'] || '';
@@ -93,13 +118,32 @@ export default function Contratos() {
     const supANome = String(row['Supervisor A'] ?? '').trim();
     const supBNome = String(row['Supervisor B'] ?? '').trim();
     const corretorNome = String(row['Corretor'] ?? '').trim();
-    const pctA = parseFloat(String(row['% Supervisor A'] ?? '').replace(',', '.'));
-    const pctB = parseFloat(String(row['% Supervisor B'] ?? '').replace(',', '.'));
-    const pctC = parseFloat(String(row['% Corretor'] ?? '').replace(',', '.'));
+    const pctAInput = String(row['% Supervisor A'] ?? '').trim();
+    const pctBInput = String(row['% Supervisor B'] ?? '').trim();
+    const pctCInput = String(row['% Corretor'] ?? '').trim();
+    const pctA = parseFloat(pctAInput.replace(',', '.'));
+    const pctB = parseFloat(pctBInput.replace(',', '.'));
+    const pctC = parseFloat(pctCInput.replace(',', '.'));
+    const valorAInput = row['Valor Supervisor A'];
+    const valorBInput = row['Valor Supervisor B'];
+    const valorCInput = row['Valor Corretor'];
+    const valorA = valorAInput === '' || valorAInput == null ? null : parseValorBR(valorAInput);
+    const valorB = valorBInput === '' || valorBInput == null ? null : parseValorBR(valorBInput);
+    const valorC = valorCInput === '' || valorCInput == null ? null : parseValorBR(valorCInput);
     const obs = String(row['Observações'] ?? row['Observacoes'] ?? '').trim();
 
     if (!nome) errors.push('Nome obrigatório');
     if (isNaN(valorContrato)) errors.push('Valor Contrato inválido');
+    else if (valorContrato < 0) errors.push('Valor Contrato não pode ser negativo');
+    if (pctAInput && (isNaN(pctA) || pctA < 0)) errors.push('% Supervisor A inválido');
+    if (pctBInput && (isNaN(pctB) || pctB < 0)) errors.push('% Supervisor B inválido');
+    if (pctCInput && (isNaN(pctC) || pctC < 0)) errors.push('% Corretor inválido');
+    if (valorA != null && isNaN(valorA)) errors.push('Valor Supervisor A inválido');
+    else if (valorA != null && valorA < 0) errors.push('Valor Supervisor A não pode ser negativo');
+    if (valorB != null && isNaN(valorB)) errors.push('Valor Supervisor B inválido');
+    else if (valorB != null && valorB < 0) errors.push('Valor Supervisor B não pode ser negativo');
+    if (valorC != null && isNaN(valorC)) errors.push('Valor Corretor inválido');
+    else if (valorC != null && valorC < 0) errors.push('Valor Corretor não pode ser negativo');
 
     const findByName = (list: any[], n: string) =>
       n ? list.find(x => String(x.nome).toLowerCase() === n.toLowerCase()) : null;
@@ -109,12 +153,21 @@ export default function Contratos() {
 
     const supA = supANome ? findByName(supervisores as any[], supANome) : null;
     if (supANome && !supA) errors.push(`Supervisor A "${supANome}" não encontrado`);
+    if (!supANome && (pctAInput || valorAInput !== '' && valorAInput != null || parsePaid(row['Pago Supervisor A']))) {
+      errors.push('Supervisor A obrigatório quando há comissão preenchida');
+    }
 
     const supB = supBNome ? findByName(supervisores as any[], supBNome) : null;
     if (supBNome && !supB) errors.push(`Supervisor B "${supBNome}" não encontrado`);
+    if (!supBNome && (pctBInput || valorBInput !== '' && valorBInput != null || parsePaid(row['Pago Supervisor B']))) {
+      errors.push('Supervisor B obrigatório quando há comissão preenchida');
+    }
 
     const corretor = corretorNome ? findByName(vendedores as any[], corretorNome) : null;
     if (corretorNome && !corretor) errors.push(`Corretor "${corretorNome}" não encontrado`);
+    if (!corretorNome && (pctCInput || valorCInput !== '' && valorCInput != null || parsePaid(row['Pago Corretor']))) {
+      errors.push('Corretor obrigatório quando há comissão preenchida');
+    }
 
     const unidadeMatch = unidade
       ? UNIDADES_NEGOCIO.find(u => u.toLowerCase() === unidade.toLowerCase())
@@ -122,34 +175,39 @@ export default function Contratos() {
     if (unidade && !unidadeMatch) errors.push(`Unidade "${unidade}" inválida`);
 
     const dateStr = dataImpl ? parseDateFlexible(dataImpl) : '';
+    if (dataImpl && !dateStr) errors.push(`Data de implantação inválida: "${dataImpl}"`);
     const valor = isNaN(valorContrato) ? 0 : valorContrato;
     const calc = (pct: number) => isNaN(pct) ? null : Number(((valor * pct) / 100).toFixed(2));
+    const propostaBusca = propostaNome || nome;
+    const proposta = propostaBusca ? findByName(propostas as any[], propostaBusca) : null;
+    if (propostaNome && !proposta) errors.push(`Proposta "${propostaNome}" não encontrada`);
 
     return {
       mapped: {
         nome,
+        proposta_id: proposta?.id || null,
         operadora_id: operadora?.id || null,
         unidade_negocio: unidadeMatch || null,
         data_implantacao: dateStr || null,
         valor_contrato: valor,
         supervisor_a_id: supA?.id || null,
-        supervisor_a_percentual: isNaN(pctA) ? null : pctA,
-        supervisor_a_valor: supA ? calc(pctA) : null,
-        supervisor_a_pago: false,
+        supervisor_a_percentual: supA && !isNaN(pctA) ? pctA : null,
+        supervisor_a_valor: supA ? (valorA ?? calc(pctA)) : null,
+        supervisor_a_pago: !!supA && parsePaid(row['Pago Supervisor A']),
         supervisor_b_id: supB?.id || null,
-        supervisor_b_percentual: isNaN(pctB) ? null : pctB,
-        supervisor_b_valor: supB ? calc(pctB) : null,
-        supervisor_b_pago: false,
+        supervisor_b_percentual: supB && !isNaN(pctB) ? pctB : null,
+        supervisor_b_valor: supB ? (valorB ?? calc(pctB)) : null,
+        supervisor_b_pago: !!supB && parsePaid(row['Pago Supervisor B']),
         corretor_id: corretor?.id || null,
-        corretor_percentual: isNaN(pctC) ? null : pctC,
-        corretor_valor: corretor ? calc(pctC) : null,
-        corretor_pago: false,
+        corretor_percentual: corretor && !isNaN(pctC) ? pctC : null,
+        corretor_valor: corretor ? (valorC ?? calc(pctC)) : null,
+        corretor_pago: !!corretor && parsePaid(row['Pago Corretor']),
         observacoes: obs || null,
       },
       raw: row,
       errors,
     };
-  }, [operadoras, supervisores, vendedores]);
+  }, [operadoras, supervisores, vendedores, propostas]);
 
   const mesesDisponiveis = useMemo(() => {
     const set = new Set<string>();
@@ -185,10 +243,11 @@ export default function Contratos() {
         if (filterDataFim && d > filterDataFim) return false;
       }
       if (filterPago !== 'all') {
-        const allPagos = c.supervisor_a_pago && c.supervisor_b_pago && c.corretor_pago;
-        const hasAny = c.supervisor_a_id || c.supervisor_b_id || c.corretor_id;
-        if (filterPago === 'pago' && !(hasAny && allPagos)) return false;
-        if (filterPago === 'pendente' && allPagos) return false;
+        const slots = assignedCommissionSlots(c);
+        const allPagos = slots.length > 0 && slots.every(slot => slot.paid);
+        const hasPendente = slots.some(slot => !slot.paid);
+        if (filterPago === 'pago' && !allPagos) return false;
+        if (filterPago === 'pendente' && !hasPendente) return false;
       }
       return true;
     });
@@ -199,9 +258,9 @@ export default function Contratos() {
     let totalContrato = 0, totalComissoes = 0, totalPagas = 0, totalPendentes = 0;
     for (const c of filtered as any[]) {
       totalContrato += Number(c.valor_contrato || 0);
-      const a = Number(c.supervisor_a_valor || 0);
-      const b = Number(c.supervisor_b_valor || 0);
-      const cv = Number(c.corretor_valor || 0);
+      const a = commissionAmount(c, 'supervisor_a');
+      const b = commissionAmount(c, 'supervisor_b');
+      const cv = commissionAmount(c, 'corretor');
       totalComissoes += a + b + cv;
       if (c.supervisor_a_pago) totalPagas += a; else totalPendentes += a;
       if (c.supervisor_b_pago) totalPagas += b; else totalPendentes += b;
@@ -222,9 +281,9 @@ export default function Contratos() {
       map.set(id, cur);
     };
     for (const c of filtered as any[]) {
-      add(supMap, c.supervisor_a_id, c.supervisor_a?.nome, Number(c.supervisor_a_valor || 0), !!c.supervisor_a_pago);
-      add(supMap, c.supervisor_b_id, c.supervisor_b?.nome, Number(c.supervisor_b_valor || 0), !!c.supervisor_b_pago);
-      add(corMap, c.corretor_id, c.corretor?.nome, Number(c.corretor_valor || 0), !!c.corretor_pago);
+      add(supMap, c.supervisor_a_id, c.supervisor_a?.nome, commissionAmount(c, 'supervisor_a'), !!c.supervisor_a_pago);
+      add(supMap, c.supervisor_b_id, c.supervisor_b?.nome, commissionAmount(c, 'supervisor_b'), !!c.supervisor_b_pago);
+      add(corMap, c.corretor_id, c.corretor?.nome, commissionAmount(c, 'corretor'), !!c.corretor_pago);
       if (c.corretor_id) {
         const cur = contratosCorMap.get(c.corretor_id) || { nome: c.corretor?.nome || '—', qtd: 0, total: 0 };
         cur.qtd += 1;
@@ -282,6 +341,7 @@ export default function Contratos() {
     setEditId(c.id);
     setForm({
       nome: c.nome,
+      proposta_id: c.proposta_id || 'none',
       operadora_id: c.operadora_id || 'none',
       unidade_negocio: c.unidade_negocio || 'none',
       data_implantacao: c.data_implantacao || '',
@@ -312,6 +372,24 @@ export default function Contratos() {
     if (slot === 'c') setForm({ ...form, corretor_percentual: pct, corretor_valor: novoValor });
   };
 
+  const handlePersonChange = (slot: Slot, id: string) => {
+    if (slot === 'a') setForm({
+      ...form,
+      supervisor_a_id: id,
+      ...(id === 'none' ? { supervisor_a_percentual: '', supervisor_a_valor: '', supervisor_a_pago: false } : {}),
+    });
+    if (slot === 'b') setForm({
+      ...form,
+      supervisor_b_id: id,
+      ...(id === 'none' ? { supervisor_b_percentual: '', supervisor_b_valor: '', supervisor_b_pago: false } : {}),
+    });
+    if (slot === 'c') setForm({
+      ...form,
+      corretor_id: id,
+      ...(id === 'none' ? { corretor_percentual: '', corretor_valor: '', corretor_pago: false } : {}),
+    });
+  };
+
   const handleValorContratoChange = (v: string) => {
     const valor = parseFloat(v) || 0;
     setForm({
@@ -328,22 +406,23 @@ export default function Contratos() {
     try {
       const payload = {
         nome: form.nome.trim(),
+        proposta_id: form.proposta_id === 'none' ? null : form.proposta_id,
         operadora_id: form.operadora_id === 'none' ? null : form.operadora_id,
         unidade_negocio: form.unidade_negocio === 'none' ? null : form.unidade_negocio,
         data_implantacao: form.data_implantacao || null,
         valor_contrato: parseFloat(form.valor_contrato) || 0,
         supervisor_a_id: form.supervisor_a_id === 'none' ? null : form.supervisor_a_id,
-        supervisor_a_percentual: form.supervisor_a_percentual === '' ? null : parseFloat(form.supervisor_a_percentual),
-        supervisor_a_valor: form.supervisor_a_valor === '' ? null : parseFloat(form.supervisor_a_valor),
-        supervisor_a_pago: form.supervisor_a_pago,
+        supervisor_a_percentual: form.supervisor_a_id === 'none' || form.supervisor_a_percentual === '' ? null : parseFloat(form.supervisor_a_percentual),
+        supervisor_a_valor: form.supervisor_a_id === 'none' || form.supervisor_a_valor === '' ? null : parseFloat(form.supervisor_a_valor),
+        supervisor_a_pago: form.supervisor_a_id !== 'none' && form.supervisor_a_pago,
         supervisor_b_id: form.supervisor_b_id === 'none' ? null : form.supervisor_b_id,
-        supervisor_b_percentual: form.supervisor_b_percentual === '' ? null : parseFloat(form.supervisor_b_percentual),
-        supervisor_b_valor: form.supervisor_b_valor === '' ? null : parseFloat(form.supervisor_b_valor),
-        supervisor_b_pago: form.supervisor_b_pago,
+        supervisor_b_percentual: form.supervisor_b_id === 'none' || form.supervisor_b_percentual === '' ? null : parseFloat(form.supervisor_b_percentual),
+        supervisor_b_valor: form.supervisor_b_id === 'none' || form.supervisor_b_valor === '' ? null : parseFloat(form.supervisor_b_valor),
+        supervisor_b_pago: form.supervisor_b_id !== 'none' && form.supervisor_b_pago,
         corretor_id: form.corretor_id === 'none' ? null : form.corretor_id,
-        corretor_percentual: form.corretor_percentual === '' ? null : parseFloat(form.corretor_percentual),
-        corretor_valor: form.corretor_valor === '' ? null : parseFloat(form.corretor_valor),
-        corretor_pago: form.corretor_pago,
+        corretor_percentual: form.corretor_id === 'none' || form.corretor_percentual === '' ? null : parseFloat(form.corretor_percentual),
+        corretor_valor: form.corretor_id === 'none' || form.corretor_valor === '' ? null : parseFloat(form.corretor_valor),
+        corretor_pago: form.corretor_id !== 'none' && form.corretor_pago,
         observacoes: form.observacoes.trim() || null,
       };
       if (editId) await update.mutateAsync({ id: editId, ...payload });
@@ -382,7 +461,7 @@ export default function Contratos() {
     for (const c of (filtered as any[])) {
       const base = Number(c.valor_contrato) || 0;
       if (base <= 0) continue;
-      const rz = getResumoContrato(resumoReceitas, c.nome);
+      const rz = getResumoContrato(resumoReceitas, c.proposta_id);
       if (!rz || rz.recebido <= 0) continue;
       const mult = rz.recebido / base;
       somaGeral += mult; qtdGeral += 1;
@@ -409,25 +488,28 @@ export default function Contratos() {
           <Button variant="outline" onClick={() => {
             const rows = (filtered as any[]).map(c => ({
               Nome: c.nome,
+              Proposta: (propostas as any[]).find(p => p.id === c.proposta_id)?.nome || '',
               Operadora: c.operadoras?.nome || '',
               Unidade: c.unidade_negocio || '',
               'Data Implantação': c.data_implantacao ? formatDateBR(c.data_implantacao) : '',
               'Valor Contrato': Number(c.valor_contrato || 0),
               'Supervisor A': c.supervisor_a?.nome || '',
               '% Supervisor A': c.supervisor_a_percentual ?? '',
-              'Valor Supervisor A': Number(c.supervisor_a_valor || 0),
+              'Valor Supervisor A': c.supervisor_a_valor ?? '',
               'Pago Supervisor A': c.supervisor_a_pago ? 'Sim' : 'Não',
               'Supervisor B': c.supervisor_b?.nome || '',
               '% Supervisor B': c.supervisor_b_percentual ?? '',
-              'Valor Supervisor B': Number(c.supervisor_b_valor || 0),
+              'Valor Supervisor B': c.supervisor_b_valor ?? '',
               'Pago Supervisor B': c.supervisor_b_pago ? 'Sim' : 'Não',
               Corretor: c.corretor?.nome || '',
               '% Corretor': c.corretor_percentual ?? '',
-              'Valor Corretor': Number(c.corretor_valor || 0),
+              'Valor Corretor': c.corretor_valor ?? '',
               'Pago Corretor': c.corretor_pago ? 'Sim' : 'Não',
               Observações: c.observacoes || '',
             }));
-            exportToExcel(rows, 'Contratos');
+            void exportToExcel(rows, 'Contratos').catch((error) => {
+              toast({ title: 'Erro ao exportar', description: error.message, variant: 'destructive' });
+            });
           }}>
             <Download className="h-4 w-4 mr-1" /> Exportar
           </Button>
@@ -624,7 +706,9 @@ export default function Contratos() {
           <Popover>
             <PopoverTrigger asChild><Button size="sm" variant="outline">Supervisor A</Button></PopoverTrigger>
             <PopoverContent className="w-56 space-y-2">
-              <Select onValueChange={v => applyBulk({ supervisor_a_id: v === 'none' ? null : v }, 'Supervisor A')}>
+              <Select onValueChange={v => applyBulk(v === 'none'
+                ? { supervisor_a_id: null, supervisor_a_percentual: null, supervisor_a_valor: null, supervisor_a_pago: false }
+                : { supervisor_a_id: v }, 'Supervisor A')}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Nenhum</SelectItem>
@@ -637,7 +721,9 @@ export default function Contratos() {
           <Popover>
             <PopoverTrigger asChild><Button size="sm" variant="outline">Supervisor B</Button></PopoverTrigger>
             <PopoverContent className="w-56 space-y-2">
-              <Select onValueChange={v => applyBulk({ supervisor_b_id: v === 'none' ? null : v }, 'Supervisor B')}>
+              <Select onValueChange={v => applyBulk(v === 'none'
+                ? { supervisor_b_id: null, supervisor_b_percentual: null, supervisor_b_valor: null, supervisor_b_pago: false }
+                : { supervisor_b_id: v }, 'Supervisor B')}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Nenhum</SelectItem>
@@ -650,7 +736,9 @@ export default function Contratos() {
           <Popover>
             <PopoverTrigger asChild><Button size="sm" variant="outline">Corretor</Button></PopoverTrigger>
             <PopoverContent className="w-56 space-y-2">
-              <Select onValueChange={v => applyBulk({ corretor_id: v === 'none' ? null : v }, 'Corretor')}>
+              <Select onValueChange={v => applyBulk(v === 'none'
+                ? { corretor_id: null, corretor_percentual: null, corretor_valor: null, corretor_pago: false }
+                : { corretor_id: v }, 'Corretor')}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Nenhum</SelectItem>
@@ -761,7 +849,7 @@ export default function Contratos() {
                   <TableCell className="text-muted-foreground">{formatDateBR(c.data_implantacao)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(Number(c.valor_contrato))}</TableCell>
                   {(() => {
-                    const rz = getResumoContrato(resumoReceitas, c.nome);
+                    const rz = getResumoContrato(resumoReceitas, c.proposta_id);
                     const base = Number(c.valor_contrato) || 0;
                     const mult = rz && base > 0 ? rz.recebido / base : null;
                     return (<>
@@ -783,21 +871,21 @@ export default function Contratos() {
                   <ComissaoCell
                     nome={c.supervisor_a?.nome}
                     pct={c.supervisor_a_percentual}
-                    valor={c.supervisor_a_valor}
+                    valor={commissionAmount(c, 'supervisor_a')}
                     pago={c.supervisor_a_pago}
                     onTogglePago={() => togglePago(c, 'supervisor_a_pago')}
                   />
                   <ComissaoCell
                     nome={c.supervisor_b?.nome}
                     pct={c.supervisor_b_percentual}
-                    valor={c.supervisor_b_valor}
+                    valor={commissionAmount(c, 'supervisor_b')}
                     pago={c.supervisor_b_pago}
                     onTogglePago={() => togglePago(c, 'supervisor_b_pago')}
                   />
                   <ComissaoCell
                     nome={c.corretor?.nome}
                     pct={c.corretor_percentual}
-                    valor={c.corretor_valor}
+                    valor={commissionAmount(c, 'corretor')}
                     pago={c.corretor_pago}
                     onTogglePago={() => togglePago(c, 'corretor_pago')}
                   />
@@ -821,6 +909,17 @@ export default function Contratos() {
             <div className="space-y-1">
               <label className="text-sm font-medium">Nome *</label>
               <Input value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} required />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Proposta vinculada</label>
+              <Select value={form.proposta_id} onValueChange={v => setForm({ ...form, proposta_id: v })}>
+                <SelectTrigger><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma</SelectItem>
+                  {(propostas as any[]).map(p => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">O total recebido é calculado somente pelas receitas desta proposta.</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
@@ -862,7 +961,7 @@ export default function Contratos() {
               pct={form.supervisor_a_percentual}
               valor={form.supervisor_a_valor}
               pago={form.supervisor_a_pago}
-              onIdChange={v => setForm({ ...form, supervisor_a_id: v })}
+              onIdChange={v => handlePersonChange('a', v)}
               onPctChange={v => handlePctChange('a', v)}
               onValorChange={v => setForm({ ...form, supervisor_a_valor: v })}
               onPagoChange={v => setForm({ ...form, supervisor_a_pago: v })}
@@ -874,7 +973,7 @@ export default function Contratos() {
               pct={form.supervisor_b_percentual}
               valor={form.supervisor_b_valor}
               pago={form.supervisor_b_pago}
-              onIdChange={v => setForm({ ...form, supervisor_b_id: v })}
+              onIdChange={v => handlePersonChange('b', v)}
               onPctChange={v => handlePctChange('b', v)}
               onValorChange={v => setForm({ ...form, supervisor_b_valor: v })}
               onPagoChange={v => setForm({ ...form, supervisor_b_pago: v })}
@@ -886,7 +985,7 @@ export default function Contratos() {
               pct={form.corretor_percentual}
               valor={form.corretor_valor}
               pago={form.corretor_pago}
-              onIdChange={v => setForm({ ...form, corretor_id: v })}
+              onIdChange={v => handlePersonChange('c', v)}
               onPctChange={v => handlePctChange('c', v)}
               onValorChange={v => setForm({ ...form, corretor_valor: v })}
               onPagoChange={v => setForm({ ...form, corretor_pago: v })}
@@ -924,7 +1023,12 @@ export default function Contratos() {
         open={importOpen}
         onOpenChange={setImportOpen}
         title="Importar Contratos"
-        expectedColumns={['Nome', 'Operadora', 'Unidade', 'Data Implantação', 'Valor Contrato', 'Supervisor A', '% Supervisor A', 'Supervisor B', '% Supervisor B', 'Corretor', '% Corretor', 'Observações']}
+        expectedColumns={[
+          'Nome', 'Proposta', 'Operadora', 'Unidade', 'Data Implantação', 'Valor Contrato',
+          'Supervisor A', '% Supervisor A', 'Valor Supervisor A', 'Pago Supervisor A',
+          'Supervisor B', '% Supervisor B', 'Valor Supervisor B', 'Pago Supervisor B',
+          'Corretor', '% Corretor', 'Valor Corretor', 'Pago Corretor', 'Observações',
+        ]}
         mapRow={mapContratoRow}
         onConfirm={async (rows) => { await bulkCreate.mutateAsync(rows as any); }}
         columnAliases={{

@@ -70,6 +70,7 @@ export default function Receitas() {
     const valor = parseValorBR(row['Valor']);
     const status = row['Status'] || 'Aguardando';
     const unidade = row['Unidade'] || row['Unidade de Negócio'] || row['Unidade de Negocio'] || '';
+    const observacoes = row['Observações'] || row['Observacoes'] || '';
 
     if (!data) errors.push('Data obrigatória');
     if (!descricao) errors.push('Descrição obrigatória');
@@ -97,6 +98,7 @@ export default function Receitas() {
         valor: isNaN(valor) ? 0 : valor,
         status: ['Recebido', 'Aguardando'].includes(status) ? status : 'Aguardando',
         unidade_negocio: unidadeMatch || null,
+        observacoes: String(observacoes).trim() || null,
       },
       raw: row,
       errors,
@@ -219,8 +221,11 @@ export default function Receitas() {
               'Unidade de Negócio': (r as any).unidade_negocio || '',
               Valor: Number(r.valor),
               Status: r.status,
+              Observações: (r as any).observacoes || '',
             }));
-            exportToExcel(rows, `Receitas_${getMonthName(month)}_${year}`);
+            void exportToExcel(rows, `Receitas_${getMonthName(month)}_${year}`).catch((error) => {
+              toast({ title: 'Erro ao exportar', description: error.message, variant: 'destructive' });
+            });
           }}>
             <Download className="h-4 w-4 mr-1" /> Exportar
           </Button>
@@ -548,6 +553,8 @@ export default function Receitas() {
                                 valor: r.valor,
                                 status: 'Aguardando',
                                 unidade_negocio: (r as any).unidade_negocio || null,
+                                proposta_id: (r as any).proposta_id || null,
+                                observacoes: (r as any).observacoes || null,
                               });
                               toast({ title: 'Receita duplicada com sucesso!' });
                             } catch (err: any) {
@@ -581,12 +588,14 @@ export default function Receitas() {
         open={importOpen}
         onOpenChange={setImportOpen}
         title="Importar Receitas"
-        expectedColumns={['Data', 'Descrição', 'Categoria', 'Operadora', 'Vendedor', 'Valor', 'Status']}
+        expectedColumns={['Data', 'Descrição', 'Categoria', 'Operadora', 'Vendedor', 'Unidade de Negócio', 'Valor', 'Status', 'Observações']}
         mapRow={mapReceitaRow}
         onConfirm={async (rows) => { await bulkCreateReceita.mutateAsync(rows as any); }}
         columnAliases={{
           'Valor': ['Valor Real', 'Valor (R$)'],
           'Vendedor': ['Responsável', 'Responsavel'],
+          'Unidade de Negócio': ['Unidade', 'Unidade de Negocio'],
+          'Observações': ['Observacoes', 'Obs'],
         }}
       />
       <ReceitaPasteDialog open={pasteOpen} onOpenChange={setPasteOpen} />

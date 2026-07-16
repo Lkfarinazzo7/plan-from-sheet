@@ -4,24 +4,50 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const MAX_REQUEST_BYTES = 6 * 1024 * 1024;
+const MAX_IMAGE_CHARACTERS = 4_300_000;
+const MAX_TEXT_CHARACTERS = 20_000;
+
+const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
+});
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    const contentLength = Number(req.headers.get("content-length") || 0);
+    if (contentLength > MAX_REQUEST_BYTES) {
+      return jsonResponse({ error: "Arquivo ou texto muito grande" }, 413);
+    }
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const body = await req.json();
-    const image: string | undefined = body.image;
-    const text: string | undefined = body.text;
-    const operadoras: string[] = Array.isArray(body.operadoras) ? body.operadoras : [];
-    const vendedores: string[] = Array.isArray(body.vendedores) ? body.vendedores : [];
+    let body: Record<string, unknown>;
+    try {
+      body = await req.json();
+    } catch {
+      return jsonResponse({ error: "Corpo da requisição inválido" }, 400);
+    }
+
+    const image = typeof body.image === "string" ? body.image : undefined;
+    const text = typeof body.text === "string" ? body.text.trim() : undefined;
+    const cleanNames = (value: unknown) => Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string").slice(0, 500).map((item) => item.slice(0, 100))
+      : [];
+    const operadoras = cleanNames(body.operadoras);
+    const vendedores = cleanNames(body.vendedores);
 
     if (!image && !text) {
-      return new Response(JSON.stringify({ error: "Forneça imagem ou texto" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Forneça imagem ou texto" }, 400);
+    }
+    if (text && text.length > MAX_TEXT_CHARACTERS) {
+      return jsonResponse({ error: "O texto excede o limite de 20.000 caracteres" }, 413);
+    }
+    if (image && (!image.startsWith("data:image/") || image.length > MAX_IMAGE_CHARACTERS)) {
+      return jsonResponse({ error: "A imagem é inválida ou excede o limite permitido" }, 413);
     }
 
     const systemPrompt = `Você extrai lançamentos financeiros de receitas a partir de imagens (prints) ou texto colado.
@@ -90,20 +116,14 @@ Retorne TODAS as linhas detectadas, sem agrupar nem deduplicar.`;
 
     if (!resp.ok) {
       if (resp.status === 429) {
-        return new Response(JSON.stringify({ error: "Limite de uso da IA atingido. Tente novamente em instantes." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Limite de uso da IA atingido. Tente novamente em instantes." }, 429);
       }
       if (resp.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos da IA esgotados. Adicione créditos em Settings > Workspace > Usage." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Créditos da IA esgotados. Adicione créditos em Settings > Workspace > Usage." }, 402);
       }
       const t = await resp.text();
       console.error("AI gateway error:", resp.status, t);
-      return new Response(JSON.stringify({ error: "Erro ao chamar IA" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Erro ao chamar IA" }, 502);
     }
 
     const data = await resp.json();
@@ -113,19 +133,36 @@ Retorne TODAS as linhas detectadas, sem agrupar nem deduplicar.`;
     if (args) {
       try {
         const parsed = typeof args === "string" ? JSON.parse(args) : args;
-        lancamentos = parsed.lancamentos || [];
+        lancamentos = Array.isArray(parsed.lancamentos)
+          ? parsed.lancamentos.slice(0, 1_000).flatMap((item: unknown) => {
+              if (!item || typeof item !== "object") return [];
+              const value = item as Record<string, unknown>;
+              if (typeof value.descricao !== "string" ||
+                  typeof value.valor !== "number" || !Number.isFinite(value.valor)) return [];
+              const date = typeof value.data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.data)
+                ? value.data
+                : null;
+              const categoria = value.categoria === "Vida" || value.categoria === "Bancária"
+                ? value.categoria
+                : null;
+              return [{
+                data: date,
+                descricao: value.descricao.trim().slice(0, 500),
+                valor: value.valor,
+                operadora_nome: typeof value.operadora_nome === "string" ? value.operadora_nome.slice(0, 100) : null,
+                vendedor_nome: typeof value.vendedor_nome === "string" ? value.vendedor_nome.slice(0, 100) : null,
+                categoria,
+              }];
+            })
+          : [];
       } catch (e) {
         console.error("Failed to parse tool args:", e);
       }
     }
 
-    return new Response(JSON.stringify({ lancamentos }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ lancamentos });
   } catch (e) {
     console.error("extract-receitas error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ error: e instanceof Error ? e.message : "Erro desconhecido" }, 500);
   }
 });

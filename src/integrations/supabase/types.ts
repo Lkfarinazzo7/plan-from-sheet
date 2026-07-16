@@ -68,6 +68,7 @@ export type Database = {
           nome: string
           observacoes: string | null
           operadora_id: string | null
+          proposta_id: string | null
           supervisor_a_id: string | null
           supervisor_a_pago: boolean
           supervisor_a_percentual: number | null
@@ -92,6 +93,7 @@ export type Database = {
           nome: string
           observacoes?: string | null
           operadora_id?: string | null
+          proposta_id?: string | null
           supervisor_a_id?: string | null
           supervisor_a_pago?: boolean
           supervisor_a_percentual?: number | null
@@ -116,6 +118,7 @@ export type Database = {
           nome?: string
           observacoes?: string | null
           operadora_id?: string | null
+          proposta_id?: string | null
           supervisor_a_id?: string | null
           supervisor_a_pago?: boolean
           supervisor_a_percentual?: number | null
@@ -145,6 +148,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "contratos_proposta_id_fkey"
+            columns: ["proposta_id"]
+            isOneToOne: false
+            referencedRelation: "propostas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "contratos_supervisor_a_id_fkey"
             columns: ["supervisor_a_id"]
             isOneToOne: false
@@ -168,6 +178,7 @@ export type Database = {
           descricao: string
           id: string
           observacoes: string | null
+          origem_recorrencia_id: string | null
           recorrente: boolean
           responsavel: string | null
           setor_id: string | null
@@ -185,6 +196,7 @@ export type Database = {
           descricao: string
           id?: string
           observacoes?: string | null
+          origem_recorrencia_id?: string | null
           recorrente?: boolean
           responsavel?: string | null
           setor_id?: string | null
@@ -202,6 +214,7 @@ export type Database = {
           descricao?: string
           id?: string
           observacoes?: string | null
+          origem_recorrencia_id?: string | null
           recorrente?: boolean
           responsavel?: string | null
           setor_id?: string | null
@@ -218,6 +231,13 @@ export type Database = {
             columns: ["categoria_id"]
             isOneToOne: false
             referencedRelation: "categorias_despesa"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "despesas_origem_recorrencia_id_fkey"
+            columns: ["origem_recorrencia_id"]
+            isOneToOne: false
+            referencedRelation: "despesas"
             referencedColumns: ["id"]
           },
           {
@@ -547,6 +567,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bootstrap_first_admin: {
+        Args: never
+        Returns: boolean
+      }
       grant_role_by_email: {
         Args: {
           _email: string

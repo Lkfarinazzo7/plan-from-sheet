@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { useContratos, useUpdateContrato, extractComissoes, ComissaoItem } from '@/hooks/useFinancialData';
+import { useContratos, useUpdateContrato } from '@/hooks/useFinancialData';
+import { extractComissoes, type ComissaoItem } from '@/lib/commissionHelpers';
 import { formatCurrency } from '@/lib/format';
 import { useToast } from '@/hooks/use-toast';
 import { HandCoins, CheckCircle2, Clock, Undo2, ChevronDown, ChevronRight } from 'lucide-react';
@@ -31,7 +32,7 @@ export default function Comissoes() {
 
   const pessoas = useMemo(() => {
     const map = new Map<string, string>();
-    for (const c of todas) map.set(`${c.papel}|${c.pessoaId}`, c.pessoaNome);
+    for (const c of todas) map.set(`${c.papel}|${c.pessoaId}`, `${c.pessoaNome} — ${c.papel}`);
     return Array.from(map.entries())
       .map(([key, nome]) => ({ key, nome }))
       .sort((a, b) => a.nome.localeCompare(b.nome));
@@ -54,10 +55,10 @@ export default function Comissoes() {
 
   // Agrupar por pessoa
   const grupos = useMemo(() => {
-    const map = new Map<string, { nome: string; itens: ComissaoItem[]; total: number; pendente: number }>();
+    const map = new Map<string, { key: string; nome: string; papel: string; itens: ComissaoItem[]; total: number; pendente: number }>();
     for (const c of filtradas) {
-      const key = `${c.pessoaNome}`;
-      const g = map.get(key) || { nome: c.pessoaNome, itens: [], total: 0, pendente: 0 };
+      const key = `${c.papel}|${c.pessoaId}`;
+      const g = map.get(key) || { key, nome: c.pessoaNome, papel: c.papel, itens: [], total: 0, pendente: 0 };
       g.itens.push(c);
       g.total += c.valor;
       if (!c.pago) g.pendente += c.valor;
@@ -70,10 +71,10 @@ export default function Comissoes() {
   const totalPago = filtradas.filter(c => c.pago).reduce((a, c) => a + c.valor, 0);
   const qtdPendente = filtradas.filter(c => !c.pago).length;
 
-  const toggleGrupo = (nome: string) => {
+  const toggleGrupo = (key: string) => {
     setExpandido(prev => {
       const next = new Set(prev);
-      if (next.has(nome)) next.delete(nome); else next.add(nome);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   };
@@ -135,17 +136,18 @@ export default function Comissoes() {
       ) : (
         <div className="space-y-4">
           {grupos.map(g => {
-            const aberto = expandido.has(g.nome) || filterPessoa !== 'all';
+            const aberto = expandido.has(g.key) || filterPessoa !== 'all';
             return (
-              <Card key={g.nome}>
+              <Card key={g.key}>
                 <CardHeader
                   className="cursor-pointer py-4"
-                  onClick={() => toggleGrupo(g.nome)}
+                  onClick={() => toggleGrupo(g.key)}
                 >
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base flex items-center gap-2">
                       {aberto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       {g.nome}
+                      <Badge variant="outline">{g.papel}</Badge>
                       <Badge variant="secondary">{g.itens.length}</Badge>
                     </CardTitle>
                     <div className="flex items-center gap-4 text-sm">
