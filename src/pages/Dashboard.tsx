@@ -105,11 +105,13 @@ export default function Dashboard() {
 
   // Ticket médio recebido (por descrição única)
   const recebidas = receitas.filter(r => r.status === 'Recebido');
-  const totalRecebido = recebidas.reduce((acc, r) => acc + Number(r.valor), 0);
+  // Numerador e denominador precisam usar o MESMO conjunto: só receitas vinculadas a proposta
+  const recebidasComProposta = recebidas.filter(r => (r as any).proposta_id);
+  const totalRecebidoComProposta = recebidasComProposta.reduce((acc, r) => acc + Number(r.valor), 0);
   const propostasComRecebimento = new Set(
-    recebidas.map(r => (r as any).proposta_id).filter(Boolean)
+    recebidasComProposta.map(r => (r as any).proposta_id)
   ).size;
-  const ticketMedio = propostasComRecebimento > 0 ? totalRecebido / propostasComRecebimento : 0;
+  const ticketMedio = propostasComRecebimento > 0 ? totalRecebidoComProposta / propostasComRecebimento : 0;
 
   // Despesas por categoria (ordenado para barras horizontais)
   const barCategoriaData = pieData.slice().sort((a, b) => b.value - a.value);

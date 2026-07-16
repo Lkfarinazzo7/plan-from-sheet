@@ -13,30 +13,67 @@ export function parseValorBR(raw: any): number {
     }
   } else if (str.includes(',')) {
     str = str.replace(',', '.');
+  } else if (str.includes('.')) {
+    // Só ponto: decidir se é decimal (1.5) ou milhar brasileiro (1.500 / 1.234.567)
+    const parts = str.split('.');
+    const afterLast = parts[parts.length - 1];
+    if (parts.length > 2 || (afterLast.length === 3 && parts[0].length <= 3)) {
+      // "1.500" ou "1.234.567" → separador de milhar
+      str = str.replace(/\./g, '');
+    }
+    // "1.5" ou "10.25" → decimal, mantém como está
   }
   return parseFloat(str);
+}
+
+function isValidYMD(y: number, m: number, d: number): boolean {
+  if (m < 1 || m > 12 || d < 1) return false;
+  const daysInMonth = new Date(y, m, 0).getDate();
+  return d <= daysInMonth;
 }
 
 export function parseDateFlexible(value: any): string {
   if (!value) return '';
   if (value instanceof Date) {
-    return value.toISOString().split('T')[0];
+    // Usar componentes locais (toISOString converte para UTC e pode voltar 1 dia no fuso do Brasil)
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
   const str = String(value).trim();
   // YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-  // DD/MM/YYYY
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const [y, m, d] = str.split('-').map(Number);
+    return isValidYMD(y, m, d) ? str : '';
+  }
+  // DD/MM/YYYY (padrão brasileiro)
   if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
-    const [d, m, y] = str.split('/');
-    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    const [d, m, y] = str.split('/').map(Number);
+    if (isValidYMD(y, m, d)) {
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+    // Dia impossível no formato BR (ex: 5/25/2026) → tentar como M/D/YYYY americano
+    if (isValidYMD(y, d, m)) {
+      return `${y}-${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}`;
+    }
+    return '';
   }
-  // M/D/YY or M/D/YYYY (Excel US format)
-  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(str)) {
-    const [m, d, y] = str.split('/');
-    const fullYear = y.length === 2 ? (parseInt(y) > 50 ? `19${y}` : `20${y}`) : y;
-    return `${fullYear}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  // DD/MM/YY (ano com 2 dígitos)
+  if (/^\d{1,2}\/\d{1,2}\/\d{2}$/.test(str)) {
+    const [dRaw, mRaw, yRaw] = str.split('/');
+    const y = parseInt(yRaw) > 50 ? 1900 + parseInt(yRaw) : 2000 + parseInt(yRaw);
+    const d = parseInt(dRaw);
+    const m = parseInt(mRaw);
+    if (isValidYMD(y, m, d)) {
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+    if (isValidYMD(y, d, m)) {
+      return `${y}-${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}`;
+    }
+    return '';
   }
-  return str;
+  return '';
 }
 
 /**

@@ -9,29 +9,21 @@ import { Shield } from 'lucide-react';
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn } = useAuth();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = isSignUp
-      ? await signUp(email, password)
-      : await signIn(email, password);
+    const { error } = await signIn(email, password);
 
     if (error) {
       toast({
         title: 'Erro',
         description: error.message,
         variant: 'destructive',
-      });
-    } else if (isSignUp) {
-      toast({
-        title: 'Conta criada!',
-        description: 'Verifique seu e-mail para confirmar o cadastro.',
       });
     }
     setLoading(false);
@@ -77,18 +69,9 @@ export default function Login() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Carregando...' : isSignUp ? 'Criar conta' : 'Entrar'}
+              {loading ? 'Carregando...' : 'Entrar'}
             </Button>
           </form>
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              className="text-sm text-muted-foreground hover:text-primary transition-colors"
-              onClick={() => setIsSignUp(!isSignUp)}
-            >
-              {isSignUp ? 'Já tem conta? Entrar' : 'Não tem conta? Criar conta'}
-            </button>
-          </div>
         </CardContent>
       </Card>
     </div>

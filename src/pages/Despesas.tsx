@@ -115,6 +115,7 @@ export default function Despesas() {
 
     const recorrente = ['sim', 'true', '1', 'yes'].includes(String(recorrenteRaw).toLowerCase());
     const dateStr = parseDateFlexible(data);
+    if (data && !dateStr) errors.push(`Data inválida: "${data}"`);
     const unidadeMatch = UNIDADES_NEGOCIO.find(u => u.toLowerCase() === String(unidade).toLowerCase());
     const setor = setorNome ? setores.find(s => s.nome.toLowerCase() === String(setorNome).toLowerCase()) : null;
     if (setorNome && !setor) errors.push(`Setor "${setorNome}" não encontrado`);

@@ -84,6 +84,7 @@ export default function Receitas() {
     if (!vendedorNome) errors.push('Vendedor obrigatório');
 
     const dateStr = parseDateFlexible(data);
+    if (data && !dateStr) errors.push(`Data inválida: "${data}"`);
     const unidadeMatch = UNIDADES_NEGOCIO.find(u => u.toLowerCase() === String(unidade).toLowerCase());
 
     return {

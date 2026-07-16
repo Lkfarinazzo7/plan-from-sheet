@@ -149,9 +149,10 @@ async function ensurePropostaId(
 ): Promise<string> {
   const trimmed = (nome || '').trim();
   if (!trimmed) throw new Error('Descrição da proposta vazia');
+  // .limit(1) em vez de .maybeSingle(): se já existirem duplicatas no banco, usa a primeira em vez de quebrar
   const { data: existing } = await supabase
-    .from('propostas').select('id').eq('user_id', userId).eq('nome', trimmed).maybeSingle();
-  if (existing?.id) return existing.id;
+    .from('propostas').select('id').eq('user_id', userId).eq('nome', trimmed).limit(1);
+  if (existing?.[0]?.id) return existing[0].id;
   const { data, error } = await supabase.from('propostas').insert({
     user_id: userId, nome: trimmed,
     operadora_id: fallback.operadora_id || null,
@@ -466,22 +467,44 @@ export function useGenerateRecurringDespesas() {
       if (fetchError) throw fetchError;
       if (!recurring?.length) throw new Error('Nenhuma despesa recorrente encontrada no mês selecionado.');
 
-      const newDespesas = recurring.map(d => {
-        const originalDate = new Date(d.data);
-        const day = Math.min(originalDate.getDate(), new Date(targetYear, targetMonth + 1, 0).getDate());
-        const newDate = toDateStr(targetYear, targetMonth, day);
-        return {
-          data: newDate,
-          descricao: d.descricao,
-          categoria_id: d.categoria_id,
-          tipo: d.tipo,
-          valor: d.valor,
-          responsavel: d.responsavel,
-          recorrente: true,
-          status: 'A pagar' as const,
-          user_id: user!.id,
-        };
-      });
+      // Buscar recorrentes já existentes no mês de destino para não duplicar
+      const targetStart = toDateStr(targetYear, targetMonth, 1);
+      const targetEnd = toDateStr(targetYear, targetMonth, new Date(targetYear, targetMonth + 1, 0).getDate());
+      const { data: existing, error: existingError } = await supabase
+        .from('despesas')
+        .select('descricao, valor')
+        .eq('recorrente', true)
+        .gte('data', targetStart)
+        .lte('data', targetEnd);
+      if (existingError) throw existingError;
+      const existingKeys = new Set((existing || []).map(e => `${e.descricao}|${Number(e.valor)}`));
+
+      const lastDayTarget = new Date(targetYear, targetMonth + 1, 0).getDate();
+      const newDespesas = recurring
+        .filter(d => !existingKeys.has(`${d.descricao}|${Number(d.valor)}`))
+        .map(d => {
+          // Extrair o dia direto da string YYYY-MM-DD (new Date() interpretaria como UTC e voltaria 1 dia)
+          const originalDay = parseInt(String(d.data).slice(8, 10), 10);
+          const day = Math.min(originalDay, lastDayTarget);
+          return {
+            data: toDateStr(targetYear, targetMonth, day),
+            descricao: d.descricao,
+            categoria_id: d.categoria_id,
+            tipo: d.tipo,
+            valor: d.valor,
+            responsavel: d.responsavel,
+            recorrente: true,
+            status: 'A pagar' as const,
+            unidade_negocio: (d as any).unidade_negocio ?? null,
+            setor_id: (d as any).setor_id ?? null,
+            observacoes: (d as any).observacoes ?? null,
+            user_id: user!.id,
+          };
+        });
+
+      if (!newDespesas.length) {
+        throw new Error('Todas as despesas recorrentes desse mês já existem no mês de destino. Nada foi duplicado.');
+      }
 
       const { error } = await supabase.from('despesas').insert(newDespesas);
       if (error) throw error;
