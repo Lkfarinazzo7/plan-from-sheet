@@ -8,12 +8,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Plus, Pencil, Trash2, Upload, Download, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, Download, X, ChevronRight, ChevronDown, AlertTriangle } from 'lucide-react';
 import {
   useContratos, useCreateContrato, useUpdateContrato, useDeleteContrato,
   useBulkCreateContrato, useBulkUpdateContrato, useBulkDeleteContrato,
   useOperadoras, useSupervisores, useVendedores,
   useReceitasResumoPorNome, getResumoContrato,
+  useReceitasDetalhePorNome, getDetalheContrato, useContratosNomesSet, normalizeNomeContrato,
 } from '@/hooks/useFinancialData';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
 import { formatCurrency } from '@/lib/format';
