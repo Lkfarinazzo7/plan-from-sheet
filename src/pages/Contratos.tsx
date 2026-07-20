@@ -791,6 +791,7 @@ export default function Contratos() {
                     aria-label="Selecionar todos"
                   />
                 </TableHead>
+                <TableHead className="w-[32px]"></TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead>Operadora</TableHead>
                 <TableHead>Unidade</TableHead>
@@ -806,68 +807,127 @@ export default function Contratos() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhum contrato encontrado</TableCell></TableRow>
-              ) : (filtered as any[]).map(c => (
-                <TableRow key={c.id} data-state={selectedIds.has(c.id) ? 'selected' : undefined}>
-                  <TableCell>
-                    <Checkbox checked={selectedIds.has(c.id)} onCheckedChange={() => toggleOne(c.id)} aria-label="Selecionar" />
-                  </TableCell>
-                  <TableCell className="font-medium">{c.nome}</TableCell>
-                  <TableCell>{c.operadoras?.nome || '—'}</TableCell>
-                  <TableCell className="text-muted-foreground">{c.unidade_negocio || '—'}</TableCell>
-                  <TableCell className="text-muted-foreground">{formatDateBR(c.data_implantacao)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(Number(c.valor_contrato))}</TableCell>
-                  {(() => {
-                    const rz = getResumoContrato(resumoReceitas, c.nome);
-                    const base = Number(c.valor_contrato) || 0;
-                    const mult = rz && base > 0 ? rz.recebido / base : null;
-                    return (<>
-                      <TableCell className="text-right">
-                        {rz ? (
-                          <div>
-                            <span className="text-success font-medium">{formatCurrency(rz.recebido)}</span>
-                            {rz.aguardando > 0 && <p className="text-xs text-muted-foreground">+{formatCurrency(rz.aguardando)} aguard.</p>}
-                          </div>
-                        ) : <span className="text-muted-foreground">—</span>}
+                <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">Nenhum contrato encontrado</TableCell></TableRow>
+              ) : (filtered as any[]).flatMap(c => {
+                const detalhes = getDetalheContrato(detalheReceitas, c.nome);
+                const isExpanded = expandedIds.has(c.id);
+                const rows: any[] = [
+                  <TableRow key={c.id} data-state={selectedIds.has(c.id) ? 'selected' : undefined}>
+                    <TableCell>
+                      <Checkbox checked={selectedIds.has(c.id)} onCheckedChange={() => toggleOne(c.id)} aria-label="Selecionar" />
+                    </TableCell>
+                    <TableCell>
+                      {detalhes.length > 0 ? (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          onClick={() => toggleExpand(c.id)}
+                          aria-label={isExpanded ? 'Recolher' : 'Expandir'}
+                        >
+                          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="font-medium">{c.nome}</TableCell>
+                    <TableCell>{c.operadoras?.nome || '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{c.unidade_negocio || '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatDateBR(c.data_implantacao)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(Number(c.valor_contrato))}</TableCell>
+                    {(() => {
+                      const rz = getResumoContrato(resumoReceitas, c.nome);
+                      const base = Number(c.valor_contrato) || 0;
+                      const mult = rz && base > 0 ? rz.recebido / base : null;
+                      return (<>
+                        <TableCell className="text-right">
+                          {rz ? (
+                            <div>
+                              <span className="text-success font-medium">{formatCurrency(rz.recebido)}</span>
+                              {rz.aguardando > 0 && <p className="text-xs text-muted-foreground">+{formatCurrency(rz.aguardando)} aguard.</p>}
+                            </div>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {mult != null && mult > 0
+                            ? <span className={mult >= 2 ? 'text-success font-semibold' : 'font-medium'}>{mult.toFixed(2)}x</span>
+                            : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                      </>);
+                    })()}
+                    <ComissaoCell
+                      nome={c.supervisor_a?.nome}
+                      pct={c.supervisor_a_percentual}
+                      valor={c.supervisor_a_valor}
+                      pago={c.supervisor_a_pago}
+                      onTogglePago={() => togglePago(c, 'supervisor_a_pago')}
+                    />
+                    <ComissaoCell
+                      nome={c.supervisor_b?.nome}
+                      pct={c.supervisor_b_percentual}
+                      valor={c.supervisor_b_valor}
+                      pago={c.supervisor_b_pago}
+                      onTogglePago={() => togglePago(c, 'supervisor_b_pago')}
+                    />
+                    <ComissaoCell
+                      nome={c.corretor?.nome}
+                      pct={c.corretor_percentual}
+                      valor={c.corretor_valor}
+                      pago={c.corretor_pago}
+                      onTogglePago={() => togglePago(c, 'corretor_pago')}
+                    />
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => setConfirmDelete(c.id)}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>,
+                ];
+                if (isExpanded && detalhes.length > 0) {
+                  rows.push(
+                    <TableRow key={c.id + '-detail'} className="bg-muted/30 hover:bg-muted/30">
+                      <TableCell colSpan={13} className="p-0">
+                        <div className="px-8 py-3">
+                          <p className="text-xs font-semibold text-muted-foreground mb-2">
+                            Lançamentos de receita ({detalhes.length})
+                          </p>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="h-8">Data</TableHead>
+                                <TableHead className="h-8">Descrição</TableHead>
+                                <TableHead className="h-8">Operadora</TableHead>
+                                <TableHead className="h-8">Vendedor</TableHead>
+                                <TableHead className="h-8">Status</TableHead>
+                                <TableHead className="h-8 text-right">Valor</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {detalhes.map(d => (
+                                <TableRow key={d.id}>
+                                  <TableCell className="py-1.5">{formatDateBR(d.data)}</TableCell>
+                                  <TableCell className="py-1.5">{d.descricao}</TableCell>
+                                  <TableCell className="py-1.5 text-muted-foreground">{d.operadora_nome || '—'}</TableCell>
+                                  <TableCell className="py-1.5 text-muted-foreground">{d.vendedor_nome || '—'}</TableCell>
+                                  <TableCell className="py-1.5">
+                                    <span className={d.status === 'Recebido' ? 'text-success text-xs font-medium' : 'text-muted-foreground text-xs'}>
+                                      {d.status}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="py-1.5 text-right font-medium">{formatCurrency(d.valor)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
                       </TableCell>
-                      <TableCell className="text-right">
-                        {mult != null && mult > 0
-                          ? <span className={mult >= 2 ? 'text-success font-semibold' : 'font-medium'}>{mult.toFixed(2)}x</span>
-                          : <span className="text-muted-foreground">—</span>}
-                      </TableCell>
-                    </>);
-                  })()}
-                  <ComissaoCell
-                    nome={c.supervisor_a?.nome}
-                    pct={c.supervisor_a_percentual}
-                    valor={c.supervisor_a_valor}
-                    pago={c.supervisor_a_pago}
-                    onTogglePago={() => togglePago(c, 'supervisor_a_pago')}
-                  />
-                  <ComissaoCell
-                    nome={c.supervisor_b?.nome}
-                    pct={c.supervisor_b_percentual}
-                    valor={c.supervisor_b_valor}
-                    pago={c.supervisor_b_pago}
-                    onTogglePago={() => togglePago(c, 'supervisor_b_pago')}
-                  />
-                  <ComissaoCell
-                    nome={c.corretor?.nome}
-                    pct={c.corretor_percentual}
-                    valor={c.corretor_valor}
-                    pago={c.corretor_pago}
-                    onTogglePago={() => togglePago(c, 'corretor_pago')}
-                  />
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => setConfirmDelete(c.id)}><Trash2 className="h-4 w-4" /></Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableRow>
+                  );
+                }
+                return rows;
+              })}
             </TableBody>
           </Table>
         </CardContent>
