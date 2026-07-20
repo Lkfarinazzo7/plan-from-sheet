@@ -15,6 +15,7 @@ import {
   useOperadoras, useSupervisores, useVendedores,
   useReceitasResumoPorNome, getResumoContrato,
   useReceitasDetalhePorNome, getDetalheContrato, useContratosNomesSet, normalizeNomeContrato,
+  useVincularReceitasAoContrato,
 } from '@/hooks/useFinancialData';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
 import { formatCurrency } from '@/lib/format';
