@@ -1058,6 +1058,26 @@ export default function Contratos() {
           'Observações': ['Observacoes', 'Obs'],
         }}
       />
+
+      <VincularReceitaDialog
+        alvo={vincularAlvo}
+        contratos={contratos as any[]}
+        onClose={() => setVincularAlvo(null)}
+        onConfirm={async (contratoNome) => {
+          if (!vincularAlvo || !detalheReceitas) return;
+          const key = normalizeNomeContrato(vincularAlvo.nome);
+          const items = detalheReceitas.get(key) || [];
+          const ids = items.map(i => i.id);
+          try {
+            await vincular.mutateAsync({ ids, novaDescricao: contratoNome });
+            toast({ title: 'Vínculo criado', description: `${ids.length} lançamento(s) vinculado(s) a ${contratoNome}` });
+            setVincularAlvo(null);
+          } catch (e: any) {
+            toast({ title: 'Erro ao vincular', description: e.message, variant: 'destructive' });
+          }
+        }}
+        isLoading={vincular.isPending}
+      />
     </div>
   );
 }
