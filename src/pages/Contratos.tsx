@@ -1146,3 +1146,97 @@ function ComissaoForm({
     </div>
   );
 }
+
+function VincularReceitaDialog({
+  alvo, contratos, onClose, onConfirm, isLoading,
+}: {
+  alvo: { nome: string; qtd: number; total: number } | null;
+  contratos: any[];
+  onClose: () => void;
+  onConfirm: (contratoNome: string) => void;
+  isLoading: boolean;
+}) {
+  const [busca, setBusca] = useState('');
+  const [selecionado, setSelecionado] = useState<string | null>(null);
+
+  useEffect(() => { if (alvo) { setBusca(''); setSelecionado(null); } }, [alvo?.nome]);
+
+  const ranked = useMemo(() => {
+    if (!alvo) return [] as any[];
+    const alvoNorm = normalizeNomeContrato(alvo.nome);
+    const alvoTokens = alvoNorm.split(/\s+/).filter(t => t.length >= 3);
+    const buscaNorm = normalizeNomeContrato(busca);
+    const scored = contratos.map(c => {
+      const cNorm = normalizeNomeContrato(c.nome || '');
+      let score = 0;
+      if (alvoNorm && (cNorm.includes(alvoNorm) || alvoNorm.includes(cNorm))) score += 100;
+      for (const t of alvoTokens) if (cNorm.includes(t)) score += 10;
+      return { c, cNorm, score };
+    });
+    const filtered = buscaNorm
+      ? scored.filter(s => s.cNorm.includes(buscaNorm))
+      : scored;
+    return filtered.sort((a, b) => b.score - a.score).slice(0, 100);
+  }, [alvo, contratos, busca]);
+
+  return (
+    <Dialog open={!!alvo} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Vincular receita a contrato existente</DialogTitle>
+        </DialogHeader>
+        {alvo && (
+          <div className="space-y-4">
+            <div className="rounded-md border bg-muted/40 p-3">
+              <p className="text-xs text-muted-foreground">Descrição da receita</p>
+              <p className="font-medium">{alvo.nome}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {alvo.qtd} lançamento{alvo.qtd !== 1 ? 's' : ''} · {formatCurrency(alvo.total)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Ao confirmar, a descrição desses lançamentos será atualizada para o nome do contrato escolhido, criando o vínculo.
+              </p>
+            </div>
+            <Input placeholder="Buscar contrato..." value={busca} onChange={e => setBusca(e.target.value)} autoFocus />
+            <div className="max-h-80 overflow-y-auto rounded-md border divide-y">
+              {ranked.length === 0 && (
+                <p className="p-4 text-sm text-muted-foreground text-center">Nenhum contrato encontrado.</p>
+              )}
+              {ranked.map(({ c, score }) => {
+                const isSel = selecionado === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setSelecionado(c.id)}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-accent/50 flex items-center justify-between gap-3 ${isSel ? 'bg-primary/10' : ''}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium truncate">{c.nome}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {c.operadoras?.nome || '—'} · {c.unidade_negocio || '—'} · {formatCurrency(Number(c.valor_contrato || 0))}
+                      </p>
+                    </div>
+                    {score >= 100 && <span className="text-[10px] uppercase text-primary font-semibold">Sugerido</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button
+            disabled={!selecionado || isLoading}
+            onClick={() => {
+              const c = contratos.find(x => x.id === selecionado);
+              if (c) onConfirm(c.nome);
+            }}
+          >
+            {isLoading ? 'Vinculando...' : 'Confirmar vínculo'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
