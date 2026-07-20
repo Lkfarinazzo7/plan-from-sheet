@@ -872,6 +872,27 @@ export function normalizeNomeContrato(s: string): string {
   return normalizeNome(s);
 }
 
+/** Atualiza a descrição de várias receitas para vincular ao nome de um contrato existente. */
+export function useVincularReceitasAoContrato() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, novaDescricao }: { ids: string[]; novaDescricao: string }) => {
+      if (!ids.length) return;
+      const { error } = await supabase
+        .from('receitas')
+        .update({ descricao: novaDescricao })
+        .in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['receitas'] });
+      qc.invalidateQueries({ queryKey: ['receitas-resumo-por-nome'] });
+      qc.invalidateQueries({ queryKey: ['receitas-detalhe-por-nome'] });
+      qc.invalidateQueries({ queryKey: ['contratos'] });
+    },
+  });
+}
+
 // ===== Comissões (derivadas dos contratos) =====
 
 export type ComissaoItem = {
