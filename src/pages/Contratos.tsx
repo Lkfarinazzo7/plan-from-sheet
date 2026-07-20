@@ -57,6 +57,8 @@ export default function Contratos() {
   const { data: supervisores = [] } = useSupervisores();
   const { data: vendedores = [] } = useVendedores();
   const { data: resumoReceitas } = useReceitasResumoPorNome();
+  const { data: detalheReceitas } = useReceitasDetalhePorNome();
+  const { data: contratosNomesSet } = useContratosNomesSet();
 
   const create = useCreateContrato();
   const update = useUpdateContrato();
