@@ -407,6 +407,24 @@ export default function Contratos() {
     };
   }, [filtered, resumoReceitas]);
 
+  // Receitas cuja descrição não bate com nenhum contrato cadastrado
+  const receitasSemContrato = useMemo(() => {
+    if (!detalheReceitas || !contratosNomesSet) return [] as { nome: string; qtd: number; total: number }[];
+    const arr: { nome: string; qtd: number; total: number }[] = [];
+    for (const [key, items] of detalheReceitas.entries()) {
+      if (contratosNomesSet.has(key)) continue;
+      const total = items.reduce((s, i) => s + i.valor, 0);
+      arr.push({ nome: items[0]?.descricao || key, qtd: items.length, total });
+    }
+    return arr.sort((a, b) => b.total - a.total);
+  }, [detalheReceitas, contratosNomesSet]);
+
+  const criarContratoDeReceita = (nome: string) => {
+    setEditId(null);
+    setForm({ ...emptyForm, nome });
+    setOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
