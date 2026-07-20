@@ -47,6 +47,8 @@ export default function Receitas() {
   const { data: vendedores = [] } = useVendedores();
   const { data: operadoras = [] } = useOperadoras();
   const { data: propostas = [] } = usePropostas();
+  const { data: contratos = [] } = useContratos();
+  const { data: contratosNomesSet } = useContratosNomesSet();
   const createReceita = useCreateReceita();
   const updateReceita = useUpdateReceita();
   const deleteReceita = useDeleteReceita();
