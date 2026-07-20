@@ -549,7 +549,7 @@ export default function Contratos() {
                   {receitasSemContrato.length} lançamento{receitasSemContrato.length !== 1 ? 's' : ''} de receita sem contrato cadastrado
                 </p>
                 <p className="text-xs text-muted-foreground mb-3">
-                  Essas descrições aparecem em receitas mas não têm um contrato correspondente. Clique em "Criar contrato" para cadastrar.
+                  Essas descrições aparecem em receitas mas não têm um contrato correspondente. Use "Vincular" para casar com um contrato já cadastrado (nome parecido) ou "Criar" para cadastrar um novo.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
                   {receitasSemContrato.map((r, i) => (
