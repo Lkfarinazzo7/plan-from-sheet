@@ -8,12 +8,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Plus, Pencil, Trash2, Upload, Download, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, Download, X, ChevronRight, ChevronDown, AlertTriangle } from 'lucide-react';
 import {
   useContratos, useCreateContrato, useUpdateContrato, useDeleteContrato,
   useBulkCreateContrato, useBulkUpdateContrato, useBulkDeleteContrato,
   useOperadoras, useSupervisores, useVendedores,
   useReceitasResumoPorNome, getResumoContrato,
+  useReceitasDetalhePorNome, getDetalheContrato, useContratosNomesSet, normalizeNomeContrato,
 } from '@/hooks/useFinancialData';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
 import { formatCurrency } from '@/lib/format';
@@ -56,6 +57,8 @@ export default function Contratos() {
   const { data: supervisores = [] } = useSupervisores();
   const { data: vendedores = [] } = useVendedores();
   const { data: resumoReceitas } = useReceitasResumoPorNome();
+  const { data: detalheReceitas } = useReceitasDetalhePorNome();
+  const { data: contratosNomesSet } = useContratosNomesSet();
 
   const create = useCreateContrato();
   const update = useUpdateContrato();
@@ -82,6 +85,10 @@ export default function Contratos() {
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const toggleExpand = (id: string) => setExpandedIds(prev => {
+    const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n;
+  });
 
   const mapContratoRow = useCallback((row: Record<string, any>): ParsedRow => {
     const errors: string[] = [];
@@ -400,6 +407,24 @@ export default function Contratos() {
     };
   }, [filtered, resumoReceitas]);
 
+  // Receitas cuja descrição não bate com nenhum contrato cadastrado
+  const receitasSemContrato = useMemo(() => {
+    if (!detalheReceitas || !contratosNomesSet) return [] as { nome: string; qtd: number; total: number }[];
+    const arr: { nome: string; qtd: number; total: number }[] = [];
+    for (const [key, items] of detalheReceitas.entries()) {
+      if (contratosNomesSet.has(key)) continue;
+      const total = items.reduce((s, i) => s + i.valor, 0);
+      arr.push({ nome: items[0]?.descricao || key, qtd: items.length, total });
+    }
+    return arr.sort((a, b) => b.total - a.total);
+  }, [detalheReceitas, contratosNomesSet]);
+
+  const criarContratoDeReceita = (nome: string) => {
+    setEditId(null);
+    setForm({ ...emptyForm, nome });
+    setOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -508,6 +533,40 @@ export default function Contratos() {
             </Card>
           )}
         </div>
+      )}
+
+      {/* Alerta: receitas sem contrato cadastrado */}
+      {receitasSemContrato.length > 0 && (
+        <Card className="border-warning/50 bg-warning/5">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">
+                  {receitasSemContrato.length} lançamento{receitasSemContrato.length !== 1 ? 's' : ''} de receita sem contrato cadastrado
+                </p>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Essas descrições aparecem em receitas mas não têm um contrato correspondente. Clique em "Criar contrato" para cadastrar.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                  {receitasSemContrato.map((r, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2 py-1.5 px-3 rounded-md border bg-background text-sm">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{r.nome}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {r.qtd} lanç. · {formatCurrency(r.total)}
+                        </p>
+                      </div>
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => criarContratoDeReceita(r.nome)}>
+                        Criar
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Filtros */}
@@ -732,6 +791,7 @@ export default function Contratos() {
                     aria-label="Selecionar todos"
                   />
                 </TableHead>
+                <TableHead className="w-[32px]"></TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead>Operadora</TableHead>
                 <TableHead>Unidade</TableHead>
@@ -747,68 +807,127 @@ export default function Contratos() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhum contrato encontrado</TableCell></TableRow>
-              ) : (filtered as any[]).map(c => (
-                <TableRow key={c.id} data-state={selectedIds.has(c.id) ? 'selected' : undefined}>
-                  <TableCell>
-                    <Checkbox checked={selectedIds.has(c.id)} onCheckedChange={() => toggleOne(c.id)} aria-label="Selecionar" />
-                  </TableCell>
-                  <TableCell className="font-medium">{c.nome}</TableCell>
-                  <TableCell>{c.operadoras?.nome || '—'}</TableCell>
-                  <TableCell className="text-muted-foreground">{c.unidade_negocio || '—'}</TableCell>
-                  <TableCell className="text-muted-foreground">{formatDateBR(c.data_implantacao)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(Number(c.valor_contrato))}</TableCell>
-                  {(() => {
-                    const rz = getResumoContrato(resumoReceitas, c.nome);
-                    const base = Number(c.valor_contrato) || 0;
-                    const mult = rz && base > 0 ? rz.recebido / base : null;
-                    return (<>
-                      <TableCell className="text-right">
-                        {rz ? (
-                          <div>
-                            <span className="text-success font-medium">{formatCurrency(rz.recebido)}</span>
-                            {rz.aguardando > 0 && <p className="text-xs text-muted-foreground">+{formatCurrency(rz.aguardando)} aguard.</p>}
-                          </div>
-                        ) : <span className="text-muted-foreground">—</span>}
+                <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">Nenhum contrato encontrado</TableCell></TableRow>
+              ) : (filtered as any[]).flatMap(c => {
+                const detalhes = getDetalheContrato(detalheReceitas, c.nome);
+                const isExpanded = expandedIds.has(c.id);
+                const rows: any[] = [
+                  <TableRow key={c.id} data-state={selectedIds.has(c.id) ? 'selected' : undefined}>
+                    <TableCell>
+                      <Checkbox checked={selectedIds.has(c.id)} onCheckedChange={() => toggleOne(c.id)} aria-label="Selecionar" />
+                    </TableCell>
+                    <TableCell>
+                      {detalhes.length > 0 ? (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          onClick={() => toggleExpand(c.id)}
+                          aria-label={isExpanded ? 'Recolher' : 'Expandir'}
+                        >
+                          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="font-medium">{c.nome}</TableCell>
+                    <TableCell>{c.operadoras?.nome || '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{c.unidade_negocio || '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatDateBR(c.data_implantacao)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(Number(c.valor_contrato))}</TableCell>
+                    {(() => {
+                      const rz = getResumoContrato(resumoReceitas, c.nome);
+                      const base = Number(c.valor_contrato) || 0;
+                      const mult = rz && base > 0 ? rz.recebido / base : null;
+                      return (<>
+                        <TableCell className="text-right">
+                          {rz ? (
+                            <div>
+                              <span className="text-success font-medium">{formatCurrency(rz.recebido)}</span>
+                              {rz.aguardando > 0 && <p className="text-xs text-muted-foreground">+{formatCurrency(rz.aguardando)} aguard.</p>}
+                            </div>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {mult != null && mult > 0
+                            ? <span className={mult >= 2 ? 'text-success font-semibold' : 'font-medium'}>{mult.toFixed(2)}x</span>
+                            : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                      </>);
+                    })()}
+                    <ComissaoCell
+                      nome={c.supervisor_a?.nome}
+                      pct={c.supervisor_a_percentual}
+                      valor={c.supervisor_a_valor}
+                      pago={c.supervisor_a_pago}
+                      onTogglePago={() => togglePago(c, 'supervisor_a_pago')}
+                    />
+                    <ComissaoCell
+                      nome={c.supervisor_b?.nome}
+                      pct={c.supervisor_b_percentual}
+                      valor={c.supervisor_b_valor}
+                      pago={c.supervisor_b_pago}
+                      onTogglePago={() => togglePago(c, 'supervisor_b_pago')}
+                    />
+                    <ComissaoCell
+                      nome={c.corretor?.nome}
+                      pct={c.corretor_percentual}
+                      valor={c.corretor_valor}
+                      pago={c.corretor_pago}
+                      onTogglePago={() => togglePago(c, 'corretor_pago')}
+                    />
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => setConfirmDelete(c.id)}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>,
+                ];
+                if (isExpanded && detalhes.length > 0) {
+                  rows.push(
+                    <TableRow key={c.id + '-detail'} className="bg-muted/30 hover:bg-muted/30">
+                      <TableCell colSpan={13} className="p-0">
+                        <div className="px-8 py-3">
+                          <p className="text-xs font-semibold text-muted-foreground mb-2">
+                            Lançamentos de receita ({detalhes.length})
+                          </p>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="h-8">Data</TableHead>
+                                <TableHead className="h-8">Descrição</TableHead>
+                                <TableHead className="h-8">Operadora</TableHead>
+                                <TableHead className="h-8">Vendedor</TableHead>
+                                <TableHead className="h-8">Status</TableHead>
+                                <TableHead className="h-8 text-right">Valor</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {detalhes.map(d => (
+                                <TableRow key={d.id}>
+                                  <TableCell className="py-1.5">{formatDateBR(d.data)}</TableCell>
+                                  <TableCell className="py-1.5">{d.descricao}</TableCell>
+                                  <TableCell className="py-1.5 text-muted-foreground">{d.operadora_nome || '—'}</TableCell>
+                                  <TableCell className="py-1.5 text-muted-foreground">{d.vendedor_nome || '—'}</TableCell>
+                                  <TableCell className="py-1.5">
+                                    <span className={d.status === 'Recebido' ? 'text-success text-xs font-medium' : 'text-muted-foreground text-xs'}>
+                                      {d.status}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="py-1.5 text-right font-medium">{formatCurrency(d.valor)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
                       </TableCell>
-                      <TableCell className="text-right">
-                        {mult != null && mult > 0
-                          ? <span className={mult >= 2 ? 'text-success font-semibold' : 'font-medium'}>{mult.toFixed(2)}x</span>
-                          : <span className="text-muted-foreground">—</span>}
-                      </TableCell>
-                    </>);
-                  })()}
-                  <ComissaoCell
-                    nome={c.supervisor_a?.nome}
-                    pct={c.supervisor_a_percentual}
-                    valor={c.supervisor_a_valor}
-                    pago={c.supervisor_a_pago}
-                    onTogglePago={() => togglePago(c, 'supervisor_a_pago')}
-                  />
-                  <ComissaoCell
-                    nome={c.supervisor_b?.nome}
-                    pct={c.supervisor_b_percentual}
-                    valor={c.supervisor_b_valor}
-                    pago={c.supervisor_b_pago}
-                    onTogglePago={() => togglePago(c, 'supervisor_b_pago')}
-                  />
-                  <ComissaoCell
-                    nome={c.corretor?.nome}
-                    pct={c.corretor_percentual}
-                    valor={c.corretor_valor}
-                    pago={c.corretor_pago}
-                    onTogglePago={() => togglePago(c, 'corretor_pago')}
-                  />
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => setConfirmDelete(c.id)}><Trash2 className="h-4 w-4" /></Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableRow>
+                  );
+                }
+                return rows;
+              })}
             </TableBody>
           </Table>
         </CardContent>

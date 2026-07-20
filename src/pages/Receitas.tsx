@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita, useBulkUpdateReceita, useBulkDeleteReceita, usePropostas } from '@/hooks/useFinancialData';
+import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita, useBulkUpdateReceita, useBulkDeleteReceita, usePropostas, useContratos, useContratosNomesSet, normalizeNomeContrato } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName, todayStr } from '@/lib/format';
 import { Plus, Trash2, Pencil, Upload, Copy, Download, Sparkles, X, StickyNote, Check } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
@@ -47,6 +47,8 @@ export default function Receitas() {
   const { data: vendedores = [] } = useVendedores();
   const { data: operadoras = [] } = useOperadoras();
   const { data: propostas = [] } = usePropostas();
+  const { data: contratos = [] } = useContratos();
+  const { data: contratosNomesSet } = useContratosNomesSet();
   const createReceita = useCreateReceita();
   const updateReceita = useUpdateReceita();
   const deleteReceita = useDeleteReceita();
@@ -254,19 +256,25 @@ export default function Receitas() {
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium">Proposta</label>
+                  <label className="text-sm font-medium">Contrato / Descrição</label>
                   <Input
-                    list="propostas-options"
+                    list="contratos-options"
                     value={form.descricao}
                     onChange={e => setForm({ ...form, descricao: e.target.value })}
-                    placeholder="Selecione uma proposta existente ou digite um nome novo"
+                    placeholder="Selecione um contrato existente ou digite um nome novo"
                     required
                   />
-                  <datalist id="propostas-options">
-                    {(propostas as any[]).map(p => <option key={p.id} value={p.nome} />)}
+                  <datalist id="contratos-options">
+                    {(contratos as any[]).map(c => <option key={c.id} value={c.nome} />)}
+                    {(propostas as any[]).map(p => <option key={'p-'+p.id} value={p.nome} />)}
                   </datalist>
-                  <p className="text-xs text-muted-foreground">Se a proposta não existir, será criada automaticamente.</p>
+                  {form.descricao.trim() && contratosNomesSet && !contratosNomesSet.has(normalizeNomeContrato(form.descricao)) && (
+                    <p className="text-xs text-warning flex items-center gap-1">
+                      ⚠️ Este contrato ainda não está cadastrado. Ele aparecerá como "receita sem contrato" na aba Contratos.
+                    </p>
+                  )}
                 </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-sm font-medium">Operadora</label>

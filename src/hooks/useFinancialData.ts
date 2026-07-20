@@ -801,6 +801,77 @@ export function getResumoContrato(
   return resumo.get(normalizeNome(nomeContrato)) || null;
 }
 
+/** Retorna Map<nomeNormalizado, ReceitaItem[]> com detalhamento por contrato. */
+export type ReceitaDetalheItem = {
+  id: string;
+  data: string;
+  descricao: string;
+  valor: number;
+  status: string;
+  operadora_nome: string | null;
+  vendedor_nome: string | null;
+};
+
+export function useReceitasDetalhePorNome() {
+  return useQuery({
+    queryKey: ['receitas-detalhe-por-nome'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('receitas')
+        .select('id, data, descricao, valor, status, operadoras:operadora_id(nome), vendedores:vendedor_id(nome)')
+        .order('data', { ascending: false });
+      if (error) throw error;
+      const map = new Map<string, ReceitaDetalheItem[]>();
+      for (const r of (data || []) as any[]) {
+        const key = normalizeNome(r.descricao);
+        if (!key) continue;
+        const item: ReceitaDetalheItem = {
+          id: r.id,
+          data: r.data,
+          descricao: r.descricao,
+          valor: Number(r.valor),
+          status: r.status,
+          operadora_nome: r.operadoras?.nome ?? null,
+          vendedor_nome: r.vendedores?.nome ?? null,
+        };
+        const cur = map.get(key) || [];
+        cur.push(item);
+        map.set(key, cur);
+      }
+      return map;
+    },
+  });
+}
+
+export function getDetalheContrato(
+  detalhe: Map<string, ReceitaDetalheItem[]> | undefined,
+  nomeContrato: string,
+): ReceitaDetalheItem[] {
+  if (!detalhe) return [];
+  return detalhe.get(normalizeNome(nomeContrato)) || [];
+}
+
+/** Conjunto de nomes de contratos existentes (normalizados) — usado para detectar receitas sem contrato. */
+export function useContratosNomesSet() {
+  return useQuery({
+    queryKey: ['contratos-nomes-set'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('contratos').select('nome');
+      if (error) throw error;
+      const set = new Set<string>();
+      for (const c of (data || []) as any[]) {
+        const key = normalizeNome(c.nome);
+        if (key) set.add(key);
+      }
+      return set;
+    },
+  });
+}
+
+export function normalizeNomeContrato(s: string): string {
+  return normalizeNome(s);
+}
+
 // ===== Comissões (derivadas dos contratos) =====
 
 export type ComissaoItem = {
