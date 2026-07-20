@@ -256,19 +256,25 @@ export default function Receitas() {
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium">Proposta</label>
+                  <label className="text-sm font-medium">Contrato / Descrição</label>
                   <Input
-                    list="propostas-options"
+                    list="contratos-options"
                     value={form.descricao}
                     onChange={e => setForm({ ...form, descricao: e.target.value })}
-                    placeholder="Selecione uma proposta existente ou digite um nome novo"
+                    placeholder="Selecione um contrato existente ou digite um nome novo"
                     required
                   />
-                  <datalist id="propostas-options">
-                    {(propostas as any[]).map(p => <option key={p.id} value={p.nome} />)}
+                  <datalist id="contratos-options">
+                    {(contratos as any[]).map(c => <option key={c.id} value={c.nome} />)}
+                    {(propostas as any[]).map(p => <option key={'p-'+p.id} value={p.nome} />)}
                   </datalist>
-                  <p className="text-xs text-muted-foreground">Se a proposta não existir, será criada automaticamente.</p>
+                  {form.descricao.trim() && contratosNomesSet && !contratosNomesSet.has(normalizeNomeContrato(form.descricao)) && (
+                    <p className="text-xs text-warning flex items-center gap-1">
+                      ⚠️ Este contrato ainda não está cadastrado. Ele aparecerá como "receita sem contrato" na aba Contratos.
+                    </p>
+                  )}
                 </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-sm font-medium">Operadora</label>
