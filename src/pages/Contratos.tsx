@@ -85,6 +85,10 @@ export default function Contratos() {
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const toggleExpand = (id: string) => setExpandedIds(prev => {
+    const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n;
+  });
 
   const mapContratoRow = useCallback((row: Record<string, any>): ParsedRow => {
     const errors: string[] = [];
