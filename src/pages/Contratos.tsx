@@ -535,6 +535,40 @@ export default function Contratos() {
         </div>
       )}
 
+      {/* Alerta: receitas sem contrato cadastrado */}
+      {receitasSemContrato.length > 0 && (
+        <Card className="border-warning/50 bg-warning/5">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">
+                  {receitasSemContrato.length} lançamento{receitasSemContrato.length !== 1 ? 's' : ''} de receita sem contrato cadastrado
+                </p>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Essas descrições aparecem em receitas mas não têm um contrato correspondente. Clique em "Criar contrato" para cadastrar.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                  {receitasSemContrato.map((r, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2 py-1.5 px-3 rounded-md border bg-background text-sm">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{r.nome}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {r.qtd} lanç. · {formatCurrency(r.total)}
+                        </p>
+                      </div>
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => criarContratoDeReceita(r.nome)}>
+                        Criar
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Filtros */}
       <div className="flex flex-wrap gap-3">
         <Select value={filterOperadora} onValueChange={setFilterOperadora}>
