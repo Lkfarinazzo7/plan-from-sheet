@@ -560,6 +560,9 @@ export default function Contratos() {
                           {r.qtd} lanç. · {formatCurrency(r.total)}
                         </p>
                       </div>
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setVincularAlvo(r)}>
+                        Vincular
+                      </Button>
                       <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => criarContratoDeReceita(r.nome)}>
                         Criar
                       </Button>
