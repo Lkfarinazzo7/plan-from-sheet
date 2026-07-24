@@ -10,13 +10,15 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa, useSetoresDespesa } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName, todayStr } from '@/lib/format';
-import { Plus, Trash2, RotateCcw, Pencil, Upload, Check, Copy, Download, X, StickyNote } from 'lucide-react';
+import { Plus, Trash2, RotateCcw, Pencil, Upload, Check, Copy, Download, X, StickyNote, Repeat } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { exportToExcel } from '@/lib/exportHelpers';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
 import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
+import { MultiSelectFilter } from '@/components/MultiSelectFilter';
+import { getTagColor, tagStyle } from '@/lib/tagColor';
 
 const emptyForm = {
   data: todayStr(),
