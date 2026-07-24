@@ -418,27 +418,42 @@ export default function Despesas() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <Select value={filterCategoria} onValueChange={setFilterCategoria}>
-          <SelectTrigger className={`w-[180px] ${filterCategoria !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Categoria" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas categorias</SelectItem>
-            {categorias.map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className={`w-[140px] ${filterStatus !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos status</SelectItem>
-            <SelectItem value="Pago">Pago</SelectItem>
-            <SelectItem value="A pagar">A pagar</SelectItem>
-            <SelectItem value="Atrasado">Atrasado</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="flex flex-wrap gap-2 items-center">
+        <MultiSelectFilter
+          label="Categoria"
+          value={filterCategoria}
+          onChange={setFilterCategoria}
+          options={categorias.map(c => ({ value: c.id, label: c.nome }))}
+          placeholderAll="Todas"
+          widthClass="w-[200px]"
+          searchable
+        />
+        <MultiSelectFilter
+          label="Status"
+          value={filterStatus}
+          onChange={setFilterStatus}
+          options={[
+            { value: 'Pago', label: 'Pago' },
+            { value: 'A pagar', label: 'A pagar' },
+            { value: 'Atrasado', label: 'Atrasado' },
+          ]}
+          placeholderAll="Todos"
+          widthClass="w-[170px]"
+        />
         <Select value={filterPeriodo} onValueChange={setFilterPeriodo}>
-          <SelectTrigger className={`w-[160px] ${filterPeriodo !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Período" /></SelectTrigger>
+          <SelectTrigger className={`w-[200px] ${filterPeriodo !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}>
+            <span className="truncate text-left">
+              <span className="text-muted-foreground mr-1">Período:</span>
+              <span className={filterPeriodo !== 'all' ? 'font-medium' : ''}>
+                {filterPeriodo === 'all' ? 'Todo o mês' :
+                 filterPeriodo === 'hoje' ? 'Hoje' :
+                 filterPeriodo === 'semana' ? 'Esta semana' : 'Personalizado'}
+              </span>
+            </span>
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todo o mês</SelectItem>
+            <SelectItem value="hoje">Hoje</SelectItem>
             <SelectItem value="semana">Esta semana (Seg–Dom)</SelectItem>
             <SelectItem value="custom">Personalizado</SelectItem>
           </SelectContent>
@@ -450,48 +465,62 @@ export default function Despesas() {
             <Input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className={`w-[150px] ${customEnd ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`} />
           </div>
         )}
-        <Select value={filterTipo} onValueChange={setFilterTipo}>
-          <SelectTrigger className={`w-[140px] ${filterTipo !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Tipo" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos tipos</SelectItem>
-            <SelectItem value="Fixo">Fixo</SelectItem>
-            <SelectItem value="Variável">Variável</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={filterResponsavel} onValueChange={setFilterResponsavel}>
-          <SelectTrigger className={`w-[160px] ${filterResponsavel !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Responsável" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos responsáveis</SelectItem>
-            {[...new Set(despesas.map(d => d.responsavel).filter(Boolean))].sort().map(r => (
-              <SelectItem key={r} value={r!}>{r}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={filterUnidade} onValueChange={setFilterUnidade}>
-          <SelectTrigger className={`w-[180px] ${filterUnidade !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Unidade" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas unidades</SelectItem>
-            <SelectItem value="none">Sem unidade</SelectItem>
-            {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filterSetor} onValueChange={setFilterSetor}>
-          <SelectTrigger className={`w-[160px] ${filterSetor !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Setor" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos setores</SelectItem>
-            <SelectItem value="none">Sem setor</SelectItem>
-            {setores.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        {(filterCategoria !== 'all' || filterStatus !== 'all' || filterPeriodo !== 'all' || filterTipo !== 'all' || filterResponsavel !== 'all' || filterUnidade !== 'all' || filterSetor !== 'all') && (
+        <MultiSelectFilter
+          label="Tipo"
+          value={filterTipo}
+          onChange={setFilterTipo}
+          options={[
+            { value: 'Fixo', label: 'Fixo' },
+            { value: 'Variável', label: 'Variável' },
+          ]}
+          placeholderAll="Todos"
+          widthClass="w-[160px]"
+        />
+        <MultiSelectFilter
+          label="Responsável"
+          value={filterResponsavel}
+          onChange={setFilterResponsavel}
+          options={[
+            ...[...new Set(despesas.map(d => d.responsavel).filter(Boolean) as string[])].sort()
+              .map(r => ({ value: r, label: r })),
+            { value: '__none__', label: 'Sem responsável' },
+          ]}
+          placeholderAll="Todos"
+          widthClass="w-[190px]"
+          searchable
+        />
+        <MultiSelectFilter
+          label="Unidade"
+          value={filterUnidade}
+          onChange={setFilterUnidade}
+          options={[
+            ...UNIDADES_NEGOCIO.map(u => ({ value: u, label: u })),
+            { value: '__none__', label: 'Sem unidade' },
+          ]}
+          placeholderAll="Todas"
+          widthClass="w-[200px]"
+        />
+        <MultiSelectFilter
+          label="Setor"
+          value={filterSetor}
+          onChange={setFilterSetor}
+          options={[
+            ...setores.map(s => ({ value: s.id, label: s.nome })),
+            { value: '__none__', label: 'Sem setor' },
+          ]}
+          placeholderAll="Todos"
+          widthClass="w-[190px]"
+          searchable
+        />
+        {(filterCategoria.length || filterStatus.length || filterPeriodo !== 'all' || filterTipo.length || filterResponsavel.length || filterUnidade.length || filterSetor.length) ? (
           <Button variant="ghost" size="sm" onClick={() => {
-            setFilterCategoria('all'); setFilterStatus('all'); setFilterPeriodo('all');
-            setFilterTipo('all'); setFilterResponsavel('all'); setFilterUnidade('all'); setFilterSetor('all');
+            setFilterCategoria([]); setFilterStatus([]); setFilterPeriodo('all');
+            setFilterTipo([]); setFilterResponsavel([]); setFilterUnidade([]); setFilterSetor([]);
             setCustomStart(''); setCustomEnd('');
           }}>
             <X className="h-4 w-4 mr-1" /> Limpar filtros
           </Button>
-        )}
+        ) : null}
       </div>
 
 
