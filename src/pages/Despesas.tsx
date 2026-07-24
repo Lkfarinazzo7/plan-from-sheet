@@ -10,13 +10,15 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa, useSetoresDespesa } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName, todayStr } from '@/lib/format';
-import { Plus, Trash2, RotateCcw, Pencil, Upload, Check, Copy, Download, X, StickyNote } from 'lucide-react';
+import { Plus, Trash2, RotateCcw, Pencil, Upload, Check, Copy, Download, X, StickyNote, Repeat } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { exportToExcel } from '@/lib/exportHelpers';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
 import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
+import { MultiSelectFilter } from '@/components/MultiSelectFilter';
+import { getTagColor, tagStyle } from '@/lib/tagColor';
 
 const emptyForm = {
   data: todayStr(),
@@ -49,13 +51,13 @@ export default function Despesas() {
   const [year, setYear] = useState(curYear);
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [filterCategoria, setFilterCategoria] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterPeriodo, setFilterPeriodo] = useState<string>('all'); // all | semana | custom
-  const [filterTipo, setFilterTipo] = useState<string>('all');
-  const [filterResponsavel, setFilterResponsavel] = useState<string>('all');
-  const [filterUnidade, setFilterUnidade] = useState<string>('all');
-  const [filterSetor, setFilterSetor] = useState<string>('all');
+  const [filterCategoria, setFilterCategoria] = useState<string[]>([]);
+  const [filterStatus, setFilterStatus] = useState<string[]>([]);
+  const [filterPeriodo, setFilterPeriodo] = useState<string>('all'); // all | hoje | semana | custom
+  const [filterTipo, setFilterTipo] = useState<string[]>([]);
+  const [filterResponsavel, setFilterResponsavel] = useState<string[]>([]);
+  const [filterUnidade, setFilterUnidade] = useState<string[]>([]);
+  const [filterSetor, setFilterSetor] = useState<string[]>([]);
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
@@ -144,19 +146,24 @@ export default function Despesas() {
   const [form, setForm] = useState(emptyForm);
 
   const filtered = useMemo(() => despesas.filter(d => {
-    if (filterCategoria !== 'all' && d.categoria_id !== filterCategoria) return false;
-    if (filterStatus !== 'all' && d.status !== filterStatus) return false;
-    if (filterTipo !== 'all' && d.tipo !== filterTipo) return false;
-    if (filterResponsavel !== 'all' && (d.responsavel || '') !== filterResponsavel) return false;
-    if (filterUnidade !== 'all') {
-      const u = (d as any).unidade_negocio || '';
-      if (filterUnidade === 'none' ? u !== '' : u !== filterUnidade) return false;
+    if (filterCategoria.length && !filterCategoria.includes(d.categoria_id)) return false;
+    if (filterStatus.length && !filterStatus.includes(d.status)) return false;
+    if (filterTipo.length && !filterTipo.includes(d.tipo)) return false;
+    if (filterResponsavel.length) {
+      const r = d.responsavel || '__none__';
+      if (!filterResponsavel.includes(r)) return false;
     }
-    if (filterSetor !== 'all') {
-      const s = (d as any).setor_id || '';
-      if (filterSetor === 'none' ? s !== '' : s !== filterSetor) return false;
+    if (filterUnidade.length) {
+      const u = (d as any).unidade_negocio || '__none__';
+      if (!filterUnidade.includes(u)) return false;
     }
-    if (filterPeriodo === 'semana') {
+    if (filterSetor.length) {
+      const s = (d as any).setor_id || '__none__';
+      if (!filterSetor.includes(s)) return false;
+    }
+    if (filterPeriodo === 'hoje') {
+      if (d.data !== todayStr()) return false;
+    } else if (filterPeriodo === 'semana') {
       const { start, end } = getThisWeekRange();
       if (d.data < start || d.data > end) return false;
     } else if (filterPeriodo === 'custom') {
@@ -411,27 +418,42 @@ export default function Despesas() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <Select value={filterCategoria} onValueChange={setFilterCategoria}>
-          <SelectTrigger className={`w-[180px] ${filterCategoria !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Categoria" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas categorias</SelectItem>
-            {categorias.map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className={`w-[140px] ${filterStatus !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos status</SelectItem>
-            <SelectItem value="Pago">Pago</SelectItem>
-            <SelectItem value="A pagar">A pagar</SelectItem>
-            <SelectItem value="Atrasado">Atrasado</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="flex flex-wrap gap-2 items-center">
+        <MultiSelectFilter
+          label="Categoria"
+          value={filterCategoria}
+          onChange={setFilterCategoria}
+          options={categorias.map(c => ({ value: c.id, label: c.nome }))}
+          placeholderAll="Todas"
+          widthClass="w-[200px]"
+          searchable
+        />
+        <MultiSelectFilter
+          label="Status"
+          value={filterStatus}
+          onChange={setFilterStatus}
+          options={[
+            { value: 'Pago', label: 'Pago' },
+            { value: 'A pagar', label: 'A pagar' },
+            { value: 'Atrasado', label: 'Atrasado' },
+          ]}
+          placeholderAll="Todos"
+          widthClass="w-[170px]"
+        />
         <Select value={filterPeriodo} onValueChange={setFilterPeriodo}>
-          <SelectTrigger className={`w-[160px] ${filterPeriodo !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Período" /></SelectTrigger>
+          <SelectTrigger className={`w-[200px] ${filterPeriodo !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}>
+            <span className="truncate text-left">
+              <span className="text-muted-foreground mr-1">Período:</span>
+              <span className={filterPeriodo !== 'all' ? 'font-medium' : ''}>
+                {filterPeriodo === 'all' ? 'Todo o mês' :
+                 filterPeriodo === 'hoje' ? 'Hoje' :
+                 filterPeriodo === 'semana' ? 'Esta semana' : 'Personalizado'}
+              </span>
+            </span>
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todo o mês</SelectItem>
+            <SelectItem value="hoje">Hoje</SelectItem>
             <SelectItem value="semana">Esta semana (Seg–Dom)</SelectItem>
             <SelectItem value="custom">Personalizado</SelectItem>
           </SelectContent>
@@ -443,48 +465,62 @@ export default function Despesas() {
             <Input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className={`w-[150px] ${customEnd ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`} />
           </div>
         )}
-        <Select value={filterTipo} onValueChange={setFilterTipo}>
-          <SelectTrigger className={`w-[140px] ${filterTipo !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Tipo" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos tipos</SelectItem>
-            <SelectItem value="Fixo">Fixo</SelectItem>
-            <SelectItem value="Variável">Variável</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={filterResponsavel} onValueChange={setFilterResponsavel}>
-          <SelectTrigger className={`w-[160px] ${filterResponsavel !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Responsável" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos responsáveis</SelectItem>
-            {[...new Set(despesas.map(d => d.responsavel).filter(Boolean))].sort().map(r => (
-              <SelectItem key={r} value={r!}>{r}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={filterUnidade} onValueChange={setFilterUnidade}>
-          <SelectTrigger className={`w-[180px] ${filterUnidade !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Unidade" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas unidades</SelectItem>
-            <SelectItem value="none">Sem unidade</SelectItem>
-            {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filterSetor} onValueChange={setFilterSetor}>
-          <SelectTrigger className={`w-[160px] ${filterSetor !== 'all' ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary font-medium' : ''}`}><SelectValue placeholder="Setor" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos setores</SelectItem>
-            <SelectItem value="none">Sem setor</SelectItem>
-            {setores.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        {(filterCategoria !== 'all' || filterStatus !== 'all' || filterPeriodo !== 'all' || filterTipo !== 'all' || filterResponsavel !== 'all' || filterUnidade !== 'all' || filterSetor !== 'all') && (
+        <MultiSelectFilter
+          label="Tipo"
+          value={filterTipo}
+          onChange={setFilterTipo}
+          options={[
+            { value: 'Fixo', label: 'Fixo' },
+            { value: 'Variável', label: 'Variável' },
+          ]}
+          placeholderAll="Todos"
+          widthClass="w-[160px]"
+        />
+        <MultiSelectFilter
+          label="Responsável"
+          value={filterResponsavel}
+          onChange={setFilterResponsavel}
+          options={[
+            ...[...new Set(despesas.map(d => d.responsavel).filter(Boolean) as string[])].sort()
+              .map(r => ({ value: r, label: r })),
+            { value: '__none__', label: 'Sem responsável' },
+          ]}
+          placeholderAll="Todos"
+          widthClass="w-[190px]"
+          searchable
+        />
+        <MultiSelectFilter
+          label="Unidade"
+          value={filterUnidade}
+          onChange={setFilterUnidade}
+          options={[
+            ...UNIDADES_NEGOCIO.map(u => ({ value: u, label: u })),
+            { value: '__none__', label: 'Sem unidade' },
+          ]}
+          placeholderAll="Todas"
+          widthClass="w-[200px]"
+        />
+        <MultiSelectFilter
+          label="Setor"
+          value={filterSetor}
+          onChange={setFilterSetor}
+          options={[
+            ...setores.map(s => ({ value: s.id, label: s.nome })),
+            { value: '__none__', label: 'Sem setor' },
+          ]}
+          placeholderAll="Todos"
+          widthClass="w-[190px]"
+          searchable
+        />
+        {(filterCategoria.length || filterStatus.length || filterPeriodo !== 'all' || filterTipo.length || filterResponsavel.length || filterUnidade.length || filterSetor.length) ? (
           <Button variant="ghost" size="sm" onClick={() => {
-            setFilterCategoria('all'); setFilterStatus('all'); setFilterPeriodo('all');
-            setFilterTipo('all'); setFilterResponsavel('all'); setFilterUnidade('all'); setFilterSetor('all');
+            setFilterCategoria([]); setFilterStatus([]); setFilterPeriodo('all');
+            setFilterTipo([]); setFilterResponsavel([]); setFilterUnidade([]); setFilterSetor([]);
             setCustomStart(''); setCustomEnd('');
           }}>
             <X className="h-4 w-4 mr-1" /> Limpar filtros
           </Button>
-        )}
+        ) : null}
       </div>
 
 
@@ -506,122 +542,167 @@ export default function Despesas() {
       {/* Table */}
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[40px]">
-                  <Checkbox checked={allFilteredSelected} onCheckedChange={toggleAll} aria-label="Selecionar todos" />
-                </TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Descrição</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Responsável</TableHead>
-                <TableHead>Unidade</TableHead>
-                <TableHead>Setor</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Rec.</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
-              ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhuma despesa encontrada</TableCell></TableRow>
-              ) : (
-                filtered.map(d => (
-                  <TableRow key={d.id} data-state={selectedIds.has(d.id) ? 'selected' : undefined}>
-                    <TableCell>
-                      <Checkbox checked={selectedIds.has(d.id)} onCheckedChange={() => toggleOne(d.id)} aria-label="Selecionar linha" />
-                    </TableCell>
-                    <TableCell>{formatDate(d.data)}</TableCell>
-                    <TableCell className="max-w-[240px]">
-                      <div className="flex items-center gap-1.5">
-                        <span className="truncate">{d.descricao}</span>
-                        {(d as any).observacoes && (
-                          <span title={(d as any).observacoes} className="shrink-0 text-muted-foreground cursor-help">
-                            <StickyNote className="h-3.5 w-3.5" />
+          <div className="overflow-auto">
+            <Table>
+              <TableHeader className="bg-muted/40 sticky top-0 z-10">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[40px]">
+                    <Checkbox checked={allFilteredSelected} onCheckedChange={toggleAll} aria-label="Selecionar todos" />
+                  </TableHead>
+                  <TableHead className="w-[100px]">Data</TableHead>
+                  <TableHead>Descrição</TableHead>
+                  <TableHead>Categoria / Setor</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Responsável</TableHead>
+                  <TableHead>Unidade</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead className="w-[110px]">Status</TableHead>
+                  <TableHead className="text-right w-[170px]">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={10} className="text-center py-10 text-muted-foreground">Carregando...</TableCell></TableRow>
+                ) : filtered.length === 0 ? (
+                  <TableRow><TableCell colSpan={10} className="text-center py-10 text-muted-foreground">Nenhuma despesa encontrada</TableCell></TableRow>
+                ) : (
+                  filtered.map(d => {
+                    const catNome = (d.categorias_despesa as any)?.nome as string | undefined;
+                    const setorNome = (d as any).setores_despesa?.nome as string | undefined;
+                    const catStyle = catNome ? tagStyle(getTagColor(catNome)) : undefined;
+                    const setorSty = setorNome ? tagStyle(getTagColor(setorNome)) : undefined;
+                    const selected = selectedIds.has(d.id);
+                    return (
+                      <TableRow
+                        key={d.id}
+                        data-state={selected ? 'selected' : undefined}
+                        className="odd:bg-muted/20 hover:bg-muted/50 transition-colors"
+                      >
+                        <TableCell className="py-3">
+                          <Checkbox checked={selected} onCheckedChange={() => toggleOne(d.id)} aria-label="Selecionar linha" />
+                        </TableCell>
+                        <TableCell className="py-3 whitespace-nowrap text-sm text-muted-foreground tabular-nums">
+                          {formatDate(d.data)}
+                        </TableCell>
+                        <TableCell className="py-3 max-w-[280px]">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate font-medium text-foreground">{d.descricao}</span>
+                            {d.recorrente && (
+                              <span title="Recorrente" className="shrink-0 text-muted-foreground">
+                                <Repeat className="h-3.5 w-3.5" />
+                              </span>
+                            )}
+                            {(d as any).observacoes && (
+                              <span title={(d as any).observacoes} className="shrink-0 text-muted-foreground cursor-help">
+                                <StickyNote className="h-3.5 w-3.5" />
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <div className="flex flex-wrap items-center gap-1">
+                            {catNome && (
+                              <span
+                                style={catStyle}
+                                className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border"
+                              >
+                                {catNome}
+                              </span>
+                            )}
+                            {setorNome && (
+                              <span
+                                style={setorSty}
+                                className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border"
+                              >
+                                {setorNome}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${
+                            d.tipo === 'Fixo'
+                              ? 'bg-primary/5 text-primary border-primary/20'
+                              : 'bg-muted text-muted-foreground border-border'
+                          }`}>
+                            {d.tipo}
                           </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>{(d.categorias_despesa as any)?.nome}</TableCell>
-                    <TableCell>{d.tipo}</TableCell>
-                    <TableCell>{d.responsavel || '—'}</TableCell>
-                    <TableCell className="text-muted-foreground">{(d as any).unidade_negocio || '—'}</TableCell>
-                    <TableCell className="text-muted-foreground">{(d as any).setores_despesa?.nome || '—'}</TableCell>
-                    <TableCell className="text-right font-medium text-destructive">{formatCurrency(Number(d.valor))}</TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        d.status === 'Pago' ? 'bg-success/10 text-success' :
-                        d.status === 'Atrasado' ? 'bg-destructive/10 text-destructive' :
-                        'bg-warning/10 text-warning'
-                      }`}>
-                        {d.status}
-                      </span>
-                    </TableCell>
-                    <TableCell>{d.recorrente ? '✓' : ''}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        {(d.status === 'A pagar' || d.status === 'Atrasado') && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-success hover:text-success"
-                            title="Marcar como Pago"
-                            onClick={async () => {
-                              try {
-                                await updateDespesa.mutateAsync({ id: d.id, status: 'Pago' });
-                                toast({ title: 'Despesa marcada como Paga!' });
-                              } catch (err: any) {
-                                toast({ title: 'Erro', description: err.message, variant: 'destructive' });
-                              }
-                            }}
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title="Duplicar"
-                          onClick={async () => {
-                            try {
-                              await createDespesa.mutateAsync({
-                                data: todayStr(),
-                                descricao: d.descricao,
-                                categoria_id: d.categoria_id,
-                                tipo: d.tipo,
-                                valor: d.valor,
-                                responsavel: d.responsavel || undefined,
-                                recorrente: d.recorrente,
-                                status: 'A pagar',
-                                unidade_negocio: (d as any).unidade_negocio || null,
-                              });
-                              toast({ title: 'Despesa duplicada com sucesso!' });
-                            } catch (err: any) {
-                              toast({ title: 'Erro', description: err.message, variant: 'destructive' });
-                            }
-                          }}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(d)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteDespesa.mutate(d.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                        </TableCell>
+                        <TableCell className="py-3 text-sm text-muted-foreground">{d.responsavel || '—'}</TableCell>
+                        <TableCell className="py-3 text-sm text-muted-foreground">{(d as any).unidade_negocio || '—'}</TableCell>
+                        <TableCell className="py-3 text-right font-semibold text-destructive tabular-nums whitespace-nowrap">
+                          {formatCurrency(Number(d.valor))}
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                            d.status === 'Pago' ? 'bg-success/15 text-success' :
+                            d.status === 'Atrasado' ? 'bg-destructive/15 text-destructive' :
+                            'bg-warning/15 text-warning'
+                          }`}>
+                            {d.status}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <div className="flex justify-end gap-0.5">
+                            {(d.status === 'A pagar' || d.status === 'Atrasado') && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-success hover:text-success"
+                                title="Marcar como Pago"
+                                onClick={async () => {
+                                  try {
+                                    await updateDespesa.mutateAsync({ id: d.id, status: 'Pago' });
+                                    toast({ title: 'Despesa marcada como Paga!' });
+                                  } catch (err: any) {
+                                    toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+                                  }
+                                }}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              title="Duplicar"
+                              onClick={async () => {
+                                try {
+                                  await createDespesa.mutateAsync({
+                                    data: todayStr(),
+                                    descricao: d.descricao,
+                                    categoria_id: d.categoria_id,
+                                    tipo: d.tipo,
+                                    valor: d.valor,
+                                    responsavel: d.responsavel || undefined,
+                                    recorrente: d.recorrente,
+                                    status: 'A pagar',
+                                    unidade_negocio: (d as any).unidade_negocio || null,
+                                  });
+                                  toast({ title: 'Despesa duplicada com sucesso!' });
+                                } catch (err: any) {
+                                  toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+                                }
+                              }}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" title="Editar" onClick={() => openEdit(d)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" title="Excluir" onClick={() => deleteDespesa.mutate(d.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
