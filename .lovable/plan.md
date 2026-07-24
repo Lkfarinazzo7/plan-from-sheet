@@ -1,25 +1,42 @@
-## Vincular receitas órfãs a contratos existentes
+## Ajustes na tela de Despesas
 
-Hoje o card "Receitas sem contrato cadastrado" em `/contratos` só oferece o botão **Criar**. Vou adicionar o botão **Vincular** para casos em que o contrato já existe mas com nome ligeiramente diferente da descrição da receita (ex.: `Prop. 97039955 - SAN MICHEL SERVICOS MEDICOS LTDA` vs `SAN MICHEL SERVICOS MEDICOS LTDA`).
+### 1. Filtro de Período — adicionar "Hoje"
+Incluir a opção **Hoje** no seletor de período, ao lado de "Todo mês", "Esta semana", "Personalizado". Quando ativa, filtra apenas lançamentos com `data === hoje`.
 
-### Como funciona o vínculo
+### 2. Rótulos visíveis nos filtros
+Cada filtro passa a exibir seu **nome** antes do valor, tanto no botão fechado quanto na lista aberta. Padrão visual:
 
-O casamento receita ↔ contrato hoje é feito por `normalizeNome(descricao)` = `normalizeNome(nome)`. Portanto, vincular significa **renomear a descrição das receitas daquele grupo para bater exatamente com o nome do contrato escolhido**. Depois disso o contrato passa a mostrar essas receitas automaticamente na linha expansível e o alerta some.
+```text
+[ Categoria: Todas ▾ ]   [ Status: A pagar, Pago ▾ ]   [ Período: Este mês ▾ ]
+[ Tipo: Todos ▾ ]        [ Responsável: Todos ▾ ]      [ Unidade: Todas ▾ ]
+[ Setor: Pré-vendas ▾ ]
+```
 
-### Mudanças em `src/pages/Contratos.tsx`
+Quando houver múltiplas seleções, mostra "Categoria: 2 selecionadas" (ou os primeiros nomes + "+N"). Quando não houver seleção, mostra "Categoria: Todas".
 
-1. Ao lado do botão **Criar** em cada linha de receita órfã, adicionar botão **Vincular** que abre um diálogo.
-2. Novo diálogo `VincularReceitaDialog`:
-   - Mostra a descrição órfã no topo (com quantidade e total).
-   - Campo de busca com lista dos contratos existentes (nome, operadora, unidade, valor). Sugere no topo os contratos com maior similaridade textual à descrição órfã (comparação simples por tokens/substring, sem lib nova).
-   - Botão **Confirmar vínculo** executa um bulk update em `receitas`: `UPDATE receitas SET descricao = <nome do contrato> WHERE normalize(descricao) = <chave órfã>`.
-   - Toast de sucesso e invalidação das queries de receitas / resumo por nome / detalhe por nome.
+### 3. Seleção múltipla em todos os filtros
+Trocar os `Select` de valor único por um componente **MultiSelect** (Popover + Checkboxes, no padrão shadcn) para: Categoria, Status, Período (mantém single — não faz sentido múltiplo), Tipo, Responsável, Unidade e Setor.
 
-### Hook novo em `src/hooks/useFinancialData.ts`
+- Estado interno passa de `string` para `string[]` (vazio = "Todas").
+- Lógica de `filtered` atualizada: em vez de `d.categoria_id !== filtro`, usa `filtroArr.length && !filtroArr.includes(d.categoria_id)`.
+- "Sem unidade" / "Sem setor" continuam como opções especiais dentro do MultiSelect (valor `__none__`).
+- Botão **Limpar filtros** aparece quando qualquer filtro está ativo.
 
-- `useVincularReceitasAoContrato()` — mutation que recebe `{ chaveNormalizada, novaDescricao }`, atualiza todas as receitas cujo `normalizeNome(descricao)` bate com a chave, e invalida `receitas`, `receitas-resumo-por-nome`, `receitas-detalhe-por-nome`, `contratos`. Como a normalização é feita no cliente, a mutation vai listar os IDs afetados via query em memória (usando o cache já existente) e disparar um `update ... in (ids)`.
+### 4. Revisão visual da lista de lançamentos
+Reorganizar a `Table` para leitura mais clara, sem mudar dados exibidos:
 
-### Fora de escopo
+- **Densidade e alinhamento**: linhas com `py-3`, valores monetários alinhados à direita e tabulares (`tabular-nums font-medium`), datas em `text-muted-foreground` menor.
+- **Hierarquia**: `Descrição` em peso normal como coluna principal; `Categoria` e `Setor` como badges coloridos (reaproveitando `tagStyle`/`getTagColor`); `Tipo` como badge sutil (Fixo/Variável).
+- **Status**: badge colorido — verde (Pago), âmbar (A pagar), vermelho (Atrasado) — usando tokens do design system.
+- **Zebra + hover**: `odd:bg-muted/30 hover:bg-muted/60` para escaneabilidade.
+- **Observações**: ícone `StickyNote` permanece à direita da descrição com tooltip; sem mudar comportamento.
+- **Ações**: agrupadas em uma célula fixa à direita, ícones em `size-8 ghost`, com tooltip.
+- **Cabeçalho**: sticky (`sticky top-0 bg-background z-10`) para não perder contexto ao rolar.
+- **Rodapé**: linha de total já existente, reforçada com separador superior e tipografia consistente.
 
-- Não vou alterar o modelo de vínculo (continua por nome normalizado, sem FK). Se você quiser depois um vínculo "duro" via `contrato_id` em receitas, viraria outra tarefa.
-- O aviso no formulário de Receitas continua igual.
+### Detalhes técnicos
+
+- Novo componente `src/components/MultiSelectFilter.tsx` (Popover + Command + Checkbox) recebendo `label`, `options: {value,label}[]`, `value: string[]`, `onChange`.
+- Em `Despesas.tsx`: converter os `useState<string>('all')` em `useState<string[]>([])`; ajustar `filtered` e resets.
+- `filterPeriodo` permanece single, mas ganha a opção `hoje` e passa a exibir label ("Período: Hoje").
+- Escopo restrito a `src/pages/Despesas.tsx` + novo componente de filtro. Nenhuma alteração em hooks/dados/DB.
