@@ -51,13 +51,13 @@ export default function Despesas() {
   const [year, setYear] = useState(curYear);
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [filterCategoria, setFilterCategoria] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterPeriodo, setFilterPeriodo] = useState<string>('all'); // all | semana | custom
-  const [filterTipo, setFilterTipo] = useState<string>('all');
-  const [filterResponsavel, setFilterResponsavel] = useState<string>('all');
-  const [filterUnidade, setFilterUnidade] = useState<string>('all');
-  const [filterSetor, setFilterSetor] = useState<string>('all');
+  const [filterCategoria, setFilterCategoria] = useState<string[]>([]);
+  const [filterStatus, setFilterStatus] = useState<string[]>([]);
+  const [filterPeriodo, setFilterPeriodo] = useState<string>('all'); // all | hoje | semana | custom
+  const [filterTipo, setFilterTipo] = useState<string[]>([]);
+  const [filterResponsavel, setFilterResponsavel] = useState<string[]>([]);
+  const [filterUnidade, setFilterUnidade] = useState<string[]>([]);
+  const [filterSetor, setFilterSetor] = useState<string[]>([]);
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
