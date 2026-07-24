@@ -146,19 +146,24 @@ export default function Despesas() {
   const [form, setForm] = useState(emptyForm);
 
   const filtered = useMemo(() => despesas.filter(d => {
-    if (filterCategoria !== 'all' && d.categoria_id !== filterCategoria) return false;
-    if (filterStatus !== 'all' && d.status !== filterStatus) return false;
-    if (filterTipo !== 'all' && d.tipo !== filterTipo) return false;
-    if (filterResponsavel !== 'all' && (d.responsavel || '') !== filterResponsavel) return false;
-    if (filterUnidade !== 'all') {
-      const u = (d as any).unidade_negocio || '';
-      if (filterUnidade === 'none' ? u !== '' : u !== filterUnidade) return false;
+    if (filterCategoria.length && !filterCategoria.includes(d.categoria_id)) return false;
+    if (filterStatus.length && !filterStatus.includes(d.status)) return false;
+    if (filterTipo.length && !filterTipo.includes(d.tipo)) return false;
+    if (filterResponsavel.length) {
+      const r = d.responsavel || '__none__';
+      if (!filterResponsavel.includes(r)) return false;
     }
-    if (filterSetor !== 'all') {
-      const s = (d as any).setor_id || '';
-      if (filterSetor === 'none' ? s !== '' : s !== filterSetor) return false;
+    if (filterUnidade.length) {
+      const u = (d as any).unidade_negocio || '__none__';
+      if (!filterUnidade.includes(u)) return false;
     }
-    if (filterPeriodo === 'semana') {
+    if (filterSetor.length) {
+      const s = (d as any).setor_id || '__none__';
+      if (!filterSetor.includes(s)) return false;
+    }
+    if (filterPeriodo === 'hoje') {
+      if (d.data !== todayStr()) return false;
+    } else if (filterPeriodo === 'semana') {
       const { start, end } = getThisWeekRange();
       if (d.data < start || d.data > end) return false;
     } else if (filterPeriodo === 'custom') {
