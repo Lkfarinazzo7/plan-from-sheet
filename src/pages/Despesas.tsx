@@ -542,122 +542,167 @@ export default function Despesas() {
       {/* Table */}
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[40px]">
-                  <Checkbox checked={allFilteredSelected} onCheckedChange={toggleAll} aria-label="Selecionar todos" />
-                </TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Descrição</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Responsável</TableHead>
-                <TableHead>Unidade</TableHead>
-                <TableHead>Setor</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Rec.</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
-              ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhuma despesa encontrada</TableCell></TableRow>
-              ) : (
-                filtered.map(d => (
-                  <TableRow key={d.id} data-state={selectedIds.has(d.id) ? 'selected' : undefined}>
-                    <TableCell>
-                      <Checkbox checked={selectedIds.has(d.id)} onCheckedChange={() => toggleOne(d.id)} aria-label="Selecionar linha" />
-                    </TableCell>
-                    <TableCell>{formatDate(d.data)}</TableCell>
-                    <TableCell className="max-w-[240px]">
-                      <div className="flex items-center gap-1.5">
-                        <span className="truncate">{d.descricao}</span>
-                        {(d as any).observacoes && (
-                          <span title={(d as any).observacoes} className="shrink-0 text-muted-foreground cursor-help">
-                            <StickyNote className="h-3.5 w-3.5" />
+          <div className="overflow-auto">
+            <Table>
+              <TableHeader className="bg-muted/40 sticky top-0 z-10">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[40px]">
+                    <Checkbox checked={allFilteredSelected} onCheckedChange={toggleAll} aria-label="Selecionar todos" />
+                  </TableHead>
+                  <TableHead className="w-[100px]">Data</TableHead>
+                  <TableHead>Descrição</TableHead>
+                  <TableHead>Categoria / Setor</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Responsável</TableHead>
+                  <TableHead>Unidade</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead className="w-[110px]">Status</TableHead>
+                  <TableHead className="text-right w-[170px]">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={10} className="text-center py-10 text-muted-foreground">Carregando...</TableCell></TableRow>
+                ) : filtered.length === 0 ? (
+                  <TableRow><TableCell colSpan={10} className="text-center py-10 text-muted-foreground">Nenhuma despesa encontrada</TableCell></TableRow>
+                ) : (
+                  filtered.map(d => {
+                    const catNome = (d.categorias_despesa as any)?.nome as string | undefined;
+                    const setorNome = (d as any).setores_despesa?.nome as string | undefined;
+                    const catStyle = catNome ? tagStyle(getTagColor(catNome)) : undefined;
+                    const setorSty = setorNome ? tagStyle(getTagColor(setorNome)) : undefined;
+                    const selected = selectedIds.has(d.id);
+                    return (
+                      <TableRow
+                        key={d.id}
+                        data-state={selected ? 'selected' : undefined}
+                        className="odd:bg-muted/20 hover:bg-muted/50 transition-colors"
+                      >
+                        <TableCell className="py-3">
+                          <Checkbox checked={selected} onCheckedChange={() => toggleOne(d.id)} aria-label="Selecionar linha" />
+                        </TableCell>
+                        <TableCell className="py-3 whitespace-nowrap text-sm text-muted-foreground tabular-nums">
+                          {formatDate(d.data)}
+                        </TableCell>
+                        <TableCell className="py-3 max-w-[280px]">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate font-medium text-foreground">{d.descricao}</span>
+                            {d.recorrente && (
+                              <span title="Recorrente" className="shrink-0 text-muted-foreground">
+                                <Repeat className="h-3.5 w-3.5" />
+                              </span>
+                            )}
+                            {(d as any).observacoes && (
+                              <span title={(d as any).observacoes} className="shrink-0 text-muted-foreground cursor-help">
+                                <StickyNote className="h-3.5 w-3.5" />
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <div className="flex flex-wrap items-center gap-1">
+                            {catNome && (
+                              <span
+                                style={catStyle}
+                                className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border"
+                              >
+                                {catNome}
+                              </span>
+                            )}
+                            {setorNome && (
+                              <span
+                                style={setorSty}
+                                className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border"
+                              >
+                                {setorNome}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${
+                            d.tipo === 'Fixo'
+                              ? 'bg-primary/5 text-primary border-primary/20'
+                              : 'bg-muted text-muted-foreground border-border'
+                          }`}>
+                            {d.tipo}
                           </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>{(d.categorias_despesa as any)?.nome}</TableCell>
-                    <TableCell>{d.tipo}</TableCell>
-                    <TableCell>{d.responsavel || '—'}</TableCell>
-                    <TableCell className="text-muted-foreground">{(d as any).unidade_negocio || '—'}</TableCell>
-                    <TableCell className="text-muted-foreground">{(d as any).setores_despesa?.nome || '—'}</TableCell>
-                    <TableCell className="text-right font-medium text-destructive">{formatCurrency(Number(d.valor))}</TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        d.status === 'Pago' ? 'bg-success/10 text-success' :
-                        d.status === 'Atrasado' ? 'bg-destructive/10 text-destructive' :
-                        'bg-warning/10 text-warning'
-                      }`}>
-                        {d.status}
-                      </span>
-                    </TableCell>
-                    <TableCell>{d.recorrente ? '✓' : ''}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        {(d.status === 'A pagar' || d.status === 'Atrasado') && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-success hover:text-success"
-                            title="Marcar como Pago"
-                            onClick={async () => {
-                              try {
-                                await updateDespesa.mutateAsync({ id: d.id, status: 'Pago' });
-                                toast({ title: 'Despesa marcada como Paga!' });
-                              } catch (err: any) {
-                                toast({ title: 'Erro', description: err.message, variant: 'destructive' });
-                              }
-                            }}
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title="Duplicar"
-                          onClick={async () => {
-                            try {
-                              await createDespesa.mutateAsync({
-                                data: todayStr(),
-                                descricao: d.descricao,
-                                categoria_id: d.categoria_id,
-                                tipo: d.tipo,
-                                valor: d.valor,
-                                responsavel: d.responsavel || undefined,
-                                recorrente: d.recorrente,
-                                status: 'A pagar',
-                                unidade_negocio: (d as any).unidade_negocio || null,
-                              });
-                              toast({ title: 'Despesa duplicada com sucesso!' });
-                            } catch (err: any) {
-                              toast({ title: 'Erro', description: err.message, variant: 'destructive' });
-                            }
-                          }}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(d)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteDespesa.mutate(d.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                        </TableCell>
+                        <TableCell className="py-3 text-sm text-muted-foreground">{d.responsavel || '—'}</TableCell>
+                        <TableCell className="py-3 text-sm text-muted-foreground">{(d as any).unidade_negocio || '—'}</TableCell>
+                        <TableCell className="py-3 text-right font-semibold text-destructive tabular-nums whitespace-nowrap">
+                          {formatCurrency(Number(d.valor))}
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                            d.status === 'Pago' ? 'bg-success/15 text-success' :
+                            d.status === 'Atrasado' ? 'bg-destructive/15 text-destructive' :
+                            'bg-warning/15 text-warning'
+                          }`}>
+                            {d.status}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <div className="flex justify-end gap-0.5">
+                            {(d.status === 'A pagar' || d.status === 'Atrasado') && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-success hover:text-success"
+                                title="Marcar como Pago"
+                                onClick={async () => {
+                                  try {
+                                    await updateDespesa.mutateAsync({ id: d.id, status: 'Pago' });
+                                    toast({ title: 'Despesa marcada como Paga!' });
+                                  } catch (err: any) {
+                                    toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+                                  }
+                                }}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              title="Duplicar"
+                              onClick={async () => {
+                                try {
+                                  await createDespesa.mutateAsync({
+                                    data: todayStr(),
+                                    descricao: d.descricao,
+                                    categoria_id: d.categoria_id,
+                                    tipo: d.tipo,
+                                    valor: d.valor,
+                                    responsavel: d.responsavel || undefined,
+                                    recorrente: d.recorrente,
+                                    status: 'A pagar',
+                                    unidade_negocio: (d as any).unidade_negocio || null,
+                                  });
+                                  toast({ title: 'Despesa duplicada com sucesso!' });
+                                } catch (err: any) {
+                                  toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+                                }
+                              }}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" title="Editar" onClick={() => openEdit(d)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" title="Excluir" onClick={() => deleteDespesa.mutate(d.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
