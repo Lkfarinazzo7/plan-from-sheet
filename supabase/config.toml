@@ -2,3 +2,8 @@ project_id = "hzphyqrvkyjguagyzley"
 
 [functions.extract-receitas]
 verify_jwt = true
+
+[functions.odisseia-mcp]
+# A validação do Bearer é feita dentro da função (getUser + RLS),
+# permitindo responder 401 com WWW-Authenticate e servir o metadata OAuth.
+verify_jwt = false

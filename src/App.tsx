@@ -14,6 +14,8 @@ import Comissoes from "./pages/Comissoes";
 import Cadastros from "./pages/Cadastros";
 import NotFound from "./pages/NotFound";
 import FluxoCaixa from "./pages/FluxoCaixa";
+import OAuthConsent from "./pages/OAuthConsent";
+import { safeReturnPath } from "@/lib/safeReturn";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,6 +27,11 @@ const queryClient = new QueryClient({
   },
 });
 
+function loginUrlWithReturn() {
+  const dest = `${window.location.pathname}${window.location.search}`;
+  return `/login?returnTo=${encodeURIComponent(safeReturnPath(dest))}`;
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
@@ -32,10 +39,21 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <AppLayout>{children}</AppLayout>;
 }
 
+/** Rota protegida sem o layout do app (usada pela tela de consentimento OAuth). */
+function BareProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
+  if (!user) return <Navigate to={loginUrlWithReturn()} replace />;
+  return <>{children}</>;
+}
+
 function AuthRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
-  if (user) return <Navigate to="/" replace />;
+  if (user) {
+    const returnTo = safeReturnPath(new URLSearchParams(window.location.search).get('returnTo'));
+    return <Navigate to={returnTo} replace />;
+  }
   return <>{children}</>;
 }
 
@@ -55,6 +73,7 @@ const App = () => (
             <Route path="/comissoes" element={<ProtectedRoute><Comissoes /></ProtectedRoute>} />
             <Route path="/fluxo-caixa" element={<ProtectedRoute><FluxoCaixa /></ProtectedRoute>} />
             <Route path="/cadastros" element={<ProtectedRoute><Cadastros /></ProtectedRoute>} />
+            <Route path="/oauth/consent" element={<BareProtectedRoute><OAuthConsent /></BareProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
