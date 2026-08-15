@@ -886,15 +886,10 @@ Deno.serve(async (req) => {
   const server = buildServer(ctx);
   const transport = new WebStandardStreamableHTTPServerTransport(); // stateless
   await server.connect(transport);
-  try {
-    const response = await transport.handleRequest(req);
-    const headers = new Headers(response.headers);
-    for (const [k, v] of Object.entries(corsHeaders)) headers.set(k, v);
-    return new Response(response.body, { status: response.status, headers });
-  } finally {
-    // stateless: encerra após a resposta
-    queueMicrotask(() => {
-      server.close().catch(() => {});
-    });
-  }
+  // Stateless: o transporte vive apenas durante esta requisição.
+  // Não fechar o server aqui — isso abortaria o stream da resposta.
+  const response = await transport.handleRequest(req);
+  const headers = new Headers(response.headers);
+  for (const [k, v] of Object.entries(corsHeaders)) headers.set(k, v);
+  return new Response(response.body, { status: response.status, headers });
 });
