@@ -232,6 +232,54 @@ export type Database = {
           },
         ]
       }
+      mcp_operacoes: {
+        Row: {
+          after_data: Json | null
+          arguments: Json
+          before_data: Json | null
+          created_at: string
+          error: string | null
+          executed_at: string | null
+          expires_at: string
+          id: string
+          status: string
+          summary: string | null
+          tool_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          after_data?: Json | null
+          arguments?: Json
+          before_data?: Json | null
+          created_at?: string
+          error?: string | null
+          executed_at?: string | null
+          expires_at?: string
+          id?: string
+          status?: string
+          summary?: string | null
+          tool_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          after_data?: Json | null
+          arguments?: Json
+          before_data?: Json | null
+          created_at?: string
+          error?: string | null
+          executed_at?: string | null
+          expires_at?: string
+          id?: string
+          status?: string
+          summary?: string | null
+          tool_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       operadoras: {
         Row: {
           ativa: boolean
@@ -572,6 +620,30 @@ export type Database = {
           roles: Database["public"]["Enums"]["app_role"][]
           user_id: string
         }[]
+      }
+      mcp_claim_operacao: {
+        Args: { _id: string }
+        Returns: {
+          after_data: Json | null
+          arguments: Json
+          before_data: Json | null
+          created_at: string
+          error: string | null
+          executed_at: string | null
+          expires_at: string
+          id: string
+          status: string
+          summary: string | null
+          tool_name: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "mcp_operacoes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {
