@@ -12,7 +12,7 @@ https://<PROJECT_REF>.supabase.co/functions/v1/odisseia-mcp
 ```
 
 - `POST /` — endpoint MCP (JSON-RPC sobre Streamable HTTP). Requer `Authorization: Bearer <token>`.
-- `GET /` — health check (`{"status":"ok","name":"financeiro-odisseia","version":"1.0.0"}`), sem dados sensíveis.
+- `GET /` — health check (`{"status":"ok","name":"financeiro-odisseia","version":"1.0.1"}`), sem dados sensíveis.
 - `GET /.well-known/oauth-protected-resource` — metadata do recurso protegido:
   - `resource`: URL canônica da função
   - `authorization_servers`: `https://<PROJECT_REF>.supabase.co/auth/v1`
@@ -135,6 +135,37 @@ As ferramentas `preparar_*` e `confirmar_operacao` estão marcadas com `readOnly
 (`confirmar_operacao` também com `destructiveHint: true`), então clientes MCP pedem aprovação
 do usuário antes de executá-las. Mantenha a aprovação manual ligada — o servidor também exige
 o `confirmation_id`, mas a dupla barreira é intencional.
+
+## Versão, nomes de tools e observabilidade
+
+- Versão atual do servidor: **1.0.1** (`supabase/functions/odisseia-mcp/tools.ts`).
+- Todos os nomes de tools vivem em `TOOL` / `TOOL_NAMES` nesse mesmo arquivo. Registro, despacho do
+  `confirmar_operacao` e testes usam apenas essas constantes — nunca strings soltas.
+- O registro das tools está em `server.ts` (`buildServer`), separado do handler HTTP (`index.ts`),
+  o que permite testar pelo protocolo MCP real com dependências injetadas.
+- **Logs estruturados** (JSON em uma linha) por requisição: `request_id`, `event`
+  (`rpc_start`, `rpc_end`, `auth_rejected`, `identity_arg_rejected`, `health`, `oauth_metadata`),
+  método JSON-RPC, nome da tool, `ok`, `status`, `duration_ms` e `error_kind`.
+  Nunca são registrados token, cabeçalho Authorization, argumentos, e-mail ou resultados.
+- **Guarda de identidade no transporte**: argumentos como `user_id`/`token` são rejeitados com
+  **400** antes do schema da tool, evitando que sejam descartados silenciosamente.
+- `WWW-Authenticate` completo no 401: `realm`, `error`, `error_description`, `scope="openid email profile"`
+  e `resource_metadata`.
+
+## Testes de regressão
+
+`src/test/mcpServer.test.ts` sobe o servidor com um adapter Supabase in-memory
+(`src/test/fakeSupabase.ts`) e um Client MCP via `InMemoryTransport`, cobrindo:
+
+- `tools/list` expõe exatamente `TOOL_NAMES` (15 tools, sem duplicatas) e a versão 1.0.1;
+- cada tool responde pelo nome registrado;
+- `preparar_*` não altera dados e devolve `confirmation_id`;
+- `confirmar_operacao` executa uma única vez — o replay falha e nada é duplicado;
+- `cancelar_operacao` invalida a pendência;
+- referências inválidas (ex.: operadora inexistente) não criam operação;
+- argumentos de identidade são rejeitados.
+
+Rodar: `npx vitest run`.
 
 ## Segurança e produção
 
