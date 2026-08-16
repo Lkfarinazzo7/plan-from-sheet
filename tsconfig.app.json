@@ -39,7 +39,6 @@
     "useDefineForClassFields": true
   },
   "include": [
-    "src",
-    "supabase/functions/odisseia-mcp"
+    "src"
   ]
 }
