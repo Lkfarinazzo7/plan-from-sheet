@@ -733,7 +733,7 @@ export function buildServer(ctx: Ctx) {
           .maybeSingle();
         if (opErr) return fail(opErr.message);
         const check = canConfirm(op as any);
-        if (!check.ok) return fail(check.reason);
+        if (!check.ok) return fail((check as { ok: false; reason: string }).reason);
 
         // Reserva atômica: garante execução única mesmo com chamadas concorrentes.
         const { error: claimErr } = await ctx.supabase.rpc('mcp_claim_operacao', { _id: args.confirmation_id });
