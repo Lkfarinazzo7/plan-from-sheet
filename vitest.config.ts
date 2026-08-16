@@ -11,6 +11,12 @@ export default defineConfig({
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
   },
   resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
+    alias: [
+      // Especificadores Deno (npm:) resolvidos para node_modules nos testes.
+      { find: /^npm:@modelcontextprotocol\/sdk@[\d.]+\//, replacement: "@modelcontextprotocol/sdk/" },
+      { find: /^npm:zod@[\d.]+$/, replacement: "zod" },
+      { find: /^npm:@supabase\/supabase-js@[\d.]+$/, replacement: "@supabase/supabase-js" },
+      { find: "@", replacement: path.resolve(__dirname, "./src") },
+    ],
   },
 });

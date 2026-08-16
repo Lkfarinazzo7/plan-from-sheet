@@ -19,6 +19,15 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "npm:@modelcontextprotocol/sdk@1.25.3/*": [
+        "./node_modules/@modelcontextprotocol/sdk/dist/esm/*"
+      ],
+      "npm:zod@3.23.8": [
+        "./node_modules/zod"
+      ],
+      "npm:@supabase/supabase-js@2": [
+        "./node_modules/@supabase/supabase-js"
       ]
     },
     "skipLibCheck": true,

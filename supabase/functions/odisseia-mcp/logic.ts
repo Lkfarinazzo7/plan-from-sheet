@@ -191,3 +191,26 @@ export function describeDiff(diff: DiffLinha[]): string {
   if (!diff.length) return 'Nenhuma alteração detectada.';
   return diff.map((d) => `${d.campo}: ${JSON.stringify(d.antes)} → ${JSON.stringify(d.depois)}`).join('; ');
 }
+
+/**
+ * Guarda de transporte: detecta argumentos de identidade em um corpo JSON-RPC
+ * antes que o schema da tool descarte chaves desconhecidas silenciosamente.
+ */
+export function findIdentityArgViolation(rawBody: string): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawBody);
+  } catch {
+    return null;
+  }
+  const msgs = Array.isArray(parsed) ? parsed : [parsed];
+  for (const m of msgs as Array<Record<string, any>>) {
+    if (m?.method !== 'tools/call') continue;
+    const args = m?.params?.arguments;
+    if (!args || typeof args !== 'object') continue;
+    for (const key of Object.keys(args)) {
+      if (FORBIDDEN_ARG_KEYS.includes(key.toLowerCase())) return key;
+    }
+  }
+  return null;
+}
