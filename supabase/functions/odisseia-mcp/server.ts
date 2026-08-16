@@ -28,8 +28,6 @@ export type SupabaseLike = any;
 
 export type Ctx = { supabase: SupabaseLike; userId: string; email: string | null };
 
-type Ctx = { supabase: SupabaseClient; userId: string; email: string | null };
-
 const text = (data: unknown) => ({
   content: [{ type: 'text' as const, text: typeof data === 'string' ? data : JSON.stringify(data, null, 2) }],
 });
@@ -103,9 +101,9 @@ async function registrarOperacao(
 
 // ------------------------------------------------------------ registro tools
 
-function buildServer(ctx: Ctx) {
+export function buildServer(ctx: Ctx) {
   const server = new McpServer(
-    { name: 'financeiro-odisseia', version: '1.0.0' },
+    { name: SERVER_NAME, version: SERVER_VERSION },
     {
       instructions:
         'Servidor MCP do sistema Financeiro Odisseia (corretora de seguros, pt-BR, valores em BRL). ' +
@@ -121,7 +119,7 @@ function buildServer(ctx: Ctx) {
   // ============================ LEITURA ============================
 
   server.registerTool(
-    'consultar_dashboard',
+    TOOL.CONSULTAR_DASHBOARD,
     {
       title: 'Consultar dashboard financeiro',
       description: 'Totais de receitas, despesas, saldo, valores recebidos/pagos/pendentes e contagens no período.',
@@ -165,7 +163,7 @@ function buildServer(ctx: Ctx) {
   );
 
   server.registerTool(
-    'gerar_dre',
+    TOOL.GERAR_DRE,
     {
       title: 'Gerar DRE do período',
       description: 'DRE em cascata: receita bruta (recebida), despesas por tipo (operacional, custo fixo, imposto), resultado e margens.',
@@ -201,7 +199,7 @@ function buildServer(ctx: Ctx) {
   );
 
   server.registerTool(
-    'consultar_fluxo_caixa',
+    TOOL.CONSULTAR_FLUXO_CAIXA,
     {
       title: 'Consultar fluxo de caixa',
       description: 'Entradas e saídas realizadas e previstas no período (visão "realizado" ou "projetado").',
@@ -242,7 +240,7 @@ function buildServer(ctx: Ctx) {
   );
 
   server.registerTool(
-    'listar_receitas',
+    TOOL.LISTAR_RECEITAS,
     {
       title: 'Listar receitas',
       description: 'Lista lançamentos de receita com filtros e paginação.',
@@ -289,7 +287,7 @@ function buildServer(ctx: Ctx) {
   );
 
   server.registerTool(
-    'listar_despesas',
+    TOOL.LISTAR_DESPESAS,
     {
       title: 'Listar despesas',
       description: 'Lista lançamentos de despesa com filtros e paginação.',
@@ -343,7 +341,7 @@ function buildServer(ctx: Ctx) {
   );
 
   server.registerTool(
-    'buscar_contrato',
+    TOOL.BUSCAR_CONTRATO,
     {
       title: 'Buscar contrato',
       description: 'Busca contratos por id ou nome, com operadora, corretor, supervisores, valores e status das comissões.',
@@ -387,7 +385,7 @@ function buildServer(ctx: Ctx) {
   );
 
   server.registerTool(
-    'consultar_comissoes',
+    TOOL.CONSULTAR_COMISSOES,
     {
       title: 'Consultar comissões',
       description: 'Comissões de supervisores e corretores, com filtro por período, pessoa, unidade e situação de pagamento.',
@@ -449,7 +447,7 @@ function buildServer(ctx: Ctx) {
   );
 
   server.registerTool(
-    'listar_cadastros',
+    TOOL.LISTAR_CADASTROS,
     {
       title: 'Listar cadastros base',
       description: 'Lista vendedores, operadoras, categorias de despesa, setores ou supervisores.',
@@ -482,7 +480,7 @@ function buildServer(ctx: Ctx) {
   );
 
   server.registerTool(
-    'obter_operacao',
+    TOOL.OBTER_OPERACAO,
     {
       title: 'Obter operação MCP',
       description: 'Consulta uma operação MCP (pendente, executada, cancelada ou expirada) pelo confirmation_id.',
@@ -518,7 +516,7 @@ function buildServer(ctx: Ctx) {
   }
 
   server.registerTool(
-    'preparar_criacao_receita',
+    TOOL.PREPARAR_CRIACAO_RECEITA,
     {
       title: 'Preparar criação de receita',
       description: 'Valida os dados e cria uma operação PENDENTE para lançar uma receita. Não altera nada até "confirmar_operacao".',
@@ -552,7 +550,7 @@ function buildServer(ctx: Ctx) {
           observacoes: args.observacoes ?? null,
         };
         const summary = `Criar receita "${args.descricao}" de ${money(args.valor).valor_formatado} em ${formatDateBR(args.data)} (${args.operadora} / ${args.vendedor}, status ${after.status}).`;
-        const op = await registrarOperacao(ctx, 'preparar_criacao_receita', args as any, null, after, summary);
+        const op = await registrarOperacao(ctx, TOOL.PREPARAR_CRIACAO_RECEITA, args as any, null, after, summary);
         return text({
           confirmation_id: op.id,
           expires_at: op.expires_at,
@@ -569,7 +567,7 @@ function buildServer(ctx: Ctx) {
   );
 
   server.registerTool(
-    'preparar_criacao_despesa',
+    TOOL.PREPARAR_CRIACAO_DESPESA,
     {
       title: 'Preparar criação de despesa',
       description: 'Valida os dados e cria uma operação PENDENTE para lançar uma despesa. Não altera nada até "confirmar_operacao".',
@@ -607,7 +605,7 @@ function buildServer(ctx: Ctx) {
           observacoes: args.observacoes ?? null,
         };
         const summary = `Criar despesa "${args.descricao}" de ${money(args.valor).valor_formatado} em ${formatDateBR(args.data)} (categoria ${args.categoria}, status ${after.status}).`;
-        const op = await registrarOperacao(ctx, 'preparar_criacao_despesa', args as any, null, after, summary);
+        const op = await registrarOperacao(ctx, TOOL.PREPARAR_CRIACAO_DESPESA, args as any, null, after, summary);
         return text({
           confirmation_id: op.id,
           expires_at: op.expires_at,
@@ -626,7 +624,7 @@ function buildServer(ctx: Ctx) {
   const TABELA = { receita: 'receitas', despesa: 'despesas' } as const;
 
   server.registerTool(
-    'preparar_alteracao_lancamento',
+    TOOL.PREPARAR_ALTERACAO_LANCAMENTO,
     {
       title: 'Preparar alteração de lançamento',
       description: 'Lê o lançamento atual e cria uma operação PENDENTE com o comparativo antes/depois. Não altera nada até "confirmar_operacao".',
@@ -671,7 +669,7 @@ function buildServer(ctx: Ctx) {
         const diff = buildDiff(before, updates);
         if (!diff.length) return fail('Os valores informados já são os atuais. Nenhuma alteração necessária.');
         const summary = `Alterar ${args.tipo_lancamento} "${atual.descricao}" — ${describeDiff(diff)}`;
-        const op = await registrarOperacao(ctx, 'preparar_alteracao_lancamento', args as any, before, { tabela, id: args.id, updates }, summary);
+        const op = await registrarOperacao(ctx, TOOL.PREPARAR_ALTERACAO_LANCAMENTO, args as any, before, { tabela, id: args.id, updates }, summary);
         return text({
           confirmation_id: op.id,
           expires_at: op.expires_at,
@@ -688,7 +686,7 @@ function buildServer(ctx: Ctx) {
   );
 
   server.registerTool(
-    'preparar_marcacao_status',
+    TOOL.PREPARAR_MARCACAO_STATUS,
     {
       title: 'Preparar marcação de status',
       description: 'Prepara a mudança de status de um lançamento (ex.: receita para "Recebido", despesa para "Pago"). Não altera nada até "confirmar_operacao".',
@@ -709,7 +707,7 @@ function buildServer(ctx: Ctx) {
         if (atual.status === args.novo_status) return fail(`O lançamento já está com status "${args.novo_status}".`);
         const before = sanitize(atual) as Record<string, unknown>;
         const summary = `Alterar status de ${args.tipo_lancamento} "${atual.descricao}" (${money(atual.valor).valor_formatado}) de "${atual.status}" para "${args.novo_status}".`;
-        const op = await registrarOperacao(ctx, 'preparar_marcacao_status', args as any, before, { tabela, id: args.id, updates: { status: args.novo_status } }, summary);
+        const op = await registrarOperacao(ctx, TOOL.PREPARAR_MARCACAO_STATUS, args as any, before, { tabela, id: args.id, updates: { status: args.novo_status } }, summary);
         return text({ confirmation_id: op.id, expires_at: op.expires_at, status: 'pending', resumo: summary, antes: { status: atual.status }, depois: { status: args.novo_status } });
       } catch (e) {
         return fail((e as Error).message);
@@ -718,7 +716,7 @@ function buildServer(ctx: Ctx) {
   );
 
   server.registerTool(
-    'confirmar_operacao',
+    TOOL.CONFIRMAR_OPERACAO,
     {
       title: 'Confirmar operação pendente',
       description: 'EXECUTA de fato a operação preparada. Só chame após o usuário confirmar explicitamente. Uma operação nunca é executada duas vezes.',
@@ -749,7 +747,7 @@ function buildServer(ctx: Ctx) {
         try {
           const after = op!.after_data as any;
           let resultado: any;
-          if (op!.tool_name === 'preparar_criacao_receita') {
+          if (op!.tool_name === TOOL.PREPARAR_CRIACAO_RECEITA) {
             const { data, error } = await ctx.supabase
               .from('receitas')
               .insert({ ...after, comissao: 0, user_id: ctx.userId })
@@ -757,7 +755,7 @@ function buildServer(ctx: Ctx) {
               .single();
             if (error) return await marcarFalha(error.message);
             resultado = data;
-          } else if (op!.tool_name === 'preparar_criacao_despesa') {
+          } else if (op!.tool_name === TOOL.PREPARAR_CRIACAO_DESPESA) {
             const { data, error } = await ctx.supabase
               .from('despesas')
               .insert({ ...after, user_id: ctx.userId })
@@ -765,7 +763,7 @@ function buildServer(ctx: Ctx) {
               .single();
             if (error) return await marcarFalha(error.message);
             resultado = data;
-          } else if (op!.tool_name === 'preparar_alteracao_lancamento' || op!.tool_name === 'preparar_marcacao_status') {
+          } else if (op!.tool_name === TOOL.PREPARAR_ALTERACAO_LANCAMENTO || op!.tool_name === TOOL.PREPARAR_MARCACAO_STATUS) {
             const { tabela, id, updates } = after;
             const { data: atual } = await ctx.supabase.from(tabela).select('*').eq('id', id).maybeSingle();
             if (!atual) return await marcarFalha('O lançamento não existe mais. Operação não executada.');
@@ -788,7 +786,7 @@ function buildServer(ctx: Ctx) {
   );
 
   server.registerTool(
-    'cancelar_operacao',
+    TOOL.CANCELAR_OPERACAO,
     {
       title: 'Cancelar operação pendente',
       description: 'Cancela uma operação preparada que ainda não foi executada.',
