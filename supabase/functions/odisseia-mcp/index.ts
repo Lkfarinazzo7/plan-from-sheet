@@ -122,6 +122,19 @@ Deno.serve(async (req) => {
   const { method, tool } = describeRpc(rawBody);
   log({ request_id: requestId, event: 'rpc_start', method, tool });
 
+  const violation = findIdentityArgViolation(rawBody);
+  if (violation) {
+    log({ request_id: requestId, event: 'identity_arg_rejected', method, tool, ok: false, status: 400, error_kind: 'forbidden_arg' });
+    return json(
+      {
+        error: 'invalid_request',
+        error_description: `Argumento não permitido: "${violation}". A identidade do usuário vem do token de acesso.`,
+      },
+      400,
+    );
+  }
+
+
   const ctx: Ctx = { supabase, userId: userData.user.id, email: userData.user.email ?? null };
 
   try {
