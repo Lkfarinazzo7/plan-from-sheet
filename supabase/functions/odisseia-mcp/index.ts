@@ -3,6 +3,7 @@
 import { WebStandardStreamableHTTPServerTransport } from 'npm:@modelcontextprotocol/sdk@1.25.3/server/webStandardStreamableHttp.js';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
+import { findIdentityArgViolation } from './logic.ts';
 import { buildServer, type Ctx } from './server.ts';
 import { SERVER_NAME, SERVER_VERSION } from './tools.ts';
 

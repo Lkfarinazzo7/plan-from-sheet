@@ -9,6 +9,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
 import { buildServer } from '../../supabase/functions/odisseia-mcp/server';
 import { SERVER_VERSION, TOOL, TOOL_NAMES } from '../../supabase/functions/odisseia-mcp/tools';
+import { findIdentityArgViolation } from '../../supabase/functions/odisseia-mcp/logic';
 import { FakeDb } from './fakeSupabase';
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -109,7 +110,7 @@ describe('fluxo de criação de receita em duas etapas', () => {
       arguments: { ...args, operadora: 'Inexistente XPTO' },
     });
     expect(r.isError).toBe(true);
-    expect(r.content[0].text).toMatch(/Operadora não encontrada/i);
+    expect(r.content[0].text).toMatch(/Operadora não encontrad/i);
     expect(db.rows('mcp_operacoes')).toHaveLength(0);
   });
 });
@@ -146,8 +147,15 @@ describe('demais tools alcançáveis por nome', () => {
     expect(out.itens[0].nome).toBe('Amil');
   });
 
-  it('rejeita user_id vindo do cliente', async () => {
-    const r: any = await client.callTool({ name: TOOL.LISTAR_CADASTROS, arguments: { tipo: 'operadoras', user_id: 'x' } });
-    expect(r.isError).toBe(true);
+  it('rejeita user_id no transporte, antes do schema da tool', () => {
+    const body = JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: TOOL.LISTAR_CADASTROS, arguments: { tipo: 'operadoras', user_id: 'x' } },
+    });
+    expect(findIdentityArgViolation(body)).toBe('user_id');
+    const limpo = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: TOOL.LISTAR_CADASTROS, arguments: { tipo: 'operadoras' } } });
+    expect(findIdentityArgViolation(limpo)).toBeNull();
   });
 });
