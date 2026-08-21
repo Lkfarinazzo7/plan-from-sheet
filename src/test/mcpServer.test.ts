@@ -159,3 +159,100 @@ describe('demais tools alcançáveis por nome', () => {
     expect(findIdentityArgViolation(limpo)).toBeNull();
   });
 });
+
+describe('alteração do campo tipo em despesas', () => {
+  const DESPESA_ID = '55555555-5555-4555-8555-555555555555';
+  const baseDespesa = {
+    id: DESPESA_ID,
+    user_id: USER_ID,
+    data: '2026-08-05',
+    descricao: 'Aluguel Sede',
+    valor: 900,
+    tipo: 'Variável',
+    status: 'A pagar',
+    responsavel: 'Bruno',
+    recorrente: false,
+    unidade_negocio: 'Odisseia',
+    observacoes: 'nota',
+    categoria_id: '44444444-4444-4444-8444-444444444444',
+    setor_id: null,
+  };
+
+  beforeEach(async () => {
+    db = seedDb();
+    db.rows('despesas').push({ ...baseDespesa });
+    client = await connect(db);
+  });
+
+  async function prepararTipo(tipo: string, extra: Record<string, unknown> = {}) {
+    return await client.callTool({
+      name: TOOL.PREPARAR_ALTERACAO_LANCAMENTO,
+      arguments: { tipo_lancamento: 'despesa', id: DESPESA_ID, tipo, ...extra } as any,
+    });
+  }
+
+  it('Variável -> Fixo com diff correto e sem alterar o banco', async () => {
+    const out = payload(await prepararTipo('Fixo'));
+    expect(out.status).toBe('pending');
+    const linha = out.alteracoes.find((d: any) => d.campo === 'tipo');
+    expect(linha).toEqual({ campo: 'tipo', antes: 'Variável', depois: 'Fixo' });
+    expect(out.alteracoes).toHaveLength(1);
+    expect(out.depois.tipo).toBe('Fixo');
+    expect(db.rows('despesas')[0].tipo).toBe('Variável');
+    expect(db.rows('mcp_operacoes')).toHaveLength(1);
+    expect(db.rows('mcp_operacoes')[0].status).toBe('pending');
+  });
+
+  it('Fixo -> Variável com diff correto', async () => {
+    db.rows('despesas')[0].tipo = 'Fixo';
+    const out = payload(await prepararTipo('Variável'));
+    expect(out.alteracoes).toContainEqual({ campo: 'tipo', antes: 'Fixo', depois: 'Variável' });
+  });
+
+  it('confirmação efetiva o tipo preservando id e demais campos', async () => {
+    const prep = payload(await prepararTipo('Fixo'));
+    const ok = payload(await client.callTool({ name: TOOL.CONFIRMAR_OPERACAO, arguments: { confirmation_id: prep.confirmation_id } }));
+    expect(ok.status).toBe('executed');
+    const rows = db.rows('despesas');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual({ ...baseDespesa, tipo: 'Fixo' });
+  });
+
+  it('tipo inválido é rejeitado pelo schema e não cria operação', async () => {
+    const r: any = await prepararTipo('Recorrente');
+    expect(r.isError).toBe(true);
+    expect(db.rows('mcp_operacoes')).toHaveLength(0);
+    expect(db.rows('despesas')[0].tipo).toBe('Variável');
+  });
+
+  it('tipo enviado para receita não cria operação', async () => {
+    db.rows('receitas').push({ id: '66666666-6666-4666-8666-666666666666', user_id: USER_ID, data: '2026-08-01', descricao: 'Contrato X', valor: 100, status: 'Aguardando' });
+    const r: any = await client.callTool({
+      name: TOOL.PREPARAR_ALTERACAO_LANCAMENTO,
+      arguments: { tipo_lancamento: 'receita', id: '66666666-6666-4666-8666-666666666666', tipo: 'Fixo' } as any,
+    });
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toMatch(/só se aplica a despesas/i);
+    expect(db.rows('mcp_operacoes')).toHaveLength(0);
+  });
+
+  it('chamada sem tipo continua funcionando e altera apenas o outro campo', async () => {
+    const out = payload(
+      await client.callTool({
+        name: TOOL.PREPARAR_ALTERACAO_LANCAMENTO,
+        arguments: { tipo_lancamento: 'despesa', id: DESPESA_ID, valor: 1200 } as any,
+      }),
+    );
+    expect(out.alteracoes).toEqual([{ campo: 'valor', antes: 900, depois: 1200 }]);
+    const ok = payload(await client.callTool({ name: TOOL.CONFIRMAR_OPERACAO, arguments: { confirmation_id: out.confirmation_id } }));
+    expect(ok.status).toBe('executed');
+    expect(db.rows('despesas')[0]).toEqual({ ...baseDespesa, valor: 1200 });
+  });
+
+  it('listar_despesas retorna tipo para Fixo e Variável', async () => {
+    db.rows('despesas').push({ ...baseDespesa, id: '77777777-7777-4777-8777-777777777777', descricao: 'Internet', tipo: 'Fixo' });
+    const out = payload(await client.callTool({ name: TOOL.LISTAR_DESPESAS, arguments: {} }));
+    const tipos = out.itens.map((i: any) => i.tipo).sort();
+    expect(tipos).toEqual(['Fixo', 'Variável']);
+  });
+});

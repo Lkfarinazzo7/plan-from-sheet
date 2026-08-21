@@ -12,7 +12,7 @@ https://<PROJECT_REF>.supabase.co/functions/v1/odisseia-mcp
 ```
 
 - `POST /` — endpoint MCP (JSON-RPC sobre Streamable HTTP). Requer `Authorization: Bearer <token>`.
-- `GET /` — health check (`{"status":"ok","name":"financeiro-odisseia","version":"1.0.1"}`), sem dados sensíveis.
+- `GET /` — health check (`{"status":"ok","name":"financeiro-odisseia","version":"1.0.2"}`), sem dados sensíveis.
 - `GET /.well-known/oauth-protected-resource` — metadata do recurso protegido:
   - `resource`: URL canônica da função
   - `authorization_servers`: `https://<PROJECT_REF>.supabase.co/auth/v1`
@@ -63,6 +63,11 @@ Regras:
 - Uma operação já executada, cancelada, falhada ou expirada nunca é reexecutada.
 - **Exclusão não é implementada nesta versão.**
 - `user_id` (e qualquer token) é rejeitado se enviado como argumento — a identidade vem do token.
+- `preparar_alteracao_lancamento` aceita `tipo` (**`Fixo`** | **`Variável`**) **somente para despesas**.
+  Outros valores são rejeitados pelo schema e `tipo` em receita é recusado — em ambos os casos
+  nenhuma operação é criada. A confirmação faz `UPDATE` na mesma linha (mesmo `id`), preservando
+  todos os campos não enviados. A resposta traz `alteracoes` (antes/depois por campo) e `depois`
+  com o estado mesclado sanitizado.
 
 ### Exemplos
 
@@ -138,7 +143,7 @@ o `confirmation_id`, mas a dupla barreira é intencional.
 
 ## Versão, nomes de tools e observabilidade
 
-- Versão atual do servidor: **1.0.1** (`supabase/functions/odisseia-mcp/tools.ts`).
+- Versão atual do servidor: **1.0.2** (`supabase/functions/odisseia-mcp/tools.ts`).
 - Todos os nomes de tools vivem em `TOOL` / `TOOL_NAMES` nesse mesmo arquivo. Registro, despacho do
   `confirmar_operacao` e testes usam apenas essas constantes — nunca strings soltas.
 - O registro das tools está em `server.ts` (`buildServer`), separado do handler HTTP (`index.ts`),
@@ -157,7 +162,7 @@ o `confirmation_id`, mas a dupla barreira é intencional.
 `src/test/mcpServer.test.ts` sobe o servidor com um adapter Supabase in-memory
 (`src/test/fakeSupabase.ts`) e um Client MCP via `InMemoryTransport`, cobrindo:
 
-- `tools/list` expõe exatamente `TOOL_NAMES` (15 tools, sem duplicatas) e a versão 1.0.1;
+- `tools/list` expõe exatamente `TOOL_NAMES` (15 tools, sem duplicatas) e a versão 1.0.2;
 - cada tool responde pelo nome registrado;
 - `preparar_*` não altera dados e devolve `confirmation_id`;
 - `confirmar_operacao` executa uma única vez — o replay falha e nada é duplicado;

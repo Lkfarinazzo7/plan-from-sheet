@@ -637,6 +637,7 @@ export function buildServer(ctx: Ctx) {
         status: z.string().optional(),
         unidade_negocio: z.string().optional(),
         observacoes: z.string().max(2000).optional(),
+        tipo: z.enum(['Fixo', 'Variável']).optional().describe('Somente despesas: tipo da despesa.'),
         categoria: z.string().optional().describe('Somente despesas: nome da categoria.'),
         setor: z.string().optional().describe('Somente despesas: nome do setor.'),
         responsavel: z.string().optional().describe('Somente despesas.'),
@@ -657,10 +658,12 @@ export function buildServer(ctx: Ctx) {
           if (args[campo] !== undefined) updates[campo] = args[campo];
         }
         if (args.tipo_lancamento === 'despesa') {
+          if (args.tipo !== undefined) updates.tipo = args.tipo;
           if (args.categoria) updates.categoria_id = await resolverId('categorias_despesa', args.categoria, 'Categoria');
           if (args.setor) updates.setor_id = await resolverId('setores_despesa', args.setor, 'Setor');
           if (args.responsavel !== undefined) updates.responsavel = args.responsavel;
         } else {
+          if (args.tipo !== undefined) return fail('O campo "tipo" só se aplica a despesas. Nenhuma operação foi criada.');
           if (args.operadora) updates.operadora_id = await resolverId('operadoras', args.operadora, 'Operadora');
           if (args.vendedor) updates.vendedor_id = await resolverId('vendedores', args.vendedor, 'Vendedor');
         }
@@ -676,6 +679,7 @@ export function buildServer(ctx: Ctx) {
           status: 'pending',
           resumo: summary,
           antes: before,
+          depois: sanitize({ ...atual, ...updates }) as Record<string, unknown>,
           alteracoes: diff,
           proximo_passo: 'Peça a confirmação explícita do usuário antes de chamar confirmar_operacao.',
         });
