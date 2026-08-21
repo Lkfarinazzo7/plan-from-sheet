@@ -637,6 +637,7 @@ export function buildServer(ctx: Ctx) {
         status: z.string().optional(),
         unidade_negocio: z.string().optional(),
         observacoes: z.string().max(2000).optional(),
+        tipo: z.enum(['Fixo', 'Variável']).optional().describe('Somente despesas: tipo da despesa.'),
         categoria: z.string().optional().describe('Somente despesas: nome da categoria.'),
         setor: z.string().optional().describe('Somente despesas: nome do setor.'),
         responsavel: z.string().optional().describe('Somente despesas.'),
