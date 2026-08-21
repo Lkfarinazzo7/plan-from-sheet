@@ -679,6 +679,7 @@ export function buildServer(ctx: Ctx) {
           status: 'pending',
           resumo: summary,
           antes: before,
+          depois: sanitize({ ...atual, ...updates }) as Record<string, unknown>,
           alteracoes: diff,
           proximo_passo: 'Peça a confirmação explícita do usuário antes de chamar confirmar_operacao.',
         });
