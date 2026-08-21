@@ -658,10 +658,12 @@ export function buildServer(ctx: Ctx) {
           if (args[campo] !== undefined) updates[campo] = args[campo];
         }
         if (args.tipo_lancamento === 'despesa') {
+          if (args.tipo !== undefined) updates.tipo = args.tipo;
           if (args.categoria) updates.categoria_id = await resolverId('categorias_despesa', args.categoria, 'Categoria');
           if (args.setor) updates.setor_id = await resolverId('setores_despesa', args.setor, 'Setor');
           if (args.responsavel !== undefined) updates.responsavel = args.responsavel;
         } else {
+          if (args.tipo !== undefined) return fail('O campo "tipo" só se aplica a despesas. Nenhuma operação foi criada.');
           if (args.operadora) updates.operadora_id = await resolverId('operadoras', args.operadora, 'Operadora');
           if (args.vendedor) updates.vendedor_id = await resolverId('vendedores', args.vendedor, 'Vendedor');
         }
