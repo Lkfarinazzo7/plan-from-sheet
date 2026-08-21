@@ -63,6 +63,11 @@ Regras:
 - Uma operação já executada, cancelada, falhada ou expirada nunca é reexecutada.
 - **Exclusão não é implementada nesta versão.**
 - `user_id` (e qualquer token) é rejeitado se enviado como argumento — a identidade vem do token.
+- `preparar_alteracao_lancamento` aceita `tipo` (**`Fixo`** | **`Variável`**) **somente para despesas**.
+  Outros valores são rejeitados pelo schema e `tipo` em receita é recusado — em ambos os casos
+  nenhuma operação é criada. A confirmação faz `UPDATE` na mesma linha (mesmo `id`), preservando
+  todos os campos não enviados. A resposta traz `alteracoes` (antes/depois por campo) e `depois`
+  com o estado mesclado sanitizado.
 
 ### Exemplos
 
