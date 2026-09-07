@@ -805,7 +805,7 @@ export default function Contratos() {
               ) : filtered.length === 0 ? (
                 <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">Nenhum contrato encontrado</TableCell></TableRow>
               ) : (filtered as any[]).flatMap(c => {
-                const detalhes = getDetalheContrato(detalheReceitas, c.nome);
+                const detalhes = getDetalheContrato(detalheReceitas, c.id);
                 const isExpanded = expandedIds.has(c.id);
                 const rows: any[] = [
                   <TableRow key={c.id} data-state={selectedIds.has(c.id) ? 'selected' : undefined}>
@@ -831,7 +831,7 @@ export default function Contratos() {
                     <TableCell className="text-muted-foreground">{formatDateBR(c.data_implantacao)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(Number(c.valor_contrato))}</TableCell>
                     {(() => {
-                      const rz = getResumoContrato(resumoReceitas, c.nome);
+                      const rz = getResumoContrato(detalheReceitas, c.id);
                       const base = Number(c.valor_contrato) || 0;
                       const mult = rz && base > 0 ? rz.recebido / base : null;
                       return (<>
@@ -1051,14 +1051,12 @@ export default function Contratos() {
         alvo={vincularAlvo}
         contratos={contratos as any[]}
         onClose={() => setVincularAlvo(null)}
-        onConfirm={async (contratoNome) => {
-          if (!vincularAlvo || !detalheReceitas) return;
-          const key = normalizeNomeContrato(vincularAlvo.nome);
-          const items = detalheReceitas.get(key) || [];
-          const ids = items.map(i => i.id);
+        onConfirm={async (contrato) => {
+          if (!vincularAlvo) return;
+          const ids = vincularAlvo.ids;
           try {
-            await vincular.mutateAsync({ ids, novaDescricao: contratoNome });
-            toast({ title: 'Vínculo criado', description: `${ids.length} lançamento(s) vinculado(s) a ${contratoNome}` });
+            await vincular.mutateAsync({ ids, contratoId: contrato.id });
+            toast({ title: 'Vínculo criado', description: `${ids.length} lançamento(s) vinculado(s) a ${contrato.nome}` });
             setVincularAlvo(null);
           } catch (e: any) {
             toast({ title: 'Erro ao vincular', description: e.message, variant: 'destructive' });
