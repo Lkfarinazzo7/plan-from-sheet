@@ -32,6 +32,25 @@ export function formatDateBR(iso?: string | null): string | null {
   return `${m[3]}/${m[2]}/${m[1]}`;
 }
 
+/**
+ * Valida uma data de CALENDÁRIO real em YYYY-MM-DD (regex sozinha aceitaria 2026-02-31).
+ */
+export function isDataValida(s: unknown): boolean {
+  const v = String(s ?? '');
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return false;
+  const ano = Number(m[1]);
+  const mes = Number(m[2]);
+  const dia = Number(m[3]);
+  if (ano < 1900 || ano > 2200) return false;
+  if (mes < 1 || mes > 12) return false;
+  if (dia < 1) return false;
+  const ultimo = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+  return dia <= ultimo;
+}
+
+export const MSG_DATA_INVALIDA = 'Data inválida: use uma data real do calendário no formato YYYY-MM-DD.';
+
 export function money(value: number | null | undefined) {
   const n = Number(value) || 0;
   return { valor: n, valor_formatado: formatBRL(n) };
@@ -57,6 +76,8 @@ function pad(n: number) {
 /** Datas sempre em string local YYYY-MM-DD (sem UTC). */
 export function resolveRange(input: PeriodInput): Range {
   if (input.data_inicio && input.data_fim) {
+    if (!isDataValida(input.data_inicio) || !isDataValida(input.data_fim)) throw new Error(MSG_DATA_INVALIDA);
+    if (input.data_inicio > input.data_fim) throw new Error('data_inicio não pode ser posterior a data_fim.');
     return { sd: input.data_inicio, ed: input.data_fim };
   }
   if (input.mes !== undefined && input.mes !== null && input.ano) {

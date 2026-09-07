@@ -15,7 +15,9 @@ import {
   dateFields,
   describeDiff,
   expiresAtFrom,
+  MSG_DATA_INVALIDA,
   formatDateBR,
+  isDataValida,
   money,
   resolveRange,
   sanitize,
@@ -63,11 +65,14 @@ const RO_STRICT = { readOnlyHint: true, destructiveHint: false, openWorldHint: f
 const RW_PREP = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
 const RW_CONFIRM = { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false } as const;
 
+/** Data de calendário real (a regex sozinha aceitaria 2026-02-31). */
+const dataStr = (desc: string) => z.string().refine(isDataValida, MSG_DATA_INVALIDA).describe(desc);
+
 const periodoShape = {
   mes: z.number().int().min(1).max(12).optional().describe('Mês (1-12). Use junto com "ano".'),
   ano: z.number().int().min(2000).max(2100).optional().describe('Ano (ex.: 2026).'),
-  data_inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Data inicial YYYY-MM-DD.'),
-  data_fim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Data final YYYY-MM-DD.'),
+  data_inicio: dataStr('Data inicial YYYY-MM-DD.').optional(),
+  data_fim: dataStr('Data final YYYY-MM-DD.').optional(),
 };
 const unidadeShape = {
   unidade: z.string().optional().describe('Unidade de negócio. Use "none" para lançamentos sem unidade.'),
@@ -476,8 +481,8 @@ export function buildServer(ctx: Ctx) {
     !filtro || String(valor ?? '').toLowerCase().includes(filtro.toLowerCase());
 
   const contratoFiltrosShape = {
-    data_implantacao_inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Data inicial de implantação (YYYY-MM-DD).'),
-    data_implantacao_fim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Data final de implantação (YYYY-MM-DD).'),
+    data_implantacao_inicio: dataStr('Data inicial de implantação (YYYY-MM-DD).').optional(),
+    data_implantacao_fim: dataStr('Data final de implantação (YYYY-MM-DD).').optional(),
     operadora: z.string().optional().describe('Nome (parcial) da operadora.'),
     corretor: z.string().optional().describe('Nome (parcial) do corretor.'),
     supervisor: z.string().optional().describe('Nome (parcial) do supervisor (A ou B).'),
@@ -984,15 +989,15 @@ export function buildServer(ctx: Ctx) {
   const alteracaoShape = {
     tipo_lancamento: z.enum(['receita', 'despesa']),
     id: z.string().uuid().describe('ID do lançamento.'),
-    data: z.string().regex(DATA_RX).optional().describe('Data legada do lançamento.'),
+    data: dataStr('Data legada do lançamento.').optional(),
     descricao: z.string().min(1).max(300).optional(),
     valor: z.number().nonnegative().optional(),
     status: z.string().optional(),
     unidade_negocio: z.string().nullable().optional(),
     observacoes: z.string().max(2000).nullable().optional(),
-    competencia: z.string().regex(DATA_RX).nullable().optional().describe('Data de competência (reconhecimento no DRE).'),
-    vencimento: z.string().regex(DATA_RX).nullable().optional().describe('Data de vencimento (fluxo projetado).'),
-    data_efetiva: z.string().regex(DATA_RX).nullable().optional().describe('Data efetiva de pagamento (despesa) ou recebimento (receita).'),
+    competencia: dataStr('Data de competência (reconhecimento no DRE).').nullable().optional(),
+    vencimento: dataStr('Data de vencimento (fluxo projetado).').nullable().optional(),
+    data_efetiva: dataStr('Data efetiva de pagamento (despesa) ou recebimento (receita).').nullable().optional(),
     categoria_id: z.string().uuid().nullable().optional(),
     subcategoria_id: z.string().uuid().nullable().optional().describe('Deve pertencer à categoria do lançamento.'),
     tipo: z.enum(['Fixo', 'Variável']).optional().describe('Somente despesas: tipo da despesa.'),
@@ -1753,7 +1758,7 @@ export function buildServer(ctx: Ctx) {
         'Os lançamentos já pagos são preservados intactos.',
       inputSchema: {
         serie_id: z.string().uuid(),
-        encerrada_em: z.string().regex(DATA_RX).describe('Data a partir da qual a série deixa de gerar ocorrências.'),
+        encerrada_em: dataStr('Data a partir da qual a série deixa de gerar ocorrências.'),
         motivo: z.string().min(3).max(500),
       },
       annotations: RW_PREP,
