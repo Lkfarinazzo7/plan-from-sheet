@@ -100,7 +100,7 @@ class Query implements PromiseLike<{ data: any; error: any; count?: number }> {
       hit.forEach((r) => Object.assign(r, this.payload));
       return { data: hit, error: null, count: hit.length };
     }
-    const out = this.limitN === null ? hit : hit.slice(0, this.limitN);
+    const out = this.limitN === null ? hit.slice(this.fromN) : hit.slice(this.fromN, this.fromN + this.limitN);
     return { data: out, error: null, count: hit.length };
   }
 
