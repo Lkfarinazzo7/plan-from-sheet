@@ -7,7 +7,6 @@ import {
   canConfirm,
   clampLimit,
   clampOffset,
-  computeDRE,
   expiresAtFrom,
   formatBRL,
   formatDateBR,
@@ -15,33 +14,32 @@ import {
   resolveRange,
   sanitize,
 } from '../../supabase/functions/odisseia-mcp/logic';
+import { calcularDRE, type LancamentoDRE } from '../../supabase/functions/odisseia-mcp/dre';
 import { safeReturnPath } from '@/lib/safeReturn';
 
-describe('DRE', () => {
-  it('classifica despesas por tipo_dre e calcula margens', () => {
-    const dre = computeDRE(
-      [{ valor: 1000 }, { valor: 1000 }],
-      [
-        { valor: 200, tipo_dre: 'operacional' },
-        { valor: 300, tipo_dre: 'custo_fixo' },
-        { valor: 100, tipo_dre: 'imposto' },
-        { valor: 100, tipo_dre: null },
-      ],
-    );
-    expect(dre.receitaBruta).toBe(2000);
-    expect(dre.despesasOperacionais).toBe(300);
-    expect(dre.custosFixos).toBe(300);
-    expect(dre.impostos).toBe(100);
-    expect(dre.margemOperacional).toBe(1700);
-    expect(dre.margemContribuicao).toBe(1400);
-    expect(dre.resultadoLiquido).toBe(1300);
-    expect(dre.margemLiquidaPercentual).toBeCloseTo(65);
+describe('DRE canônico', () => {
+  const period = { regime: 'competencia' as const, inicio: '2026-08-01', fim: '2026-08-31' };
+  const despesa = (valor: number, grupo: string | null): LancamentoDRE => ({ origem: 'despesa', valor, grupo, status: 'A pagar', competencia: '2026-08-01' });
+  it('contribuição antecede fixas e grupos ausentes não são presumidos', () => {
+    const dre = calcularDRE([
+      { origem: 'receita', valor: 2000, grupo: 'receita_operacional', status: 'Aguardando', competencia: '2026-08-01' },
+      despesa(200, 'custos_variaveis'), despesa(300, 'despesas_fixas'), despesa(100, 'tributos_lucro'), despesa(100, null),
+    ], period);
+    expect(dre.receita_bruta).toBe(2000);
+    expect(dre.custos_variaveis).toBe(200);
+    expect(dre.despesas_fixas).toBe(300);
+    expect(dre.tributos_lucro).toBe(100);
+    expect(dre.margem_contribuicao).toBe(1800);
+    expect(dre.resultado_operacional).toBe(1500);
+    expect(dre.resultado_liquido).toBe(1400);
+    expect(dre.margens.liquida).toBe(70);
+    expect(dre.pendencias.sem_grupo_dre).toEqual({ quantidade: 1, valor: 100 });
   });
 
   it('não divide por zero sem receita', () => {
-    const dre = computeDRE([], [{ valor: 500, tipo_dre: 'operacional' }]);
-    expect(dre.resultadoLiquido).toBe(-500);
-    expect(dre.margemLiquidaPercentual).toBe(0);
+    const dre = calcularDRE([despesa(500, 'custos_variaveis')], period);
+    expect(dre.resultado_liquido).toBe(-500);
+    expect(dre.margens.liquida).toBeNull();
   });
 });
 

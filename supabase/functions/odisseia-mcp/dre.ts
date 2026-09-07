@@ -63,6 +63,24 @@ export function grupoDeCategoria(
   return null;
 }
 
+/** Subcategoria pode especificar o grupo; null herda o grupo explícito da categoria. */
+export function grupoEfetivo(
+  categoria: { grupo_dre?: string | null } | null | undefined,
+  subcategoria?: { grupo_dre?: string | null } | null,
+): string | null {
+  return subcategoria?.grupo_dre ?? categoria?.grupo_dre ?? null;
+}
+
+export function dataValida(data: unknown): data is string {
+  if (typeof data !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data)) return false;
+  const parsed = new Date(`${data}T12:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === data;
+}
+
+function validarPeriodo(inicio: string, fim: string) {
+  if (!dataValida(inicio) || !dataValida(fim) || inicio > fim) throw new Error('Período inválido: informe datas reais em ordem crescente.');
+}
+
 export type LancamentoDRE = {
   id?: string;
   origem: 'receita' | 'despesa';
@@ -189,6 +207,7 @@ export function calcularDRE(
   opts: { regime: Regime; inicio: string; fim: string; filtros?: FiltrosDRE; fallbackDataLegada?: boolean },
 ): ResultadoDRE {
   const { regime, inicio, fim } = opts;
+  validarPeriodo(inicio, fim);
   const filtros = opts.filtros ?? {};
   const fallback = opts.fallbackDataLegada === true;
   const grupos: Record<string, Bucket> = {};
@@ -220,7 +239,7 @@ export function calcularDRE(
       d = l.data_legada;
       add(viaDataLegada, v);
     }
-    if (!d) {
+    if (!dataValida(d)) {
       add(pendSemData, v);
       continue;
     }
@@ -230,15 +249,7 @@ export function calcularDRE(
     const g = grupoDe(l);
     if (!g) {
       add(naoClassificado, v);
-      if (l.origem === 'despesa') add(pendSemGrupo, v);
-      else {
-        // Receita sem grupo cai em receita operacional, mas fica sinalizada.
-        naoClassificado.quantidade -= 1;
-        naoClassificado.valor = r2(naoClassificado.valor - v);
-        add(grupos.receita_operacional, v);
-        add(pendSemGrupo, v);
-        considerados += 1;
-      }
+      add(pendSemGrupo, v);
       continue;
     }
     if (!(g in grupos)) {
@@ -246,7 +257,9 @@ export function calcularDRE(
       add(pendSemGrupo, v);
       continue;
     }
-    add(grupos[g], v);
+    // O resultado financeiro é saldo: rendimentos aumentam, juros/encargos reduzem.
+    // As demais linhas são magnitudes da classificação (ex.: dedução é redutora).
+    add(grupos[g], g === 'resultado_financeiro' && l.origem === 'despesa' ? -v : v);
     considerados += 1;
   }
 
@@ -261,7 +274,7 @@ export function calcularDRE(
   const depreciacao = grupos.depreciacao_amortizacao.valor;
   const resultadoOperacional = r2(antesDepreciacao - depreciacao);
   const financeiro = grupos.resultado_financeiro.valor;
-  const antesTributos = r2(resultadoOperacional - financeiro);
+  const antesTributos = r2(resultadoOperacional + financeiro);
   const tributos = grupos.tributos_lucro.valor;
   const resultadoLiquido = r2(antesTributos - tributos);
 
@@ -276,7 +289,7 @@ export function calcularDRE(
     );
   }
   if (pendSemGrupo.quantidade) {
-    avisos.push(`${pendSemGrupo.quantidade} lançamento(s) sem grupo de DRE definido na categoria (total ${pendSemGrupo.valor}).`);
+    avisos.push(`${pendSemGrupo.quantidade} lançamento(s) sem grupo de DRE definido na categoria/subcategoria (total ${pendSemGrupo.valor}) ficaram FORA do resultado até revisão.`);
   }
   if (grupos.fora_dre.quantidade) {
     avisos.push(
@@ -338,5 +351,60 @@ export function calcularDRE(
       avisos,
     },
     itens_considerados: considerados,
+  };
+}
+
+export type ResultadoCaixa = {
+  periodo: { inicio: string; fim: string };
+  entradas_realizadas: number;
+  saidas_realizadas: number;
+  saldo_realizado: number;
+  entradas_previstas: number;
+  saidas_previstas: number;
+  saldo_previsto: number;
+  saldo_total: number;
+  vencidos_antes_periodo: { entradas: Bucket; saidas: Bucket; saldo: number };
+  pendencias: { sem_data_efetiva: Bucket; sem_vencimento: Bucket; status_indefinido: Bucket; cancelados_ignorados: Bucket; avisos: string[] };
+};
+
+/** Caixa inclui investimentos/principal; não aplica os grupos de resultado do DRE. */
+export function calcularFluxoCaixa(
+  lancamentos: LancamentoDRE[],
+  opts: { inicio: string; fim: string; filtros?: FiltrosDRE },
+): ResultadoCaixa {
+  validarPeriodo(opts.inicio, opts.fim);
+  const semEfetiva = zero(), semVencimento = zero(), indefinidos = zero(), cancelados = zero();
+  const vencidosEntradas = zero(), vencidosSaidas = zero();
+  let entradas = 0, saidas = 0, previstas = 0, previstasSaidas = 0;
+  for (const l of lancamentos) {
+    if (!passaFiltros(l, opts.filtros ?? {})) continue;
+    const v = n(l.valor);
+    if (cancelado(l)) { add(cancelados, v); continue; }
+    if (statusIndefinido(l)) { add(indefinidos, v); continue; }
+    const realizado = liquidado(l);
+    const d = realizado ? l.data_efetiva : l.vencimento;
+    if (!dataValida(d)) { add(realizado ? semEfetiva : semVencimento, v); continue; }
+    if (!realizado && d < opts.inicio) {
+      add(l.origem === 'receita' ? vencidosEntradas : vencidosSaidas, v);
+      continue;
+    }
+    if (d < opts.inicio || d > opts.fim) continue;
+    if (realizado && l.origem === 'receita') entradas = r2(entradas + v);
+    else if (realizado) saidas = r2(saidas + v);
+    else if (l.origem === 'receita') previstas = r2(previstas + v);
+    else previstasSaidas = r2(previstasSaidas + v);
+  }
+  const avisos = ['Caixa realizado usa apenas a data efetiva; projetado usa vencimento. Principal de empréstimos e investimentos entram no caixa, mas não no DRE.'];
+  if (semEfetiva.quantidade) avisos.push(`${semEfetiva.quantidade} lançamento(s) liquidado(s) sem data efetiva (${semEfetiva.valor}) fora do realizado; revisar histórico, sem presumir datas.`);
+  if (semVencimento.quantidade) avisos.push(`${semVencimento.quantidade} lançamento(s) aberto(s) sem vencimento (${semVencimento.valor}) fora do projetado; revisar histórico.`);
+  if (indefinidos.quantidade) avisos.push(`${indefinidos.quantidade} lançamento(s) com status desconhecido (${indefinidos.valor}) fora dos totais.`);
+  if (vencidosEntradas.quantidade || vencidosSaidas.quantidade) avisos.push('Vencidos antes do período aparecem separadamente; não foi presumida uma nova data de liquidação.');
+  return {
+    periodo: { inicio: opts.inicio, fim: opts.fim },
+    entradas_realizadas: entradas, saidas_realizadas: saidas, saldo_realizado: r2(entradas - saidas),
+    entradas_previstas: previstas, saidas_previstas: previstasSaidas, saldo_previsto: r2(previstas - previstasSaidas),
+    saldo_total: r2(entradas - saidas + previstas - previstasSaidas),
+    vencidos_antes_periodo: { entradas: vencidosEntradas, saidas: vencidosSaidas, saldo: r2(vencidosEntradas.valor - vencidosSaidas.valor) },
+    pendencias: { sem_data_efetiva: semEfetiva, sem_vencimento: semVencimento, status_indefinido: indefinidos, cancelados_ignorados: cancelados, avisos },
   };
 }

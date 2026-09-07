@@ -1,6 +1,6 @@
 /** Testes puros do DRE: competência x caixa realizado x projetado, com pendências explícitas. */
 import { describe, expect, it } from 'vitest';
-import { calcularDRE, type LancamentoDRE } from '../../supabase/functions/odisseia-mcp/dre';
+import { calcularDRE, calcularFluxoCaixa, grupoDeCategoria, grupoEfetivo, type LancamentoDRE } from '../../supabase/functions/odisseia-mcp/dre';
 
 const base = { inicio: '2026-08-01', fim: '2026-08-31' };
 
@@ -146,5 +146,97 @@ describe('filtros de unidade e setor nos dois lados', () => {
     expect(r.receita_bruta).toBe(0);
     expect(r.despesas_fixas).toBe(170);
     expect(r.pendencias.avisos.join(' ')).toMatch(/setor/i);
+  });
+});
+
+describe('regressões independentes: classificação, financeiro e caixa', () => {
+  it('rendimento financeiro aumenta o resultado e juros reduzem: +250 -100 = +150', () => {
+    const r = calcularDRE([
+      rec({ valor: 1000, competencia: '2026-08-01' }),
+      rec({ valor: 250, grupo: 'resultado_financeiro', competencia: '2026-08-01' }),
+      desp({ valor: 100, grupo: 'resultado_financeiro', competencia: '2026-08-01' }),
+    ], { ...base, regime: 'competencia' });
+    expect(r.resultado_financeiro).toBe(150);
+    expect(r.resultado_operacional).toBe(1000);
+    expect(r.resultado_liquido).toBe(1150);
+  });
+
+  it('receita sem grupo não vira receita operacional presumida, mesmo com competência', () => {
+    const r = calcularDRE([rec({ valor: 20000, grupo: null, competencia: '2026-08-01' })], { ...base, regime: 'competencia' });
+    expect(r.receita_bruta).toBe(0);
+    expect(r.resultado_liquido).toBe(0);
+    expect(r.nao_classificado).toEqual({ quantidade: 1, valor: 20000 });
+    expect(r.pendencias.sem_grupo_dre.valor).toBe(20000);
+  });
+
+  it('subcategoria pode especificar grupo; null herda apenas o grupo explícito da categoria', () => {
+    expect(grupoEfetivo({ grupo_dre: 'despesas_fixas' }, { grupo_dre: 'custos_variaveis' })).toBe('custos_variaveis');
+    expect(grupoEfetivo({ grupo_dre: 'despesas_fixas' }, { grupo_dre: null })).toBe('despesas_fixas');
+    expect(grupoDeCategoria({ tipo_dre: 'operacional' })).toBeNull();
+    expect(grupoEfetivo(null, null)).toBeNull();
+  });
+
+  it('data legada presente não preenche competência nem data efetiva por padrão', () => {
+    const rows = [rec({ status: 'Recebido', data_legada: '2026-08-05', competencia: null, data_efetiva: null })];
+    for (const regime of ['competencia', 'realizado'] as const) {
+      const r = calcularDRE(rows, { ...base, regime });
+      expect(r.receita_bruta).toBe(0);
+      expect(r.pendencias.sem_data_do_regime.quantidade).toBe(1);
+      expect(r.pendencias.via_data_legada.quantidade).toBe(0);
+    }
+  });
+
+  it('cancelados por status também ficam fora; status desconhecido não vira previsto', () => {
+    const rows = [desp({ status: 'Cancelado', vencimento: '2026-08-10' }), desp({ status: 'Desconhecido', vencimento: '2026-08-10' })];
+    const dre = calcularDRE(rows, { ...base, regime: 'projetado' });
+    const caixa = calcularFluxoCaixa(rows, base);
+    expect(dre.resultado_liquido).toBe(0);
+    expect(caixa.saidas_previstas).toBe(0);
+    expect(caixa.pendencias.cancelados_ignorados.quantidade).toBe(1);
+    expect(caixa.pendencias.status_indefinido.quantidade).toBe(1);
+  });
+
+  it('caixa inclui empréstimo e ativo, mas DRE exclui ambos', () => {
+    const rows = [rec({ valor: 20000, grupo: 'fora_dre', status: 'Recebido', competencia: '2026-08-05', data_efetiva: '2026-08-05' }), desp({ valor: 5000, grupo: 'fora_dre', status: 'Pago', competencia: '2026-08-05', data_efetiva: '2026-08-05' })];
+    expect(calcularDRE(rows, { ...base, regime: 'competencia' }).resultado_liquido).toBe(0);
+    expect(calcularFluxoCaixa(rows, base).saldo_realizado).toBe(15000);
+  });
+
+  it('realizado segue pagamento setembro, não competência agosto', () => {
+    const rows = [desp({ valor: 100, status: 'Pago', competencia: '2026-08-10', data_efetiva: '2026-09-02', vencimento: '2026-08-20' })];
+    expect(calcularFluxoCaixa(rows, base).saidas_realizadas).toBe(0);
+    expect(calcularFluxoCaixa(rows, { inicio: '2026-09-01', fim: '2026-09-30' }).saidas_realizadas).toBe(100);
+    expect(calcularFluxoCaixa(rows, base).saidas_previstas).toBe(0);
+  });
+
+  it('vencidos anteriores são separados, sem presumir novo vencimento ou pagamento', () => {
+    const rows = [desp({ valor: 100, status: 'Atrasado', vencimento: '2026-07-31' }), desp({ valor: 200, vencimento: '2026-08-05' })];
+    const r = calcularFluxoCaixa(rows, base);
+    expect(r.saidas_previstas).toBe(200);
+    expect(r.vencidos_antes_periodo.saidas.valor).toBe(100);
+    expect(r.saldo_total).toBe(-200);
+  });
+
+  it('caixa sinaliza faltas de datas efetivas e vencimentos sem consultar data legada', () => {
+    const r = calcularFluxoCaixa([rec({ status: 'Recebido', data_legada: '2026-08-01' }), desp({ data_legada: '2026-08-01' })], base);
+    expect(r.saldo_total).toBe(0);
+    expect(r.pendencias.sem_data_efetiva.quantidade).toBe(1);
+    expect(r.pendencias.sem_vencimento.quantidade).toBe(1);
+  });
+
+  it('caixa aplica unidade e setor às receitas e às despesas', () => {
+    const r = calcularFluxoCaixa([
+      rec({ valor: 100, status: 'Recebido', data_efetiva: '2026-08-01', unidade_negocio: 'Odisseia', setor: 'Comercial' }),
+      rec({ valor: 999, status: 'Recebido', data_efetiva: '2026-08-01', unidade_negocio: 'Outra', setor: 'Comercial' }),
+      desp({ valor: 40, status: 'Pago', data_efetiva: '2026-08-01', unidade_negocio: 'Odisseia', setor: 'Comercial' }),
+      desp({ valor: 999, status: 'Pago', data_efetiva: '2026-08-01', unidade_negocio: 'Odisseia', setor: null }),
+    ], { ...base, filtros: { unidade: 'Odisseia', setor: 'Comercial' } });
+    expect(r.saldo_realizado).toBe(60);
+  });
+
+  it('rejeita período impossível e trata data impossível do lançamento como pendência', () => {
+    expect(() => calcularDRE([], { regime: 'competencia', inicio: '2026-02-30', fim: '2026-03-10' })).toThrow(/Período inválido/);
+    const r = calcularFluxoCaixa([desp({ vencimento: '2026-02-30' })], base);
+    expect(r.pendencias.sem_vencimento.quantidade).toBe(1);
   });
 });

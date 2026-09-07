@@ -120,7 +120,7 @@ describe('demais tools alcançáveis por nome', () => {
     const out = payload(
       await client.callTool({
         name: TOOL.PREPARAR_CRIACAO_DESPESA,
-        arguments: { data: '2026-08-10', descricao: 'Aluguel', categoria: 'Administrativo', tipo: 'Fixa', valor: 900 },
+        arguments: { data: '2026-08-10', descricao: 'Aluguel', categoria: 'Administrativo', tipo: 'Fixo', valor: 900 },
       }),
     );
     expect(out.confirmation_id).toBeTruthy();
@@ -131,7 +131,7 @@ describe('demais tools alcançáveis por nome', () => {
     const prep = payload(
       await client.callTool({
         name: TOOL.PREPARAR_CRIACAO_DESPESA,
-        arguments: { data: '2026-08-10', descricao: 'Aluguel', categoria: 'Administrativo', tipo: 'Fixa', valor: 900 },
+        arguments: { data: '2026-08-10', descricao: 'Aluguel', categoria: 'Administrativo', tipo: 'Fixo', valor: 900 },
       }),
     );
     const c = payload(await client.callTool({ name: TOOL.CANCELAR_OPERACAO, arguments: { confirmation_id: prep.confirmation_id } }));
@@ -176,6 +176,8 @@ describe('alteração do campo tipo em despesas', () => {
     observacoes: 'nota',
     categoria_id: '44444444-4444-4444-8444-444444444444',
     setor_id: null,
+    cancelado: false,
+    versao: 1,
   };
 
   beforeEach(async () => {
@@ -215,7 +217,7 @@ describe('alteração do campo tipo em despesas', () => {
     expect(ok.status).toBe('executed');
     const rows = db.rows('despesas');
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toEqual({ ...baseDespesa, tipo: 'Fixo' });
+    expect(rows[0]).toEqual({ ...baseDespesa, tipo: 'Fixo', versao: 2 });
   });
 
   it('tipo inválido é rejeitado pelo schema e não cria operação', async () => {
@@ -246,7 +248,7 @@ describe('alteração do campo tipo em despesas', () => {
     expect(out.alteracoes).toEqual([{ campo: 'valor', antes: 900, depois: 1200 }]);
     const ok = payload(await client.callTool({ name: TOOL.CONFIRMAR_OPERACAO, arguments: { confirmation_id: out.confirmation_id } }));
     expect(ok.status).toBe('executed');
-    expect(db.rows('despesas')[0]).toEqual({ ...baseDespesa, valor: 1200 });
+    expect(db.rows('despesas')[0]).toEqual({ ...baseDespesa, valor: 1200, versao: 2 });
   });
 
   it('listar_despesas retorna tipo para Fixo e Variável', async () => {

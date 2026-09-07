@@ -3,7 +3,7 @@
 // testes e documentação) DEVE usar estas constantes.
 
 export const SERVER_NAME = 'financeiro-odisseia';
-export const SERVER_VERSION = '1.2.0';
+export const SERVER_VERSION = '1.3.0';
 
 export const TOOL = {
   CONSULTAR_DASHBOARD: 'consultar_dashboard',

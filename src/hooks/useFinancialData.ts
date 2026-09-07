@@ -2,12 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import {
-  type LancamentoDRE,
   type Regime,
   type ResultadoDRE,
-  calcularDRE,
-  grupoDeCategoria,
+  type ResultadoCaixa,
+  calcularFluxoCaixa,
 } from '../../supabase/functions/odisseia-mcp/dre';
+import { carregarLancamentosRelatorio, relatorioDRE, projetarCaixa, dataLocal, fetchAllRows, lancamentoAtivo } from '@/lib/financialReporting';
 
 function toDateStr(year: number, month: number, day: number): string {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -50,17 +50,15 @@ export function useReceitas(month?: number, year?: number, startDate?: string, e
   return useQuery({
     queryKey: ['receitas', month, year, startDate, endDate],
     queryFn: async () => {
-      let query = supabase.from('receitas').select('*, vendedores(nome), operadoras(nome)').order('data', { ascending: true });
-      if (startDate && endDate) {
-        query = query.gte('data', startDate).lte('data', endDate);
-      } else if (month !== undefined && year !== undefined) {
-        const sd = toDateStr(year, month, 1);
-        const ed = toDateStr(year, month, new Date(year, month + 1, 0).getDate());
-        query = query.gte('data', sd).lte('data', ed);
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      const rows = await fetchAllRows<any>((from, to) => {
+        let query = supabase.from('receitas').select('*, vendedores(nome), operadoras(nome)').order('data').order('id');
+        if (startDate && endDate) query = query.gte('data', startDate).lte('data', endDate);
+        else if (month !== undefined && year !== undefined) {
+          query = query.gte('data', toDateStr(year, month, 1)).lte('data', toDateStr(year, month, new Date(year, month + 1, 0).getDate()));
+        }
+        return query.range(from, to);
+      });
+      return rows.filter(r => lancamentoAtivo(r, 'receita'));
     },
   });
 }
@@ -69,17 +67,15 @@ export function useDespesas(month?: number, year?: number, startDate?: string, e
   return useQuery({
     queryKey: ['despesas', month, year, startDate, endDate],
     queryFn: async () => {
-      let query = supabase.from('despesas').select('*, categorias_despesa(nome), setores_despesa(nome)').order('data', { ascending: true });
-      if (startDate && endDate) {
-        query = query.gte('data', startDate).lte('data', endDate);
-      } else if (month !== undefined && year !== undefined) {
-        const sd = toDateStr(year, month, 1);
-        const ed = toDateStr(year, month, new Date(year, month + 1, 0).getDate());
-        query = query.gte('data', sd).lte('data', ed);
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      const rows = await fetchAllRows<any>((from, to) => {
+        let query = supabase.from('despesas').select('*, categorias_despesa(nome), setores_despesa(nome)').order('data').order('id');
+        if (startDate && endDate) query = query.gte('data', startDate).lte('data', endDate);
+        else if (month !== undefined && year !== undefined) {
+          query = query.gte('data', toDateStr(year, month, 1)).lte('data', toDateStr(year, month, new Date(year, month + 1, 0).getDate()));
+        }
+        return query.range(from, to);
+      });
+      return rows.filter(r => lancamentoAtivo(r, 'despesa'));
     },
   });
 }
@@ -455,115 +451,28 @@ export function useUpdateSupervisor() {
 
 export function useGenerateRecurringDespesas() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ sourceMonth, sourceYear, targetMonth, targetYear }: {
       sourceMonth: number; sourceYear: number; targetMonth: number; targetYear: number;
     }) => {
-      const startDate = toDateStr(sourceYear, sourceMonth, 1);
-      const endDate = toDateStr(sourceYear, sourceMonth, new Date(sourceYear, sourceMonth + 1, 0).getDate());
-      
-      const { data: recurring, error: fetchError } = await supabase
-        .from('despesas')
-        .select('*')
-        .eq('recorrente', true)
-        .gte('data', startDate)
-        .lte('data', endDate);
-      
-      if (fetchError) throw fetchError;
-      if (!recurring?.length) throw new Error('Nenhuma despesa recorrente encontrada no mês selecionado.');
-
-      // Séries encerradas NÃO geram novas ocorrências; lançamentos cancelados também não.
-      const serieIds = [...new Set(recurring.map((d: any) => d.serie_id).filter(Boolean))] as string[];
-      const seriesById = new Map<string, any>();
-      if (serieIds.length) {
-        const { data: series, error: seriesError } = await supabase
-          .from('series_recorrencia')
-          .select('id, ativa, encerrada_em, unidade_negocio, categoria_id, subcategoria_id, setor_id')
-          .in('id', serieIds);
-        if (seriesError) throw seriesError;
-        for (const s of series || []) seriesById.set(s.id, s);
-      }
-      const targetStart = toDateStr(targetYear, targetMonth, 1);
-      const lastDayTarget = new Date(targetYear, targetMonth + 1, 0).getDate();
-      const targetEnd = toDateStr(targetYear, targetMonth, lastDayTarget);
-
-      const ignoradosSerieEncerrada: string[] = [];
-      const ignoradosCancelados: string[] = [];
-      const geraveis = recurring.filter((d: any) => {
-        if (d.cancelado) {
-          ignoradosCancelados.push(d.descricao);
-          return false;
-        }
-        const serie = d.serie_id ? seriesById.get(d.serie_id) : null;
-        if (!serie) return true;
-        // Série encerrada nunca gera nova ocorrência — nem a partir de um mês antigo já pago.
-        if (serie.ativa === false || (serie.encerrada_em && serie.encerrada_em <= targetEnd)) {
-          ignoradosSerieEncerrada.push(d.descricao);
-          return false;
-        }
-        return true;
+      // Database locks the real series and enforces occurrence uniqueness.
+      // Legacy rows without a verified series are reported, NEVER copied by text.
+      const { data, error } = await (supabase as any).rpc('gerar_ocorrencias_recorrentes', {
+        _source_inicio: toDateStr(sourceYear, sourceMonth, 1),
+        _source_fim: toDateStr(sourceYear, sourceMonth, new Date(sourceYear, sourceMonth + 1, 0).getDate()),
+        _target_inicio: toDateStr(targetYear, targetMonth, 1),
       });
-      if (!geraveis.length) {
-        throw new Error('Todas as despesas recorrentes desse mês estão canceladas ou pertencem a séries encerradas. Nada foi gerado.');
-      }
-
-      // Já existentes no mês de destino: por SÉRIE (identidade real) quando houver, senão pelo par descrição+valor.
-      const { data: existing, error: existingError } = await supabase
-        .from('despesas')
-        .select('descricao, valor, serie_id')
-        .eq('recorrente', true)
-        .gte('data', targetStart)
-        .lte('data', targetEnd);
-      if (existingError) throw existingError;
-      const seriesNoDestino = new Set((existing || []).map((e: any) => e.serie_id).filter(Boolean));
-      const existingKeys = new Set((existing || []).map(e => `${e.descricao}|${Number(e.valor)}`));
-
-      const legadosSemSerie: string[] = [];
-      const newDespesas = geraveis
-        .filter((d: any) => {
-          // Uma ocorrência por série por mês de destino.
-          if (d.serie_id) return !seriesNoDestino.has(d.serie_id);
-          legadosSemSerie.push(d.descricao);
-          return !existingKeys.has(`${d.descricao}|${Number(d.valor)}`);
-        })
-        .map(d => {
-          // Extrair o dia direto da string YYYY-MM-DD (new Date() interpretaria como UTC e voltaria 1 dia)
-          const originalDay = parseInt(String(d.data).slice(8, 10), 10);
-          const day = Math.min(originalDay, lastDayTarget);
-          const serie = d.serie_id ? seriesById.get(d.serie_id) : null;
-          return {
-            data: toDateStr(targetYear, targetMonth, day),
-            descricao: d.descricao,
-            categoria_id: d.categoria_id,
-            tipo: d.tipo,
-            valor: d.valor,
-            responsavel: d.responsavel,
-            recorrente: true,
-            status: 'A pagar' as const,
-            // Unidade e setor vêm do cadastro VIGENTE da série (quando definidos), não da cópia antiga.
-            unidade_negocio: serie?.unidade_negocio ?? (d as any).unidade_negocio ?? null,
-            setor_id: serie?.setor_id ?? (d as any).setor_id ?? null,
-            serie_id: (d as any).serie_id ?? null,
-            observacoes: (d as any).observacoes ?? null,
-            user_id: user!.id,
-          };
-        });
-
-      if (!newDespesas.length) {
-        throw new Error('Todas as despesas recorrentes desse mês já existem no mês de destino. Nada foi duplicado.');
-      }
-
-      const { error } = await supabase.from('despesas').insert(newDespesas);
       if (error) throw error;
       return {
-        geradas: newDespesas.length,
-        ignoradas_serie_encerrada: ignoradosSerieEncerrada.length,
-        ignoradas_canceladas: ignoradosCancelados.length,
-        sem_serie: legadosSemSerie.length,
+        geradas: data.criadas ?? 0,
+        ignoradas_serie_encerrada: data.ignoradas_encerradas ?? 0,
+        ignoradas_canceladas: data.ignoradas_canceladas ?? 0,
+        ignoradas_existentes: data.ignoradas_existentes ?? 0,
+        sem_serie: data.legadas_sem_serie ?? 0,
+        pendencias: (data.pendencias ?? []) as { serie_id?: string; motivo: string }[],
       };
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['despesas'] }),
+    onSuccess: () => queryClient.invalidateQueries(),
   });
 }
 
@@ -641,46 +550,12 @@ export function useMonthlyComparison(unidade?: string) {
     queryKey: ['monthly-comparison', unidade || 'all'],
     queryFn: async () => {
       const now = new Date();
-      const startM = now.getMonth() - 5;
-      const startY = now.getFullYear() + Math.floor(startM / 12);
-      const startMonth = ((startM % 12) + 12) % 12;
-      const startDate = toDateStr(startY, startMonth, 1);
-      const endDate = toDateStr(now.getFullYear(), now.getMonth(), new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate());
-
-      let rq = supabase.from('receitas').select('data, valor, unidade_negocio').gte('data', startDate).lte('data', endDate);
-      let dq = supabase.from('despesas').select('data, valor, unidade_negocio').gte('data', startDate).lte('data', endDate);
-      if (unidade === 'none') {
-        rq = rq.is('unidade_negocio', null);
-        dq = dq.is('unidade_negocio', null);
-      } else if (unidade) {
-        rq = rq.eq('unidade_negocio', unidade);
-        dq = dq.eq('unidade_negocio', unidade);
-      }
-      const [receitasRes, despesasRes] = await Promise.all([rq, dq]);
-
-      if (receitasRes.error) throw receitasRes.error;
-      if (despesasRes.error) throw despesasRes.error;
-
-      const months: Record<string, { receitas: number; despesas: number }> = {};
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        months[key] = { receitas: 0, despesas: 0 };
-      }
-
-      for (const r of receitasRes.data || []) {
-        const key = r.data.substring(0, 7);
-        if (months[key]) months[key].receitas += Number(r.valor);
-      }
-      for (const d of despesasRes.data || []) {
-        const key = d.data.substring(0, 7);
-        if (months[key]) months[key].despesas += Number(d.valor);
-      }
-
-      return Object.entries(months).map(([key, val]) => {
-        const [y, m] = key.split('-');
-        const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-        return { mes: `${monthNames[parseInt(m) - 1]}/${y.slice(2)}`, ...val };
+      const lancamentos = await carregarLancamentosRelatorio(supabase);
+      return Array.from({ length: 6 }, (_, i) => {
+        const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+        const y = d.getFullYear(), m = d.getMonth();
+        const caixa = calcularFluxoCaixa(lancamentos, { inicio: toDateStr(y, m, 1), fim: toDateStr(y, m, new Date(y, m + 1, 0).getDate()), filtros: { unidade } });
+        return { mes: d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }), receitas: caixa.entradas_realizadas, despesas: caixa.saidas_realizadas };
       });
     },
   });
@@ -712,14 +587,10 @@ export type ContratoInput = {
 export function useContratos() {
   return useQuery({
     queryKey: ['contratos'],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('contratos')
-        .select('*, operadoras(nome), supervisor_a:supervisores!supervisor_a_id(nome), supervisor_b:supervisores!supervisor_b_id(nome), corretor:vendedores!corretor_id(nome)')
-        .order('data_implantacao', { ascending: false, nullsFirst: false });
-      if (error) throw error;
-      return data || [];
-    },
+    queryFn: () => fetchAllRows<any>((from, to) => (supabase as any)
+      .from('contratos')
+      .select('*, operadoras(nome), supervisor_a:supervisores!supervisor_a_id(nome), supervisor_b:supervisores!supervisor_b_id(nome), corretor:vendedores!corretor_id(nome)')
+      .order('data_implantacao', { ascending: false, nullsFirst: false }).order('id').range(from, to)),
   });
 }
 
@@ -835,15 +706,14 @@ export function useReceitasDetalhePorContrato() {
   return useQuery({
     queryKey: ['receitas-por-contrato'],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const data = await fetchAllRows<any>((from, to) => (supabase as any)
         .from('receitas')
-        .select('id, data, descricao, valor, status, contrato_id, operadoras:operadora_id(nome), vendedores:vendedor_id(nome)')
+        .select('id, data, data_recebimento, vencimento, cancelado, descricao, valor, status, contrato_id, operadoras:operadora_id(nome), vendedores:vendedor_id(nome)')
         .not('contrato_id', 'is', null)
-        .order('data', { ascending: false });
-      if (error) throw error;
+        .order('data', { ascending: false }).order('id').range(from, to));
       const map = new Map<string, ReceitaDetalheItem[]>();
       for (const r of (data || []) as any[]) {
-        if (!r.contrato_id) continue;
+        if (!r.contrato_id || !lancamentoAtivo(r, 'receita')) continue;
         const item: ReceitaDetalheItem = {
           id: r.id,
           data: r.data,
@@ -891,13 +761,13 @@ export function useReceitasSemContrato() {
   return useQuery({
     queryKey: ['receitas-sem-contrato'],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const data = await fetchAllRows<any>((from, to) => (supabase as any)
         .from('receitas')
-        .select('id, descricao, valor')
-        .is('contrato_id', null);
-      if (error) throw error;
+        .select('id, descricao, valor, status, cancelado')
+        .is('contrato_id', null).order('id').range(from, to));
       const map = new Map<string, ReceitaPendenteGrupo>();
       for (const r of (data || []) as any[]) {
+        if (!lancamentoAtivo(r, 'receita')) continue;
         const key = normalizeNome(r.descricao);
         if (!key) continue;
         const cur = map.get(key) || { nome: r.descricao, qtd: 0, total: 0, ids: [] };
@@ -1027,165 +897,53 @@ export type DREResult = {
 
 /**
  * DRE com a MESMA regra do servidor MCP (regime de competência, caixa realizado ou projetado).
- * Enquanto os lançamentos não tiverem as datas específicas, usamos a data do lançamento como
- * apoio de exibição (sinalizado em `detalhe.pendencias.via_data_legada`) — nada é gravado no banco.
+ * Dados sem competência/pagamento/vencimento ou classificação viram pendências visíveis.
+ * Não há fallback para datas legadas nem classificação automática.
  */
 export function useDRE(args: PeriodArgs & { regime?: Regime; setor?: string }) {
-  const regime: Regime = args.regime ?? 'realizado';
+  const regime: Regime = args.regime ?? 'competencia';
   return useQuery({
     queryKey: ['dre', regime, args.month, args.year, args.startDate, args.endDate, args.unidade || 'all', args.setor || 'all'],
     enabled: !!resolveRange(args),
     queryFn: async (): Promise<DREResult> => {
       const r = resolveRange(args)!;
-      const [cats, setores, rr, dr] = await Promise.all([
-        supabase.from('categorias_despesa').select('id, grupo_dre, tipo_dre'),
-        supabase.from('setores_despesa').select('id, nome'),
-        supabase.from('receitas').select('id, valor, status, data, competencia, vencimento, data_recebimento, cancelado, unidade_negocio, categoria_id'),
-        supabase.from('despesas').select('id, valor, status, data, competencia, vencimento, data_pagamento, cancelado, unidade_negocio, categoria_id, setor_id'),
-      ]);
-      for (const res of [cats, setores, rr, dr]) if (res.error) throw res.error;
-      const catById = new Map((cats.data || []).map((c: any) => [c.id, c]));
-      const setorById = new Map((setores.data || []).map((s: any) => [s.id, s.nome]));
-
-      const lancamentos: LancamentoDRE[] = [
-        ...(rr.data || []).map((x: any) => ({
-          origem: 'receita' as const,
-          valor: x.valor,
-          status: x.status,
-          cancelado: x.cancelado ?? false,
-          competencia: x.competencia ?? null,
-          vencimento: x.vencimento ?? null,
-          data_efetiva: x.data_recebimento ?? null,
-          data_legada: x.data ?? null,
-          grupo: grupoDeCategoria(catById.get(x.categoria_id), false) ?? 'receita_operacional',
-          unidade_negocio: x.unidade_negocio ?? null,
-          setor: null,
-        })),
-        ...(dr.data || []).map((x: any) => ({
-          origem: 'despesa' as const,
-          valor: x.valor,
-          status: x.status,
-          cancelado: x.cancelado ?? false,
-          competencia: x.competencia ?? null,
-          vencimento: x.vencimento ?? null,
-          data_efetiva: x.data_pagamento ?? null,
-          data_legada: x.data ?? null,
-          grupo: grupoDeCategoria(catById.get(x.categoria_id), true),
-          unidade_negocio: x.unidade_negocio ?? null,
-          setor: setorById.get(x.setor_id) ?? null,
-        })),
-      ];
-
-      const detalhe = calcularDRE(lancamentos, {
-        regime,
-        inicio: r.sd,
-        fim: r.ed,
-        filtros: { unidade: args.unidade ?? null, setor: args.setor ?? null },
-        fallbackDataLegada: true,
-      });
-
-      return {
-        receitaBruta: detalhe.receita_bruta,
-        despesasOperacionais: detalhe.custos_variaveis,
-        margemOperacional: detalhe.margem_contribuicao,
-        custosFixos: detalhe.despesas_fixas + detalhe.despesas_comerciais,
-        margemContribuicao: detalhe.resultado_antes_depreciacao,
-        impostos: detalhe.tributos_lucro,
-        resultadoLiquido: detalhe.resultado_liquido,
-        detalhe,
-      };
+      const lancamentos = await carregarLancamentosRelatorio(supabase);
+      return relatorioDRE(lancamentos, r.sd, r.ed, regime, { unidade: args.unidade, setor: args.setor });
     },
   });
 }
 
 export type DFCRealizado = {
-  entradasRealizadas: number;
-  saidasRealizadas: number;
-  entradasPrevistas: number;
-  saidasPrevistas: number;
-  saldoRealizado: number;
-  saldoTotal: number;
+  entradasRealizadas: number; saidasRealizadas: number; entradasPrevistas: number; saidasPrevistas: number;
+  saldoRealizado: number; saldoTotal: number; detalhe: ResultadoCaixa;
 };
 
-export function useDFCRealizado(args: PeriodArgs) {
+export function useDFCRealizado(args: PeriodArgs & { setor?: string }) {
   return useQuery({
-    queryKey: ['dfc-realizado', args.month, args.year, args.startDate, args.endDate, args.unidade || 'all'],
+    queryKey: ['dfc-realizado', args.month, args.year, args.startDate, args.endDate, args.unidade || 'all', args.setor || 'all'],
     enabled: !!resolveRange(args),
     queryFn: async (): Promise<DFCRealizado> => {
       const r = resolveRange(args)!;
-      let rq: any = supabase.from('receitas').select('valor, status, unidade_negocio').gte('data', r.sd).lte('data', r.ed);
-      let dq: any = supabase.from('despesas').select('valor, status, unidade_negocio').gte('data', r.sd).lte('data', r.ed);
-      rq = applyUnidade(rq, args.unidade);
-      dq = applyUnidade(dq, args.unidade);
-      const [rr, dr] = await Promise.all([rq, dq]);
-      if (rr.error) throw rr.error;
-      if (dr.error) throw dr.error;
-      let entradasRealizadas = 0, entradasPrevistas = 0;
-      for (const x of rr.data || []) {
-        if (x.status === 'Recebido') entradasRealizadas += Number(x.valor);
-        else entradasPrevistas += Number(x.valor);
-      }
-      let saidasRealizadas = 0, saidasPrevistas = 0;
-      for (const x of dr.data || []) {
-        if (x.status === 'Pago') saidasRealizadas += Number(x.valor);
-        else saidasPrevistas += Number(x.valor);
-      }
-      const saldoRealizado = entradasRealizadas - saidasRealizadas;
-      const saldoTotal = (entradasRealizadas + entradasPrevistas) - (saidasRealizadas + saidasPrevistas);
-      return { entradasRealizadas, saidasRealizadas, entradasPrevistas, saidasPrevistas, saldoRealizado, saldoTotal };
+      const lancamentos = await carregarLancamentosRelatorio(supabase);
+      const detalhe = calcularFluxoCaixa(lancamentos, { inicio: r.sd, fim: r.ed, filtros: { unidade: args.unidade, setor: args.setor } });
+      return {
+        entradasRealizadas: detalhe.entradas_realizadas, saidasRealizadas: detalhe.saidas_realizadas,
+        entradasPrevistas: detalhe.entradas_previstas, saidasPrevistas: detalhe.saidas_previstas,
+        saldoRealizado: detalhe.saldo_realizado, saldoTotal: detalhe.saldo_total, detalhe,
+      };
     },
   });
 }
 
 export type DFCProjetadoPonto = { semana: string; sd: string; ed: string; entradas: number; saidas: number; saldo: number; saldoAcumulado: number };
 
-/**
- * Projeção semanal do fluxo de caixa nos próximos N dias (a partir de hoje).
- * Entradas: receitas com status "Aguardando" (data futura).
- * Saídas: despesas com status "A pagar" ou "Atrasado" (data futura ou vencidas).
- */
-export function useDFCProjetado(unidade?: string, daysAhead = 90) {
+/** Explicit due dates only; arrears and records with absent dates are reported separately. */
+export function useDFCProjetado(unidade?: string, daysAhead = 90, setor?: string) {
   return useQuery({
-    queryKey: ['dfc-projetado', unidade || 'all', daysAhead],
-    queryFn: async (): Promise<DFCProjetadoPonto[]> => {
-      const today = new Date();
-      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const end = new Date(start);
-      end.setDate(start.getDate() + daysAhead);
-      const sd = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
-      const ed = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
-
-      let rq: any = supabase.from('receitas').select('data, valor, status, unidade_negocio').eq('status', 'Aguardando').gte('data', sd).lte('data', ed);
-      let dq: any = supabase.from('despesas').select('data, valor, status, unidade_negocio').in('status', ['A pagar', 'Atrasado']).gte('data', sd).lte('data', ed);
-      rq = applyUnidade(rq, unidade);
-      dq = applyUnidade(dq, unidade);
-      const [rr, dr] = await Promise.all([rq, dq]);
-      if (rr.error) throw rr.error;
-      if (dr.error) throw dr.error;
-
-      // Buckets semanais (7d) a partir de hoje
-      const weeks = Math.ceil(daysAhead / 7);
-      const buckets: DFCProjetadoPonto[] = [];
-      for (let i = 0; i < weeks; i++) {
-        const ws = new Date(start); ws.setDate(start.getDate() + i * 7);
-        const we = new Date(start); we.setDate(start.getDate() + i * 7 + 6);
-        const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        buckets.push({
-          semana: `${String(ws.getDate()).padStart(2, '0')}/${String(ws.getMonth() + 1).padStart(2, '0')}`,
-          sd: fmt(ws), ed: fmt(we),
-          entradas: 0, saidas: 0, saldo: 0, saldoAcumulado: 0,
-        });
-      }
-      const findBucket = (dStr: string) => buckets.find(b => dStr >= b.sd && dStr <= b.ed);
-      for (const x of rr.data || []) { const b = findBucket(x.data); if (b) b.entradas += Number(x.valor); }
-      for (const x of dr.data || []) { const b = findBucket(x.data); if (b) b.saidas += Number(x.valor); }
-      let acc = 0;
-      for (const b of buckets) {
-        b.saldo = b.entradas - b.saidas;
-        acc += b.saldo;
-        b.saldoAcumulado = acc;
-      }
-      return buckets;
+    queryKey: ['dfc-projetado', unidade || 'all', daysAhead, setor || 'all'],
+    queryFn: async () => {
+      const lancamentos = await carregarLancamentosRelatorio(supabase);
+      return projetarCaixa(lancamentos, dataLocal(new Date()), daysAhead, { unidade, setor });
     },
   });
 }

@@ -1,124 +1,56 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/format';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
 import type { DREResult } from '@/hooks/useFinancialData';
 
-interface Props {
-  dre: DREResult | null | undefined;
-  isLoading?: boolean;
-}
+interface Props { dre: DREResult | null | undefined; isLoading?: boolean; }
+const regimeLabel = { competencia: 'Competência', realizado: 'Caixa realizado', projetado: 'Vencimentos em aberto' };
 
-/**
- * DRE em cascata (waterfall).
- * Barras positivas em verde, negativas em vermelho, totalizadores em azul.
- */
+/** A cascata usa exclusivamente o resultado canônico compartilhado com o MCP. */
 export function DREWaterfall({ dre, isLoading }: Props) {
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader><CardTitle className="text-base">DRE — Cascata</CardTitle></CardHeader>
-        <CardContent><p className="text-muted-foreground text-center py-8">Carregando…</p></CardContent>
-      </Card>
-    );
-  }
-  if (!dre) {
-    return (
-      <Card>
-        <CardHeader><CardTitle className="text-base">DRE — Cascata</CardTitle></CardHeader>
-        <CardContent><p className="text-muted-foreground text-center py-8">Selecione um período para ver o DRE.</p></CardContent>
-      </Card>
-    );
-  }
-
-  const { receitaBruta, despesasOperacionais, margemOperacional, custosFixos, margemContribuicao, impostos, resultadoLiquido } = dre;
-
-  // Cada item vira uma barra "floating" com [base, top]. Positivos crescem, negativos descem.
-  type Row = { name: string; base: number; top: number; delta: number; kind: 'in' | 'out' | 'total' };
-  const rows: Row[] = [];
-  let running = 0;
-  const add = (name: string, delta: number, kind: Row['kind']) => {
-    if (kind === 'total') {
-      rows.push({ name, base: 0, top: delta, delta, kind });
-      running = delta;
-    } else if (kind === 'in') {
-      rows.push({ name, base: running, top: running + delta, delta, kind });
-      running += delta;
-    } else {
-      rows.push({ name, base: running - delta, top: running, delta: -delta, kind });
-      running -= delta;
-    }
-  };
-  add('Receita Bruta', receitaBruta, 'in');
-  add('(-) Despesas Op.', despesasOperacionais, 'out');
-  add('Margem Operacional', margemOperacional, 'total');
-  add('(-) Custos Fixos', custosFixos, 'out');
-  add('Margem Contribuição', margemContribuicao, 'total');
-  add('(-) Impostos', impostos, 'out');
-  add('Resultado Líquido', resultadoLiquido, 'total');
-
-  // Recharts: usamos stacked bars — base transparente + delta colorido
-  const data = rows.map(r => ({
-    name: r.name,
-    base: Math.min(r.base, r.top),
-    valor: Math.abs(r.top - r.base),
-    delta: r.delta,
-    kind: r.kind,
-  }));
-
-  const colorFor = (r: Row) => {
-    if (r.kind === 'total') return r.delta >= 0 ? 'hsl(215, 80%, 48%)' : 'hsl(0, 72%, 51%)';
-    if (r.kind === 'in') return 'hsl(142, 71%, 45%)';
-    return 'hsl(0, 72%, 51%)';
-  };
-
-  const pct = (v: number) => (receitaBruta > 0 ? `${((v / receitaBruta) * 100).toFixed(1)}%` : '—');
-
+  if (isLoading) return <Card><CardContent className="py-8">Carregando DRE…</CardContent></Card>;
+  if (!dre) return <Card><CardContent className="py-8">Selecione um período para ver o DRE.</CardContent></Card>;
+  const d = dre.detalhe;
+  const rows: [string, number, boolean?][] = [
+    ['Receita operacional bruta', d.receita_bruta],
+    ['(−) Deduções sobre receita', -d.deducoes],
+    ['Receita líquida', d.receita_liquida, true],
+    ['(−) Custos variáveis', -d.custos_variaveis],
+    ['Margem de contribuição', d.margem_contribuicao, true],
+    ['(−) Despesas fixas', -d.despesas_fixas],
+    ['(−) Despesas comerciais', -d.despesas_comerciais],
+    ['Resultado antes de depreciação', d.resultado_antes_depreciacao, true],
+    ['(−) Depreciação/amortização', -d.depreciacao_amortizacao],
+    ['Resultado operacional', d.resultado_operacional, true],
+    ['(±) Resultado financeiro', d.resultado_financeiro],
+    ['Resultado antes dos tributos', d.resultado_antes_tributos, true],
+    ['(−) Tributos sobre lucro', -d.tributos_lucro],
+    ['Resultado líquido', d.resultado_liquido, true],
+  ];
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">DRE — Cascata</CardTitle>
-        <p className="text-xs text-muted-foreground">
-          Cada barra mostra o impacto sobre o resultado. Totalizadores em azul.
-        </p>
+        <CardTitle className="text-base">DRE — {regimeLabel[d.regime]}</CardTitle>
+        <p className="text-xs text-muted-foreground">Margem de contribuição antes das despesas fixas e comerciais. Não inclui principal de empréstimos ou investimentos.</p>
       </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={340}>
-          <BarChart data={data} margin={{ top: 10, right: 20, left: 20, bottom: 40 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" angle={-15} textAnchor="end" height={60} interval={0} tick={{ fontSize: 11 }} />
-            <YAxis tickFormatter={(v: number) => `R$${(v / 1000).toFixed(0)}k`} />
-            <Tooltip
-              formatter={(_val, _name, entry: any) => {
-                const r = entry.payload;
-                return [`${formatCurrency(r.delta)} (${pct(Math.abs(r.delta))})`, r.name];
-              }}
-            />
-            <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" />
-            <Bar dataKey="base" stackId="a" fill="transparent" />
-            <Bar dataKey="valor" stackId="a" radius={[4, 4, 0, 0]}>
-              {rows.map((r, i) => <Cell key={i} fill={colorFor(r)} />)}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-        {/* Tabela resumo abaixo do gráfico */}
-        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-          <Metric label="Receita Bruta" value={receitaBruta} tone="in" />
-          <Metric label="Margem Op." value={margemOperacional} pct={pct(margemOperacional)} tone="total" />
-          <Metric label="Margem Contrib." value={margemContribuicao} pct={pct(margemContribuicao)} tone="total" />
-          <Metric label="Resultado Líquido" value={resultadoLiquido} pct={pct(resultadoLiquido)} tone={resultadoLiquido >= 0 ? 'total' : 'out'} />
+      <CardContent className="space-y-4">
+        <div role="status" aria-label="Qualidade dos dados do DRE" className="rounded-md border p-3 text-sm space-y-1">
+          <p>Cobertura de datas dos lançamentos candidatos: {d.pendencias.cobertura_percentual === null ? 'sem dados' : d.pendencias.cobertura_percentual + '%'}.</p>
+          <p>Sem classificação: {d.nao_classificado.quantidade} lançamento(s), {formatCurrency(d.nao_classificado.valor)} fora do resultado.</p>
+          {d.pendencias.avisos.map((aviso, i) => <p key={i} className="text-muted-foreground">{aviso}</p>)}
+          <p className="text-xs">Pendências sem data não podem ser atribuídas a um mês: abrangem o histórico da unidade/setor selecionado. Totais incompletos não representam ausência de movimentação.</p>
         </div>
+        <table className="w-full text-sm" aria-label={'DRE por ' + regimeLabel[d.regime]}>
+          <thead><tr className="border-b"><th scope="col" className="text-left py-2">Linha gerencial</th><th scope="col" className="text-right">Valor</th></tr></thead>
+          <tbody>{rows.map(([name, value, total]) => (
+            <tr key={name} className={'border-b ' + (total ? 'bg-muted/40 font-semibold' : '')}>
+              <th scope="row" className="py-2 text-left font-[inherit]">{name}</th>
+              <td className={'text-right tabular-nums ' + (value < 0 ? 'text-destructive' : '')}>{formatCurrency(value)}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+        <p className="text-sm">Margem de contribuição: {d.margens.contribuicao === null ? 'não calculável' : d.margens.contribuicao + '%'} da receita líquida. Margem operacional: {d.margens.operacional === null ? 'não calculável' : d.margens.operacional + '%'}. Margem líquida: {d.margens.liquida === null ? 'não calculável' : d.margens.liquida + '%'}.</p>
+        <p className="text-xs text-muted-foreground">Movimentações fora do DRE: {d.fora_dre.quantidade} registro(s), {formatCurrency(d.fora_dre.valor)}. Depreciação somente quando houver apropriação explicitamente cadastrada.</p>
       </CardContent>
     </Card>
-  );
-}
-
-function Metric({ label, value, pct, tone }: { label: string; value: number; pct?: string; tone: 'in' | 'out' | 'total' }) {
-  const cls = tone === 'in' ? 'text-success' : tone === 'out' ? 'text-destructive' : value >= 0 ? 'text-primary' : 'text-destructive';
-  return (
-    <div className="rounded-md border p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`text-lg font-semibold ${cls}`}>{formatCurrency(value)}</p>
-      {pct && <p className="text-xs text-muted-foreground">{pct} da receita</p>}
-    </div>
   );
 }

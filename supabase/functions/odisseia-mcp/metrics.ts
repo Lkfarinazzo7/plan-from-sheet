@@ -38,6 +38,10 @@ export type ReceitaRow = {
   descricao: string | null;
   valor: number | null;
   status: string | null;
+  cancelado?: boolean;
+  competencia?: string | null;
+  vencimento?: string | null;
+  data_recebimento?: string | null;
   operadora_nome?: string | null;
 };
 
@@ -128,20 +132,29 @@ export function comissoesContrato(c: ContratoRow): ComissoesContrato {
   };
 }
 
-export type ResumoReceitas = { prevista: number; recebida: number; pendente: number; quantidade: number };
+export type ResumoReceitas = { prevista: number; recebida: number; pendente: number; quantidade: number; status_indefinido?: { quantidade: number; valor: number } };
 
 export function resumirReceitas(receitas: ReceitaRow[]): ResumoReceitas {
+  receitas = receitas.filter(r => !r.cancelado && !['Cancelado', 'Cancelada', 'Estornado', 'Estornada'].includes(String(r.status)));
   let prevista = 0, recebida = 0, pendente = 0;
+  const indefinidos = { quantidade: 0, valor: 0 };
   for (const r of receitas) {
     const v = num(r.valor);
+    if (r.status !== 'Recebido' && !['Aguardando', 'Previsto', 'Atrasado'].includes(String(r.status))) {
+      indefinidos.quantidade += 1;
+      indefinidos.valor = round2(indefinidos.valor + v);
+      continue;
+    }
     prevista += v;
     if (r.status === 'Recebido') recebida += v;
-    else if (r.status === 'Aguardando') pendente += v;
+    else if (['Aguardando', 'Previsto', 'Atrasado'].includes(String(r.status))) pendente += v;
   }
-  return { prevista: round2(prevista), recebida: round2(recebida), pendente: round2(pendente), quantidade: receitas.length };
+  return { prevista: round2(prevista), recebida: round2(recebida), pendente: round2(pendente), quantidade: receitas.length,
+    ...(indefinidos.quantidade ? { status_indefinido: indefinidos } : {}) };
 }
 
-export function statusFinanceiro(resumo: ResumoReceitas): StatusFinanceiro {
+export function statusFinanceiro(resumo: ResumoReceitas): StatusFinanceiro | null {
+  if (resumo.status_indefinido?.quantidade) return null;
   if (resumo.quantidade === 0) return 'sem_lancamentos';
   if (resumo.recebida <= 0) return 'aguardando';
   if (resumo.recebida < resumo.prevista) return 'parcial';
@@ -149,6 +162,7 @@ export function statusFinanceiro(resumo: ResumoReceitas): StatusFinanceiro {
 }
 
 export function percentualRecebido(resumo: ResumoReceitas): number | null {
+  if (resumo.status_indefinido?.quantidade) return null;
   if (resumo.prevista === 0) return null;
   return round2((resumo.recebida / resumo.prevista) * 100);
 }
@@ -163,7 +177,7 @@ export type ContratoMetrica = {
   comissoes_previstas_total: number;
   margem_bruta_corretora: number;
   margem_bruta_prevista: number;
-  status_financeiro: StatusFinanceiro;
+  status_financeiro: StatusFinanceiro | null;
   saida: Record<string, unknown>;
 };
 
@@ -196,7 +210,11 @@ export function montarContrato(c: ContratoRow, receitas: ReceitaRow[]): Contrato
       percentual_recebido: percentualRecebido(resumo),
       status_financeiro: status,
       status,
-      status_observacao: 'Status financeiro DERIVADO dos lançamentos ligados (não é um campo cadastral do contrato).',
+      requer_revisao: !!resumo.status_indefinido?.quantidade,
+      status_indefinido: resumo.status_indefinido ?? { quantidade: 0, valor: 0 },
+      status_observacao: resumo.status_indefinido?.quantidade
+        ? 'Há lançamentos com status desconhecido fora dos totais: o status financeiro e percentual recebido ficam indefinidos até revisão.'
+        : 'Status financeiro DERIVADO dos lançamentos ligados (não é um campo cadastral do contrato).',
     },
     comissoes: {
       slots: com.slots,
@@ -234,6 +252,10 @@ export function receitaItem(r: ReceitaRow) {
     descricao: r.descricao ?? null,
     data: r.data ?? null,
     data_formatada: formatDateBR(r.data),
+    competencia: r.competencia ?? null,
+    vencimento: r.vencimento ?? null,
+    data_recebimento: r.data_recebimento ?? null,
+    recebimento_sem_data_efetiva: r.status === 'Recebido' && !r.data_recebimento,
     ...moneyPair('valor', num(r.valor)),
     status: r.status ?? null,
     operadora: r.operadora_nome ?? null,

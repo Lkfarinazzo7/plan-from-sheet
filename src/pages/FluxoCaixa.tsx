@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
-import { useDFCRealizado, useDFCProjetado } from '@/hooks/useFinancialData';
+import { useDFCRealizado, useDFCProjetado, useSetoresDespesa } from '@/hooks/useFinancialData';
 import { formatCurrency, getCurrentMonthYear } from '@/lib/format';
 import { CalendarRange, X, ArrowUpCircle, ArrowDownCircle, Wallet, TrendingUp, Clock } from 'lucide-react';
 import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
@@ -19,6 +19,8 @@ export default function FluxoCaixa() {
   const [customEnd, setCustomEnd] = useState('');
   const [activeRange, setActiveRange] = useState<{ start: string; end: string } | null>(null);
   const [filterUnidade, setFilterUnidade] = useState<string>('all');
+  const [filterSetor, setFilterSetor] = useState('all');
+  const { data: setores = [] } = useSetoresDespesa();
   const [horizonte, setHorizonte] = useState<'30' | '60' | '90'>('90');
 
   const isCustom = !!activeRange;
@@ -28,17 +30,16 @@ export default function FluxoCaixa() {
     startDate: activeRange?.start,
     endDate: activeRange?.end,
     unidade: filterUnidade,
-  }), [isCustom, month, year, activeRange, filterUnidade]);
+    setor: filterSetor,
+  }), [isCustom, month, year, activeRange, filterUnidade, filterSetor]);
 
-  const { data: dfc } = useDFCRealizado(periodArgs);
-  const { data: projetado = [] } = useDFCProjetado(filterUnidade, Number(horizonte));
+  const { data: dfc, error: dfcError } = useDFCRealizado(periodArgs);
+  const { data: projecao, error: projError } = useDFCProjetado(filterUnidade, Number(horizonte), filterSetor);
+  const projetado = projecao?.pontos ?? [];
 
   const totalEntradasProj = projetado.reduce((a, p) => a + p.entradas, 0);
   const totalSaidasProj = projetado.reduce((a, p) => a + p.saidas, 0);
   const saldoProj = totalEntradasProj - totalSaidasProj;
-  const saldo30 = projetado.slice(0, Math.ceil(30 / 7)).reduce((a, p) => a + p.saldo, 0);
-  const saldo60 = projetado.slice(0, Math.ceil(60 / 7)).reduce((a, p) => a + p.saldo, 0);
-  const saldo90 = projetado.reduce((a, p) => a + p.saldo, 0);
 
   const applyRange = () => { if (customStart && customEnd) setActiveRange({ start: customStart, end: customEnd }); };
   const clearRange = () => { setActiveRange(null); setCustomStart(''); setCustomEnd(''); };
@@ -56,6 +57,10 @@ export default function FluxoCaixa() {
               <SelectItem value="none">Sem unidade</SelectItem>
               {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
             </SelectContent>
+          </Select>
+          <Select value={filterSetor} onValueChange={setFilterSetor}>
+            <SelectTrigger className="w-[180px]" aria-label="Setor"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">Todos os setores</SelectItem><SelectItem value="none">Sem setor</SelectItem>{setores.map(s => <SelectItem key={s.id} value={s.nome}>{s.nome}</SelectItem>)}</SelectContent>
           </Select>
           {!isCustom && <MonthYearPicker month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />}
           {isCustom && (
@@ -81,6 +86,11 @@ export default function FluxoCaixa() {
       </div>
 
       {/* Cards topo — DFC Realizado */}
+      {(dfcError || projError) && <p role="alert" className="text-destructive">Não foi possível carregar o caixa: {dfcError?.message ?? projError?.message}</p>}
+      <div role="status" aria-label="Qualidade dos dados do caixa" className="rounded-md border p-3 text-sm space-y-1">
+        {dfc?.detalhe.pendencias.avisos.map((aviso, i) => <p key={i}>{aviso}</p>)}
+        <p>Pendências sem data abrangem o histórico da unidade/setor: não é possível atribuí-las a um mês sem revisão.</p>
+      </div>
       <div>
         <p className="text-sm text-muted-foreground mb-2">DFC do período selecionado</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -96,7 +106,7 @@ export default function FluxoCaixa() {
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div>
             <CardTitle className="text-base">Fluxo Projetado — próximos {horizonte} dias</CardTitle>
-            <p className="text-xs text-muted-foreground">Baseado em receitas “Aguardando” e despesas “A pagar/Atrasado” datadas no futuro.</p>
+            <p className="text-xs text-muted-foreground">Somente status em aberto com vencimento explícito, contando hoje. Vencidos aparecem separadamente e não recebem nova data presumida.</p>
           </div>
           <Select value={horizonte} onValueChange={(v: any) => setHorizonte(v)}>
             <SelectTrigger className="w-[110px]"><SelectValue /></SelectTrigger>
@@ -108,10 +118,14 @@ export default function FluxoCaixa() {
           </Select>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 rounded-md border p-3 text-sm" aria-label="Vencidos e pendências da projeção">
+            <p>Vencidos antes de hoje — a receber: {formatCurrency(projecao?.resumo.vencidos_antes_periodo.entradas.valor ?? 0)}; a pagar: {formatCurrency(projecao?.resumo.vencidos_antes_periodo.saidas.valor ?? 0)}.</p>
+            {projecao?.resumo.pendencias.avisos.map((aviso, i) => <p key={i} className="text-muted-foreground">{aviso}</p>)}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4 text-sm">
             <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Entradas previstas</p><p className="text-lg font-semibold text-success">{formatCurrency(totalEntradasProj)}</p></CardContent></Card>
             <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Saídas previstas</p><p className="text-lg font-semibold text-destructive">{formatCurrency(totalSaidasProj)}</p></CardContent></Card>
-            <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Saldo previsto (30/60/90)</p><p className={`text-sm font-semibold ${saldoProj >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(saldo30)} / {formatCurrency(saldo60)} / {formatCurrency(saldo90)}</p></CardContent></Card>
+            <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Saldo previsto — {horizonte} dias</p><p className={`text-sm font-semibold ${saldoProj >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(saldoProj)}</p></CardContent></Card>
             <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Saldo final acumulado</p><p className={`text-lg font-semibold ${saldoProj >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(saldoProj)}</p></CardContent></Card>
           </div>
           {projetado.length > 0 ? (
@@ -141,15 +155,15 @@ export default function FluxoCaixa() {
           <table className="w-full text-sm">
             <tbody>
               <tr className="border-b">
-                <td className="py-2 font-semibold">(+) Recebimentos de clientes</td>
+                <td className="py-2 font-semibold">(+) Entradas efetivamente recebidas</td>
                 <td className="py-2 text-right text-success font-medium">{formatCurrency(dfc?.entradasRealizadas ?? 0)}</td>
               </tr>
               <tr className="border-b">
-                <td className="py-2 font-semibold">(–) Pagamentos a fornecedores/despesas</td>
+                <td className="py-2 font-semibold">(–) Saídas efetivamente pagas</td>
                 <td className="py-2 text-right text-destructive font-medium">{formatCurrency(dfc?.saidasRealizadas ?? 0)}</td>
               </tr>
               <tr className="border-b bg-muted/40">
-                <td className="py-2 font-bold">(=) Caixa das atividades operacionais</td>
+                <td className="py-2 font-bold">(=) Caixa líquido (inclui investimentos e financiamento)</td>
                 <td className={`py-2 text-right font-bold ${(dfc?.saldoRealizado ?? 0) >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(dfc?.saldoRealizado ?? 0)}</td>
               </tr>
               <tr className="border-b text-muted-foreground">

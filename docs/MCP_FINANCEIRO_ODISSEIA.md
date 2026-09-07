@@ -1,5 +1,7 @@
 # Servidor MCP — Financeiro Odisseia
 
+> **Atualização 1.3:** consulte [Categorias, lançamentos e DRE 1.3](MCP_DRE_1_3.md) para as 30 ferramentas, parâmetros, confirmações, segurança e validação atuais. Esse documento prevalece sobre os trechos de versão 1.2 abaixo. A publicação e a descoberta no cliente devem ser verificadas separadamente após o deploy.
+
 Servidor MCP remoto (Streamable HTTP, stateless) que expõe os dados e ações financeiras do sistema
 para ChatGPT, Codex e outros clientes MCP, usando o Supabase Auth do próprio projeto como
 Authorization Server OAuth 2.1/OIDC. Todas as consultas passam pelo token do usuário, portanto o

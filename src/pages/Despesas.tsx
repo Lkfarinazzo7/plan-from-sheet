@@ -261,7 +261,9 @@ export default function Despesas() {
       const avisos: string[] = [];
       if (r.ignoradas_serie_encerrada) avisos.push(`${r.ignoradas_serie_encerrada} não geradas (recorrência encerrada)`);
       if (r.ignoradas_canceladas) avisos.push(`${r.ignoradas_canceladas} canceladas ignoradas`);
-      if (r.sem_serie) avisos.push(`${r.sem_serie} sem recorrência identificada (confira antes de pagar)`);
+      if (r.sem_serie) avisos.push(`${r.sem_serie} NÃO geradas: legado sem série identificada, precisa revisão`);
+      if (r.ignoradas_existentes) avisos.push(`${r.ignoradas_existentes} já existentes, sem duplicação`);
+      for (const p of r.pendencias) avisos.push(`${p.serie_id ?? 'Série'}: ${p.motivo}`);
       toast({
         title: `${r.geradas} despesas recorrentes geradas para ${getMonthName(targetMonth)} ${targetYear}`,
         description: avisos.join(' · ') || undefined,

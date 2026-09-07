@@ -1,9 +1,19 @@
 /**
  * Adapter Supabase in-memory usado apenas em testes.
  * Não toca em produção: todos os dados vivem em memória neste processo.
+ * Simula a superfície utilizada pelos handlers, não substitui testes de RLS,
+ * triggers, concorrência e demais constraints com PostgreSQL real.
  */
 
 type Row = Record<string, any>;
+
+const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
+const rowDefaults = (table: string): Row => {
+  if (table === 'receitas' || table === 'despesas') return { cancelado: false, versao: 1, recorrente: false };
+  if (table === 'categorias_despesa' || table === 'subcategorias_despesa') return { ativo: true, versao: 1 };
+  if (table === 'series_recorrencia') return { ativa: true, versao: 1 };
+  return {};
+};
 
 function matches(row: Row, filters: Array<[string, string, any]>) {
   return filters.every(([op, col, val]) => {
@@ -28,6 +38,7 @@ class Query implements PromiseLike<{ data: any; error: any; count?: number }> {
   private payload: Row | null = null;
   private limitN: number | null = null;
   private fromN = 0;
+  private orders: Array<{ col: string; ascending: boolean }> = [];
 
 
   constructor(private db: FakeDb, private table: string) {}
@@ -74,7 +85,8 @@ class Query implements PromiseLike<{ data: any; error: any; count?: number }> {
     this.filters.push(['lte', col, val]);
     return this;
   }
-  order() {
+  order(col: string, opts?: { ascending?: boolean }) {
+    if (!this.orders.some((o) => o.col === col)) this.orders.push({ col, ascending: opts?.ascending !== false });
     return this;
   }
   range(from: number, to: number) {
@@ -92,19 +104,26 @@ class Query implements PromiseLike<{ data: any; error: any; count?: number }> {
     const rows = this.db.rows(this.table);
     if (this.mode === 'insert') {
       // Defaults do banco para as colunas NOT NULL DEFAULT.
-      const defaults =
-        this.table === 'receitas' || this.table === 'despesas'
-          ? { cancelado: false, versao: 1, recorrente: false }
-          : {};
-      const created = { id: this.db.nextId(), created_at: new Date().toISOString(), ...defaults, ...this.payload };
+      const created = { id: this.db.nextId(), created_at: new Date().toISOString(), ...rowDefaults(this.table), ...clone(this.payload) };
       rows.push(created);
       return { data: [created], error: null, count: 1 };
     }
     const hit = rows.filter((r) => matches(r, this.filters));
     if (this.mode === 'update') {
-      hit.forEach((r) => Object.assign(r, this.payload));
+      hit.forEach((r) => {
+        Object.assign(r, clone(this.payload));
+        if (r.versao != null) r.versao += 1;
+      });
       return { data: hit, error: null, count: hit.length };
     }
+    hit.sort((a, b) => {
+      for (const { col, ascending } of this.orders) {
+        if (a[col] === b[col]) continue;
+        const cmp = a[col] == null ? 1 : b[col] == null ? -1 : a[col] < b[col] ? -1 : 1;
+        return ascending ? cmp : -cmp;
+      }
+      return 0;
+    });
     const out = this.limitN === null ? hit.slice(this.fromN) : hit.slice(this.fromN, this.fromN + this.limitN);
     return { data: out, error: null, count: hit.length };
   }
@@ -128,7 +147,7 @@ class Query implements PromiseLike<{ data: any; error: any; count?: number }> {
 
 /** Mesma allowlist da função SQL mcp_executar_operacao. */
 const CAMPOS_INSERT: Record<string, string[]> = {
-  categorias_despesa: ['nome', 'grupo_dre', 'tipo_dre', 'ativo'],
+  categorias_despesa: ['nome', 'grupo_dre', 'ativo'],
   subcategorias_despesa: ['nome', 'categoria_id', 'grupo_dre', 'ativo'],
   series_recorrencia: ['nome', 'tipo', 'ativa', 'unidade_negocio', 'categoria_id', 'subcategoria_id', 'setor_id', 'user_id'],
   receitas: ['data', 'descricao', 'categoria', 'categoria_id', 'subcategoria_id', 'setor_id', 'responsavel', 'recorrente', 'operadora_id', 'vendedor_id', 'contrato_id', 'valor', 'comissao', 'status', 'unidade_negocio', 'observacoes', 'competencia', 'vencimento', 'data_recebimento', 'ocorrencia', 'serie_id', 'user_id'],
@@ -137,7 +156,7 @@ const CAMPOS_INSERT: Record<string, string[]> = {
 
 /** Alteração NUNCA pode tocar user_id — espelha a allowlist da função SQL. */
 const CAMPOS_UPDATE: Record<string, string[]> = {
-  categorias_despesa: ['nome', 'grupo_dre', 'tipo_dre', 'ativo'],
+  categorias_despesa: ['nome', 'grupo_dre', 'ativo'],
   subcategorias_despesa: ['nome', 'categoria_id', 'grupo_dre', 'ativo'],
   series_recorrencia: ['nome', 'ativa', 'encerrada_em', 'motivo_encerramento', 'unidade_negocio', 'categoria_id', 'subcategoria_id', 'setor_id'],
   receitas: ['data', 'descricao', 'categoria', 'categoria_id', 'subcategoria_id', 'setor_id', 'responsavel', 'recorrente', 'operadora_id', 'vendedor_id', 'contrato_id', 'valor', 'status', 'unidade_negocio', 'observacoes', 'competencia', 'vencimento', 'data_recebimento', 'ocorrencia', 'serie_id', 'cancelado', 'cancelado_em', 'motivo_cancelamento'],
@@ -150,7 +169,7 @@ export class FakeDb {
   userId: string;
 
   constructor(seed: Record<string, Row[]> = {}, userId?: string) {
-    for (const [t, rows] of Object.entries(seed)) this.tables.set(t, rows.map((r) => ({ ...r })));
+    for (const [t, rows] of Object.entries(seed)) this.tables.set(t, rows.map((r) => ({ ...rowDefaults(t), ...clone(r) })));
     this.userId =
       userId ??
       (Object.values(seed).flat().find((r) => typeof r.user_id === 'string')?.user_id as string) ??
@@ -174,7 +193,32 @@ export class FakeDb {
     return {
       from: (table: string) => new Query(db, table),
       rpc: async (fn: string, params: Record<string, any>) => {
-        const err = (message: string) => ({ data: null, error: { message } });
+        const snapshot = new Map([...db.tables].map(([table, rows]) => [table, clone(rows)]));
+        const sequence = db.seq;
+        const err = (message: string) => {
+          // Toda falha da RPC desfaz inserts, updates, auditoria e reservas, como uma transação SQL.
+          db.tables = snapshot;
+          db.seq = sequence;
+          return { data: null, error: { message } };
+        };
+        const privileged = db.rows('user_roles').some((r) => r.user_id === db.userId && ['admin', 'gestor'].includes(r.role));
+        if (fn === 'mcp_impacto_categoria') {
+          if (!privileged) return err('A consulta global de impacto exige admin ou gestor.');
+          const cat = db.rows('categorias_despesa').find((c) => c.id === params._categoria_id);
+          if (!cat) return err('Categoria não encontrada.');
+          if (params._subcategoria_id && !db.rows('subcategorias_despesa').some((s) => s.id === params._subcategoria_id && s.categoria_id === cat.id)) return err('Subcategoria não pertence à categoria informada.');
+          const related = (r: Row) => r.categoria_id === cat.id && (!params._subcategoria_id || r.subcategoria_id === params._subcategoria_id);
+          const aggregate = (table: string) => {
+            const rows = db.rows(table).filter(related);
+            const dates = rows.map((r) => r.data).filter(Boolean).sort();
+            return { quantidade: rows.length, valor: rows.reduce((total, r) => total + Number(r.valor), 0),
+              liquidados: rows.filter((r) => ['Pago', 'Recebido'].includes(r.status) || r[table === 'despesas' ? 'data_pagamento' : 'data_recebimento'] != null).length,
+              usuarios_afetados: new Set(rows.map((r) => r.user_id)).size, data_inicio: dates[0] ?? null, data_fim: dates[dates.length - 1] ?? null };
+          };
+          return { data: { despesas_vinculadas: aggregate('despesas'), receitas_vinculadas: aggregate('receitas'),
+            subcategorias: db.rows('subcategorias_despesa').filter((s) => s.categoria_id === cat.id && (!params._subcategoria_id || s.id === params._subcategoria_id)).length,
+            series_vinculadas: db.rows('series_recorrencia').filter(related).length, escopo: 'global_agregado' }, error: null };
+        }
         if (fn === 'mcp_executar_operacao') {
           // Espelha a função SQL: plano PERSISTIDO, validação completa, gravação e auditoria numa transação única.
           if (Object.keys(params).some((k) => k !== '_op_id')) return err('Parâmetro não suportado: o plano vem da prévia.');
@@ -200,6 +244,7 @@ export class FakeDb {
           for (const it of [...inserts, ...updates]) {
             const permitidos = (it.row ? CAMPOS_INSERT : CAMPOS_UPDATE)[it.tabela];
             if (!permitidos) return err(`Tabela não permitida: ${it.tabela}`);
+            if (['categorias_despesa', 'subcategorias_despesa'].includes(it.tabela) && !privileged) return err('A alteração de cadastros exige admin ou gestor.');
             const chaves = [...Object.keys(it.row || it.patch || {}), ...Object.keys(it.refs || {})];
             for (const k of chaves) {
               if (!permitidos.includes(k)) return err(`Campo não permitido em ${it.tabela}: ${k}`);
@@ -215,11 +260,14 @@ export class FakeDb {
             }
             const row = db.rows(it.tabela).find((r) => r.id === it.id && (r.user_id === undefined || r.user_id === db.userId));
             if (!row) return err(`Registro ${it.id} não encontrado em ${it.tabela} (ou sem acesso)`);
-            if ((row.versao ?? null) != null) {
-              if (it.versao == null) return err(`Alteração de ${it.id} sem versão de referência: refaça o preparo.`);
-              if (row.versao !== it.versao) {
-                return err(`Registro ${it.id} foi alterado depois do preparo (versão ${row.versao} vs ${it.versao}). Refaça o preparo.`);
-              }
+            if (it.versao == null) return err(`Alteração de ${it.id} sem versão de referência: refaça o preparo.`);
+            if (row.versao !== it.versao) return err(`Registro ${it.id} foi alterado depois do preparo (versão ${row.versao} vs ${it.versao}). Refaça o preparo.`);
+            if (['despesas', 'receitas'].includes(it.tabela)) {
+              const dateCol = it.tabela === 'despesas' ? 'data_pagamento' : 'data_recebimento';
+              const paid = ['Pago', 'Recebido'].includes(row.status) || row[dateCol] != null;
+              if (row.cancelado) return err('Lançamento cancelado é histórico.');
+              if (paid && (it.patch?.cancelado || (it.patch?.status !== undefined && it.patch.status !== row.status) || (row[dateCol] != null && it.patch?.[dateCol] === null))) return err('A alteração não pode remover uma liquidação histórica.');
+              if (paid && row.valor > 0 && it.patch?.valor !== undefined && it.patch.valor <= 0) return err('A alteração não pode zerar uma liquidação histórica.');
             }
             alvos.push([row, it]);
           }
@@ -233,11 +281,7 @@ export class FakeDb {
             });
 
           for (const it of inserts) {
-            const padroes =
-              it.tabela === 'receitas' || it.tabela === 'despesas'
-                ? { cancelado: false, versao: 1, recorrente: false }
-                : {};
-            const created = { id: db.nextId(), created_at: new Date().toISOString(), ...padroes, ...it.row };
+            const created = { id: db.nextId(), created_at: new Date().toISOString(), ...rowDefaults(it.tabela), ...clone(it.row) };
             db.rows(it.tabela).push(created);
             if (it.ref) refs.set(it.ref, created.id);
             inseridos.push({ tabela: it.tabela, registro: { ...created } });
@@ -262,10 +306,9 @@ export class FakeDb {
           op.status = 'executed';
           op.executed_at = new Date().toISOString();
           op.item_count = total;
-          // O plano nunca é sobrescrito pelo resultado.
-          op.before_data = { registros: atualizados.map((a) => a.antes) };
-          op.after_data = { registros: [...inseridos.map((i) => i.registro), ...atualizados.map((a) => a.depois)] };
-          return { data: { status: 'executed', itens: total, inserts: inseridos, updates: atualizados }, error: null };
+          // Prévia, argumentos e plano permanecem intactos; execução tem coluna própria.
+          op.resultado = { ok: true, itens: total, antes: atualizados.map((a) => a.antes), depois: [...inseridos.map((i) => i.registro), ...atualizados.map((a) => a.depois)] };
+          return { data: clone(op.resultado), error: null };
         }
         return { data: null, error: { message: `rpc desconhecida: ${fn}` } };
       },

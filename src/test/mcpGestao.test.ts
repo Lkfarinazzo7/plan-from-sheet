@@ -91,13 +91,13 @@ beforeEach(async () => {
 });
 
 describe('registro de tools', () => {
-  it('expõe 30 tools sem duplicatas na versão 1.2.0', async () => {
+  it('expõe 30 tools sem duplicatas na versão canônica', async () => {
     const nomes = (await client.listTools()).tools.map((t) => t.name);
     expect(new Set(nomes).size).toBe(nomes.length);
     expect(nomes.sort()).toEqual([...TOOL_NAMES].sort());
     expect(nomes).toHaveLength(30);
-    expect(SERVER_VERSION).toBe('1.2.0');
-    expect(client.getServerVersion()?.version).toBe('1.2.0');
+    expect(SERVER_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(client.getServerVersion()?.version).toBe(SERVER_VERSION);
   });
 });
 
@@ -231,12 +231,14 @@ describe('alteração completa de lançamento', () => {
     expect(db.rows('mcp_operacoes')).toHaveLength(0);
   });
 
-  it('campos exclusivos de despesa são recusados em receita', async () => {
-    for (const campo of [{ setor: 'Pré-vendas' }, { responsavel: 'Bruno' }, { recorrente: true }]) {
-      const r: any = await call(client, TOOL.PREPARAR_ALTERACAO_LANCAMENTO, { tipo_lancamento: 'receita', id: R1, ...campo });
-      expect(r.isError).toBe(true);
-    }
-    expect(db.rows('mcp_operacoes')).toHaveLength(0);
+  it('setor, responsável e recorrência também são editáveis em receita sem mudar o ID', async () => {
+    const prep = payload(await call(client, TOOL.PREPARAR_ALTERACAO_LANCAMENTO, {
+      tipo_lancamento: 'receita', id: R1, setor: 'Pré-vendas', responsavel: 'Bruno', recorrente: true,
+    }));
+    expect(db.rows('receitas')[0].responsavel).toBeUndefined();
+    const confirmation: any = await call(client, TOOL.CONFIRMAR_OPERACAO, { confirmation_id: prep.confirmation_id });
+    expect(confirmation.isError, confirmation.content[0].text).not.toBe(true);
+    expect(db.rows('receitas')[0]).toMatchObject({ id: R1, setor_id: SETOR, responsavel: 'Bruno', recorrente: true, versao: 2 });
   });
 
   it('conflito de versão entre preparo e confirmação impede a execução', async () => {
@@ -359,6 +361,7 @@ describe('DRE pelo protocolo MCP', () => {
     db.rows('despesas')[0].competencia = '2026-08-05';
     db.rows('receitas')[0].categoria_id = CAT_COM;
     db.rows('receitas')[0].competencia = '2026-08-02';
+    db.rows('categorias_despesa').find((c) => c.id === CAT_COM)!.grupo_dre = 'receita_operacional';
     client = await connect(db);
   });
 

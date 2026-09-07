@@ -127,6 +127,19 @@ describe('plano de execução vive no servidor', () => {
     expect(aud[0].antes.valor).toBe(400);
     expect(aud[0].depois.valor).toBe(500);
   });
+
+  it('confirmação preserva a prévia e o plano e registra o resultado em campo separado', async () => {
+    const prep = payload(await call(client, TOOL.PREPARAR_ALTERACAO_LANCAMENTO, { tipo_lancamento: 'despesa', id: D1, valor: 500 }));
+    const original = db.rows('mcp_operacoes')[0];
+    const preview = JSON.stringify({ before_data: original.before_data, after_data: original.after_data, arguments: original.arguments, plano: original.plano });
+    const r = await call(client, TOOL.CONFIRMAR_OPERACAO, { confirmation_id: prep.confirmation_id });
+    expect(r.isError, r.content[0].text).not.toBe(true);
+    const executed = db.rows('mcp_operacoes')[0];
+    expect(JSON.stringify({ before_data: executed.before_data, after_data: executed.after_data, arguments: executed.arguments, plano: executed.plano })).toBe(preview);
+    expect(executed.resultado).toMatchObject({ ok: true, itens: 1 });
+    expect(executed.resultado.antes[0].valor).toBe(400);
+    expect(executed.resultado.depois[0].valor).toBe(500);
+  });
 });
 
 describe('lançamentos cancelados nunca entram em totais', () => {
@@ -139,5 +152,7 @@ describe('lançamentos cancelados nunca entram em totais', () => {
     const out = payload(await call(client, TOOL.LISTAR_RECEITAS, { data_inicio: '2026-08-01', data_fim: '2026-08-31' }));
     const ids = (out.itens ?? []).map((i: any) => i.id);
     expect(ids).toContain(R_OK);
+    expect(ids).not.toContain(R_CANC);
+    expect(out.total_encontrado).toBe(1);
   });
 });

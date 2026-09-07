@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useReceitas, useDespesas, useMonthlyComparison, useDRE } from '@/hooks/useFinancialData';
+import { useReceitas, useDespesas, useMonthlyComparison, useDRE, useSetoresDespesa } from '@/hooks/useFinancialData';
+import type { Regime } from '../../supabase/functions/odisseia-mcp/dre';
 import { DREWaterfall } from '@/components/DREWaterfall';
 import { formatCurrency, getCurrentMonthYear } from '@/lib/format';
 import { ArrowUpCircle, ArrowDownCircle, Wallet, Clock, AlertTriangle, CreditCard, CalendarRange, X, TrendingUp, TrendingDown } from 'lucide-react';
@@ -30,6 +31,9 @@ export default function Dashboard() {
   const [customEnd, setCustomEnd] = useState('');
   const [activeRange, setActiveRange] = useState<{ start: string; end: string } | null>(null);
   const [filterUnidade, setFilterUnidade] = useState<string>('all');
+  const [filterSetor, setFilterSetor] = useState('all');
+  const [regime, setRegime] = useState<Regime>('competencia');
+  const { data: setores = [] } = useSetoresDespesa();
 
   const isCustom = !!activeRange;
 
@@ -43,23 +47,22 @@ export default function Dashboard() {
   );
   
   const { data: monthlyData = [] } = useMonthlyComparison(filterUnidade === 'all' ? undefined : filterUnidade);
-  const { data: dreData } = useDRE({
+  const { data: dreData, isLoading: dreLoading, error: dreError } = useDRE({
     month: isCustom ? undefined : month,
     year: isCustom ? undefined : year,
     startDate: activeRange?.start,
     endDate: activeRange?.end,
     unidade: filterUnidade,
+    setor: filterSetor,
+    regime,
   });
 
   // Filtro client-side por unidade de negócio
-  const receitas = useMemo(
-    () => filterUnidade === 'all' ? receitasRaw : receitasRaw.filter(r => ((r as any).unidade_negocio || '') === filterUnidade),
-    [receitasRaw, filterUnidade]
-  );
-  const despesas = useMemo(
-    () => filterUnidade === 'all' ? despesasRaw : despesasRaw.filter(d => ((d as any).unidade_negocio || '') === filterUnidade),
-    [despesasRaw, filterUnidade]
-  );
+  const filtrarCadastro = (r: any) =>
+    (filterUnidade === 'all' || (filterUnidade === 'none' ? !r.unidade_negocio : r.unidade_negocio === filterUnidade)) &&
+    (filterSetor === 'all' || (filterSetor === 'none' ? !r.setor_id : r.setor_id === setores.find(s => s.nome === filterSetor)?.id));
+  const receitas = receitasRaw.filter(filtrarCadastro);
+  const despesas = despesasRaw.filter(filtrarCadastro);
 
   const totalReceitas = receitas.reduce((acc, r) => acc + Number(r.valor), 0);
   const totalDespesas = despesas.reduce((acc, d) => acc + Number(d.valor), 0);
@@ -78,13 +81,13 @@ export default function Dashboard() {
   ].filter(d => d.value > 0);
 
   // Margens
-  const margemBruta = totalReceitas - custosVariaveis;
-  const margemBrutaPct = totalReceitas > 0 ? (margemBruta / totalReceitas) * 100 : 0;
-  const margemLiquida = totalReceitas - totalDespesas;
-  const margemLiquidaPct = totalReceitas > 0 ? (margemLiquida / totalReceitas) * 100 : 0;
+  const margemBruta = dreData?.detalhe.margem_contribuicao ?? 0;
+  const margemBrutaPct = dreData?.detalhe.margens.contribuicao;
+  const margemLiquida = dreData?.detalhe.resultado_liquido ?? 0;
+  const margemLiquidaPct = dreData?.detalhe.margens.liquida;
 
   // Despesas por categoria
-  const despesasPorCategoria = despesas.reduce((acc, d) => {
+  const despesasPorCategoria: Record<string, number> = despesas.reduce((acc, d) => {
     const cat = (d.categorias_despesa as any)?.nome || 'Outros';
     acc[cat] = (acc[cat] || 0) + Number(d.valor);
     return acc;
@@ -92,7 +95,7 @@ export default function Dashboard() {
   const pieData = Object.entries(despesasPorCategoria).map(([name, value]) => ({ name, value }));
 
   // Receita por Vendedor
-  const receitaPorVendedor = Object.values(
+  const receitaPorVendedor = Object.values<{ nome: string; total: number }>(
     receitas.reduce((acc, r) => {
       const nome = (r.vendedores as any)?.nome || 'Desconhecido';
       if (!acc[nome]) acc[nome] = { nome, total: 0 };
@@ -102,7 +105,7 @@ export default function Dashboard() {
   ).sort((a, b) => b.total - a.total);
 
   // Receita por Operadora
-  const receitaPorOperadora = Object.values(
+  const receitaPorOperadora = Object.values<{ nome: string; total: number }>(
     receitas.reduce((acc, r) => {
       const nome = (r.operadoras as any)?.nome || 'Desconhecida';
       if (!acc[nome]) acc[nome] = { nome, total: 0 };
@@ -141,8 +144,17 @@ export default function Dashboard() {
             <SelectTrigger className="w-[180px]"><SelectValue placeholder="Unidade" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas as unidades</SelectItem>
+              <SelectItem value="none">Sem unidade</SelectItem>
               {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
             </SelectContent>
+          </Select>
+          <Select value={filterSetor} onValueChange={setFilterSetor}>
+            <SelectTrigger className="w-[180px]" aria-label="Setor"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">Todos os setores</SelectItem><SelectItem value="none">Sem setor</SelectItem>{setores.map(s => <SelectItem key={s.id} value={s.nome}>{s.nome}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={regime} onValueChange={(v: Regime) => setRegime(v)}>
+            <SelectTrigger className="w-[200px]" aria-label="Regime do DRE"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="competencia">DRE por competência</SelectItem><SelectItem value="realizado">DRE — caixa realizado</SelectItem><SelectItem value="projetado">DRE — vencimentos abertos</SelectItem></SelectContent>
           </Select>
           {!isCustom && (
             <MonthYearPicker month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
@@ -185,12 +197,14 @@ export default function Dashboard() {
       </div>
 
       {/* Summary Cards */}
+      {dreError && <p role="alert" className="text-destructive">Não foi possível calcular o DRE: {String(dreError.message)}</p>}
+      <p className="text-sm text-muted-foreground">Cadastros e distribuições abaixo usam a data original do lançamento, sem cancelados. As margens e o DRE usam o regime selecionado e somente dados explicitamente classificados e datados.</p>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Faturamento</p><p className="text-2xl font-bold text-success">{formatCurrency(totalReceitas)}</p></div><ArrowUpCircle className="h-8 w-8 text-success opacity-60" /></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Receitas cadastradas</p><p className="text-2xl font-bold text-success">{formatCurrency(totalReceitas)}</p></div><ArrowUpCircle className="h-8 w-8 text-success opacity-60" /></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Despesas</p><p className="text-2xl font-bold text-destructive">{formatCurrency(totalDespesas)}</p></div><ArrowDownCircle className="h-8 w-8 text-destructive opacity-60" /></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Saldo</p><p className={`text-2xl font-bold ${saldo >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(saldo)}</p></div><Wallet className="h-8 w-8 text-primary opacity-60" /></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Margem Bruta</p><p className={`text-2xl font-bold ${margemBruta >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(margemBruta)}</p><p className="text-xs text-muted-foreground">{margemBrutaPct.toFixed(1)}%</p></div><TrendingUp className="h-8 w-8 text-success opacity-60" /></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Margem Líquida</p><p className={`text-2xl font-bold ${margemLiquida >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(margemLiquida)}</p><p className="text-xs text-muted-foreground">{margemLiquidaPct.toFixed(1)}%</p></div><TrendingDown className="h-8 w-8 text-primary opacity-60" /></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Saldo dos cadastros</p><p className={`text-2xl font-bold ${saldo >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(saldo)}</p></div><Wallet className="h-8 w-8 text-primary opacity-60" /></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Contribuição — DRE</p><p className={`text-2xl font-bold ${margemBruta >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(margemBruta)}</p><p className="text-xs text-muted-foreground">{margemBrutaPct == null ? '—' : margemBrutaPct.toFixed(1) + '%'}</p></div><TrendingUp className="h-8 w-8 text-success opacity-60" /></div></CardContent></Card>
+        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Resultado líquido — DRE</p><p className={`text-2xl font-bold ${margemLiquida >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(margemLiquida)}</p><p className="text-xs text-muted-foreground">{margemLiquidaPct == null ? '—' : margemLiquidaPct.toFixed(1) + '%'}</p></div><TrendingDown className="h-8 w-8 text-primary opacity-60" /></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Receitas a Receber</p><p className="text-2xl font-bold text-warning">{formatCurrency(receitasAReceber)}</p></div><Clock className="h-8 w-8 text-warning opacity-60" /></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Despesas a Pagar</p><p className="text-2xl font-bold text-warning">{formatCurrency(despesasAPagar)}</p></div><CreditCard className="h-8 w-8 text-warning opacity-60" /></div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Despesas Atrasadas</p><p className="text-2xl font-bold text-destructive">{formatCurrency(despesasAtrasadas)}</p></div><AlertTriangle className="h-8 w-8 text-destructive opacity-60" /></div></CardContent></Card>
@@ -199,7 +213,7 @@ export default function Dashboard() {
 
       {/* Comparativo Mensal */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Comparativo Mensal — Receitas vs Despesas</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Comparativo Mensal — Caixa efetivamente realizado (toda a unidade)</CardTitle><p className="text-xs text-muted-foreground">Sem data efetiva, o lançamento não entra no comparativo. Setor não se aplica a este gráfico.</p></CardHeader>
         <CardContent>
           {monthlyData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
@@ -220,7 +234,7 @@ export default function Dashboard() {
       </Card>
 
       {/* DRE em cascata */}
-      <DREWaterfall dre={dreData} />
+      <DREWaterfall dre={dreData} isLoading={dreLoading} />
 
 
       {/* Custos Fixos vs Variáveis */}
