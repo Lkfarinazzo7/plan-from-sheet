@@ -873,7 +873,7 @@ export function buildServer(ctx: Ctx) {
       title: 'Preparar criação de receita',
       description: 'Valida os dados e cria uma operação PENDENTE para lançar uma receita. Não altera nada até "confirmar_operacao".',
       inputSchema: {
-        data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('Data do lançamento (YYYY-MM-DD).'),
+        data: dataStr('Data do lançamento (YYYY-MM-DD).'),
         descricao: z.string().min(1).max(300),
         categoria: z.string().min(1).describe('Categoria da receita (texto livre do sistema).'),
         operadora: z.string().min(1).describe('Nome da operadora cadastrada.'),
@@ -932,7 +932,7 @@ export function buildServer(ctx: Ctx) {
       title: 'Preparar criação de despesa',
       description: 'Valida os dados e cria uma operação PENDENTE para lançar uma despesa. Não altera nada até "confirmar_operacao".',
       inputSchema: {
-        data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        data: dataStr('Data do lançamento (YYYY-MM-DD).'),
         descricao: z.string().min(1).max(300),
         categoria: z.string().min(1).describe('Nome da categoria de despesa cadastrada.'),
         tipo: z.string().min(1).describe('Tipo da despesa (ex.: "Fixa", "Variável").'),
@@ -983,7 +983,6 @@ export function buildServer(ctx: Ctx) {
 
   const TABELA = { receita: 'receitas', despesa: 'despesas' } as const;
   const DATA_EFETIVA = { receita: 'data_recebimento', despesa: 'data_pagamento' } as const;
-  const DATA_RX = /^\d{4}-\d{2}-\d{2}$/;
 
   /** Campos aceitos na alteração (individual e em lote). Omitido preserva; null limpa. */
   const alteracaoShape = {
