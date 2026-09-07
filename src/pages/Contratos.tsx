@@ -391,7 +391,7 @@ export default function Contratos() {
     for (const c of (filtered as any[])) {
       const base = Number(c.valor_contrato) || 0;
       if (base <= 0) continue;
-      const rz = getResumoContrato(resumoReceitas, c.nome);
+      const rz = getResumoContrato(detalheReceitas, c.id);
       if (!rz || rz.recebido <= 0) continue;
       const mult = rz.recebido / base;
       somaGeral += mult; qtdGeral += 1;
@@ -407,19 +407,8 @@ export default function Contratos() {
         .map(([nome, v]) => ({ nome, media: v.soma / v.qtd, qtd: v.qtd }))
         .sort((a, b) => b.qtd - a.qtd),
     };
-  }, [filtered, resumoReceitas]);
+  }, [filtered, detalheReceitas]);
 
-  // Receitas cuja descrição não bate com nenhum contrato cadastrado
-  const receitasSemContrato = useMemo(() => {
-    if (!detalheReceitas || !contratosNomesSet) return [] as { nome: string; qtd: number; total: number }[];
-    const arr: { nome: string; qtd: number; total: number }[] = [];
-    for (const [key, items] of detalheReceitas.entries()) {
-      if (contratosNomesSet.has(key)) continue;
-      const total = items.reduce((s, i) => s + i.valor, 0);
-      arr.push({ nome: items[0]?.descricao || key, qtd: items.length, total });
-    }
-    return arr.sort((a, b) => b.total - a.total);
-  }, [detalheReceitas, contratosNomesSet]);
 
   const criarContratoDeReceita = (nome: string) => {
     setEditId(null);
