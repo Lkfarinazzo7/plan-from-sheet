@@ -27,6 +27,8 @@ class Query implements PromiseLike<{ data: any; error: any; count?: number }> {
   private mode: 'select' | 'insert' | 'update' = 'select';
   private payload: Row | null = null;
   private limitN: number | null = null;
+  private fromN = 0;
+
 
   constructor(private db: FakeDb, private table: string) {}
 
@@ -52,6 +54,14 @@ class Query implements PromiseLike<{ data: any; error: any; count?: number }> {
     this.filters.push(['is', col, val]);
     return this;
   }
+  not(col: string, op: string, val: any) {
+    if (op === 'is') this.filters.push(['not_is', col, val]);
+    return this;
+  }
+  in(col: string, vals: any[]) {
+    this.filters.push(['in', col, vals]);
+    return this;
+  }
   ilike(col: string, val: any) {
     this.filters.push(['ilike', col, val]);
     return this;
@@ -68,6 +78,7 @@ class Query implements PromiseLike<{ data: any; error: any; count?: number }> {
     return this;
   }
   range(from: number, to: number) {
+    this.fromN = from;
     this.limitN = to - from + 1;
     return this;
   }
@@ -75,6 +86,7 @@ class Query implements PromiseLike<{ data: any; error: any; count?: number }> {
     this.limitN = n;
     return this;
   }
+
 
   private run() {
     const rows = this.db.rows(this.table);
