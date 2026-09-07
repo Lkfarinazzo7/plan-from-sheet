@@ -1162,102 +1162,58 @@ export function buildServer(ctx: Ctx) {
         const check = canConfirm(op as any);
         if (!check.ok) return fail((check as { ok: false; reason: string }).reason);
 
-        // Lote: a própria função SQL reserva a operação e aplica tudo numa única transação.
-        if (op!.tool_name === TOOL.PREPARAR_ALTERACAO_LOTE) {
-          const itens = (op!.after_data as any)?.itens ?? [];
-          const { data, error } = await ctx.supabase.rpc('mcp_aplicar_lote', { _op_id: args.confirmation_id, _itens: itens });
-          if (error) return fail(error.message);
-          return text({
-            status: 'executed',
-            confirmation_id: args.confirmation_id,
-            resumo: op!.summary,
-            itens_aplicados: itens.length,
-            resultado: sanitize(data),
-          });
-        }
+        // Um ÚNICO RPC faz reserva + validação + gravação + auditoria na MESMA transação.
+        // Nada é marcado como executado antes das gravações; qualquer falha desfaz tudo.
+        const after = op!.after_data as any;
+        const plano: { inserts: any[]; updates: any[] } = { inserts: [], updates: [] };
+        const tool = op!.tool_name;
 
-        // Reserva atômica: garante execução única mesmo com chamadas concorrentes.
-        const { error: claimErr } = await ctx.supabase.rpc('mcp_claim_operacao', { _id: args.confirmation_id });
-        if (claimErr) return fail(claimErr.message);
-
-        const marcarFalha = async (msg: string) => {
-          await ctx.supabase.from('mcp_operacoes').update({ status: 'failed', error: msg }).eq('id', args.confirmation_id);
-          return fail(msg);
-        };
-
-        try {
-          const after = op!.after_data as any;
-          let resultado: any;
-          if (op!.tool_name === TOOL.PREPARAR_CRIACAO_RECEITA) {
-            const { data, error } = await ctx.supabase
-              .from('receitas')
-              .insert({ ...after, comissao: 0, user_id: ctx.userId })
-              .select('*')
-              .single();
-            if (error) return await marcarFalha(error.message);
-            resultado = data;
-          } else if (op!.tool_name === TOOL.PREPARAR_CRIACAO_DESPESA) {
-            const { data, error } = await ctx.supabase
-              .from('despesas')
-              .insert({ ...after, user_id: ctx.userId })
-              .select('*')
-              .single();
-            if (error) return await marcarFalha(error.message);
-            resultado = data;
-          } else if (
-            op!.tool_name === TOOL.PREPARAR_ALTERACAO_LANCAMENTO ||
-            op!.tool_name === TOOL.PREPARAR_MARCACAO_STATUS ||
-            op!.tool_name === TOOL.PREPARAR_CANCELAMENTO_LANCAMENTO
-          ) {
-            const { tabela, id, updates, versao } = after;
-            const { data: atual } = await ctx.supabase.from(tabela).select('*').eq('id', id).maybeSingle();
-            if (!atual) return await marcarFalha('O lançamento não existe mais. Operação não executada.');
-            if (versao != null && atual.versao != null && atual.versao !== versao) {
-              return await marcarFalha('O lançamento foi alterado por outra operação depois do preparo. Refaça o preparo.');
-            }
-            const patch = atual.versao != null ? { ...updates, versao: Number(atual.versao) + 1 } : updates;
-            const { data, error } = await ctx.supabase.from(tabela).update(patch).eq('id', id).select('*').single();
-            if (error) return await marcarFalha(error.message);
-            resultado = data;
-          } else if (
-            op!.tool_name === TOOL.PREPARAR_CRIACAO_CATEGORIA ||
-            op!.tool_name === TOOL.PREPARAR_CRIACAO_SUBCATEGORIA
-          ) {
-            const { tabela, payload } = after;
-            const { data, error } = await ctx.supabase.from(tabela).insert(payload).select('*').single();
-            if (error) return await marcarFalha(error.message);
-            resultado = data;
-          } else if (
-            op!.tool_name === TOOL.PREPARAR_ALTERACAO_CATEGORIA ||
-            op!.tool_name === TOOL.PREPARAR_ALTERACAO_SUBCATEGORIA ||
-            op!.tool_name === TOOL.PREPARAR_ENCERRAMENTO_SERIE
-          ) {
-            const { tabela, id, updates } = after;
-            const { data, error } = await ctx.supabase.from(tabela).update(updates).eq('id', id).select('*').single();
-            if (error) return await marcarFalha(error.message);
-            resultado = data;
-          } else if (op!.tool_name === TOOL.PREPARAR_CRIACAO_SERIE) {
-            const { payload, lancamentos } = after;
-            const { data: serie, error } = await ctx.supabase
-              .from('series_recorrencia')
-              .insert({ ...payload, user_id: ctx.userId })
-              .select('*')
-              .single();
-            if (error) return await marcarFalha(error.message);
-            for (const item of lancamentos ?? []) {
-              const { error: e2 } = await ctx.supabase.from(item.tabela).update({ serie_id: serie.id }).eq('id', item.id);
-              if (e2) return await marcarFalha(e2.message);
-            }
-            resultado = { serie, lancamentos_vinculados: (lancamentos ?? []).length };
-          } else {
-            return await marcarFalha(`Tipo de operação não suportado: ${op!.tool_name}`);
+        if (tool === TOOL.PREPARAR_ALTERACAO_LOTE) {
+          plano.updates = (after?.itens ?? []).map((i: any) => ({ tabela: i.tabela, id: i.id, versao: i.versao ?? null, patch: i.patch }));
+        } else if (tool === TOOL.PREPARAR_CRIACAO_RECEITA) {
+          plano.inserts.push({ tabela: 'receitas', row: { ...after, comissao: 0, user_id: ctx.userId } });
+        } else if (tool === TOOL.PREPARAR_CRIACAO_DESPESA) {
+          plano.inserts.push({ tabela: 'despesas', row: { ...after, user_id: ctx.userId } });
+        } else if (
+          tool === TOOL.PREPARAR_ALTERACAO_LANCAMENTO ||
+          tool === TOOL.PREPARAR_MARCACAO_STATUS ||
+          tool === TOOL.PREPARAR_CANCELAMENTO_LANCAMENTO
+        ) {
+          plano.updates.push({ tabela: after.tabela, id: after.id, versao: after.versao ?? null, patch: after.updates });
+        } else if (tool === TOOL.PREPARAR_CRIACAO_CATEGORIA || tool === TOOL.PREPARAR_CRIACAO_SUBCATEGORIA) {
+          plano.inserts.push({ tabela: after.tabela, row: after.payload });
+        } else if (
+          tool === TOOL.PREPARAR_ALTERACAO_CATEGORIA ||
+          tool === TOOL.PREPARAR_ALTERACAO_SUBCATEGORIA ||
+          tool === TOOL.PREPARAR_ENCERRAMENTO_SERIE
+        ) {
+          plano.updates.push({ tabela: after.tabela, id: after.id, versao: after.versao ?? null, patch: after.updates });
+        } else if (tool === TOOL.PREPARAR_CRIACAO_SERIE) {
+          plano.inserts.push({ tabela: 'series_recorrencia', row: { ...after.payload, user_id: ctx.userId }, ref: 'serie' });
+          for (const item of after.lancamentos ?? []) {
+            plano.updates.push({ tabela: item.tabela, id: item.id, versao: item.versao ?? null, patch: {}, refs: { serie_id: 'serie' } });
           }
-          const limpo = sanitize(resultado);
-          await ctx.supabase.from('mcp_operacoes').update({ after_data: limpo as any }).eq('id', args.confirmation_id);
-          return text({ status: 'executed', confirmation_id: args.confirmation_id, resumo: op!.summary, resultado: limpo });
-        } catch (e) {
-          return await marcarFalha((e as Error).message);
+        } else {
+          return fail(`Tipo de operação não suportado: ${tool}`);
         }
+
+        const { data: exec, error: execErr } = await ctx.supabase.rpc('mcp_executar_operacao', {
+          _op_id: args.confirmation_id,
+          _plano: plano,
+        });
+        if (execErr) {
+          // A transação foi desfeita: nada foi gravado. Registramos a falha à parte.
+          await ctx.supabase.from('mcp_operacoes').update({ status: 'failed', error: execErr.message }).eq('id', args.confirmation_id);
+          return fail(execErr.message);
+        }
+        const limpo = sanitize(exec) as any;
+        return text({
+          status: 'executed',
+          confirmation_id: args.confirmation_id,
+          resumo: op!.summary,
+          itens_aplicados: limpo?.itens ?? plano.inserts.length + plano.updates.length,
+          resultado: limpo,
+        });
       } catch (e) {
         return fail((e as Error).message);
       }
