@@ -289,6 +289,7 @@ export function calcularDRE(
       sem_data_do_regime: pendSemData,
       sem_grupo_dre: pendSemGrupo,
       cancelados_ignorados: cancelados,
+      via_data_legada: viaDataLegada,
       cobertura_percentual: cobertura,
       avisos,
     },
