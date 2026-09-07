@@ -254,11 +254,18 @@ export default function Despesas() {
     const targetMonth = month === 11 ? 0 : month + 1;
     const targetYear = month === 11 ? year + 1 : year;
     try {
-      const count = await generateRecurring.mutateAsync({
+      const r = await generateRecurring.mutateAsync({
         sourceMonth: month, sourceYear: year,
         targetMonth, targetYear,
       });
-      toast({ title: `${count} despesas recorrentes geradas para ${getMonthName(targetMonth)} ${targetYear}` });
+      const avisos: string[] = [];
+      if (r.ignoradas_serie_encerrada) avisos.push(`${r.ignoradas_serie_encerrada} não geradas (recorrência encerrada)`);
+      if (r.ignoradas_canceladas) avisos.push(`${r.ignoradas_canceladas} canceladas ignoradas`);
+      if (r.sem_serie) avisos.push(`${r.sem_serie} sem recorrência identificada (confira antes de pagar)`);
+      toast({
+        title: `${r.geradas} despesas recorrentes geradas para ${getMonthName(targetMonth)} ${targetYear}`,
+        description: avisos.join(' · ') || undefined,
+      });
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     }
