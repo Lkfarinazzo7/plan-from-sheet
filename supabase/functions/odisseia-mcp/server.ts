@@ -976,28 +976,98 @@ export function buildServer(ctx: Ctx) {
   );
 
   const TABELA = { receita: 'receitas', despesa: 'despesas' } as const;
+  const DATA_EFETIVA = { receita: 'data_recebimento', despesa: 'data_pagamento' } as const;
+  const DATA_RX = /^\d{4}-\d{2}-\d{2}$/;
+
+  /** Campos aceitos na alteração (individual e em lote). Omitido preserva; null limpa. */
+  const alteracaoShape = {
+    tipo_lancamento: z.enum(['receita', 'despesa']),
+    id: z.string().uuid().describe('ID do lançamento.'),
+    data: z.string().regex(DATA_RX).optional().describe('Data legada do lançamento.'),
+    descricao: z.string().min(1).max(300).optional(),
+    valor: z.number().nonnegative().optional(),
+    status: z.string().optional(),
+    unidade_negocio: z.string().nullable().optional(),
+    observacoes: z.string().max(2000).nullable().optional(),
+    competencia: z.string().regex(DATA_RX).nullable().optional().describe('Data de competência (reconhecimento no DRE).'),
+    vencimento: z.string().regex(DATA_RX).nullable().optional().describe('Data de vencimento (fluxo projetado).'),
+    data_efetiva: z.string().regex(DATA_RX).nullable().optional().describe('Data efetiva de pagamento (despesa) ou recebimento (receita).'),
+    categoria_id: z.string().uuid().nullable().optional(),
+    subcategoria_id: z.string().uuid().nullable().optional().describe('Deve pertencer à categoria do lançamento.'),
+    tipo: z.enum(['Fixo', 'Variável']).optional().describe('Somente despesas: tipo da despesa.'),
+    categoria: z.string().optional().describe('Nome da categoria (resolvido para categoria_id).'),
+    subcategoria: z.string().optional().describe('Nome da subcategoria dentro da categoria resultante.'),
+    setor: z.string().nullable().optional().describe('Somente despesas: nome do setor. null limpa.'),
+    responsavel: z.string().nullable().optional().describe('Somente despesas.'),
+    recorrente: z.boolean().optional().describe('Somente despesas.'),
+    operadora: z.string().optional().describe('Somente receitas: nome da operadora.'),
+    vendedor: z.string().optional().describe('Somente receitas: nome do vendedor.'),
+  };
+
+  async function resolverSubcategoria(nome: string, categoriaId: string | null) {
+    if (!categoriaId) throw new Error('Informe a categoria antes da subcategoria.');
+    const { data, error } = await ctx.supabase
+      .from('subcategorias_despesa')
+      .select('id, nome, categoria_id')
+      .eq('categoria_id', categoriaId)
+      .ilike('nome', `%${nome}%`)
+      .limit(5);
+    if (error) throw new Error(error.message);
+    if (!data?.length) throw new Error(`Subcategoria não encontrada nesta categoria: "${nome}".`);
+    const exato = data.find((d: any) => String(d.nome).toLowerCase() === nome.toLowerCase());
+    if (data.length > 1 && !exato) throw new Error(`Subcategoria ambígua "${nome}".`);
+    return (exato ?? data[0]).id as string;
+  }
+
+  /** Monta o patch validado a partir dos argumentos e do estado atual. */
+  async function montarUpdates(args: Record<string, any>, atual: Record<string, any>) {
+    const isDespesa = args.tipo_lancamento === 'despesa';
+    const updates: Record<string, unknown> = {};
+    for (const campo of ['data', 'descricao', 'valor', 'status', 'unidade_negocio', 'observacoes', 'competencia', 'vencimento'] as const) {
+      if (args[campo] !== undefined) updates[campo] = args[campo];
+    }
+    if (args.data_efetiva !== undefined) updates[DATA_EFETIVA[args.tipo_lancamento as 'receita' | 'despesa']] = args.data_efetiva;
+    if (args.categoria_id !== undefined) updates.categoria_id = args.categoria_id;
+    if (args.categoria) updates.categoria_id = await resolverId('categorias_despesa', args.categoria, 'Categoria');
+    if (args.subcategoria_id !== undefined) updates.subcategoria_id = args.subcategoria_id;
+    if (args.subcategoria) {
+      const catId = (updates.categoria_id as string | null | undefined) ?? atual.categoria_id ?? null;
+      updates.subcategoria_id = await resolverSubcategoria(args.subcategoria, catId);
+    }
+    if (updates.subcategoria_id) {
+      const catId = (updates.categoria_id as string | null | undefined) ?? atual.categoria_id ?? null;
+      const { data: sub } = await ctx.supabase
+        .from('subcategorias_despesa')
+        .select('id, categoria_id')
+        .eq('id', updates.subcategoria_id)
+        .maybeSingle();
+      if (!sub) throw new Error('Subcategoria não encontrada.');
+      if (catId && sub.categoria_id !== catId) throw new Error('A subcategoria informada não pertence à categoria do lançamento.');
+    }
+    if (isDespesa) {
+      if (args.tipo !== undefined) updates.tipo = args.tipo;
+      if (args.setor !== undefined) updates.setor_id = args.setor === null ? null : await resolverId('setores_despesa', args.setor, 'Setor');
+      if (args.responsavel !== undefined) updates.responsavel = args.responsavel;
+      if (args.recorrente !== undefined) updates.recorrente = args.recorrente;
+    } else {
+      if (args.tipo !== undefined) throw new Error('O campo "tipo" só se aplica a despesas. Nenhuma operação foi criada.');
+      if (args.setor !== undefined) throw new Error('O campo "setor" só se aplica a despesas. Nenhuma operação foi criada.');
+      if (args.responsavel !== undefined) throw new Error('O campo "responsavel" só se aplica a despesas. Nenhuma operação foi criada.');
+      if (args.recorrente !== undefined) throw new Error('O campo "recorrente" só se aplica a despesas. Nenhuma operação foi criada.');
+      if (args.operadora) updates.operadora_id = await resolverId('operadoras', args.operadora, 'Operadora');
+      if (args.vendedor) updates.vendedor_id = await resolverId('vendedores', args.vendedor, 'Vendedor');
+    }
+    return updates;
+  }
+
+
 
   server.registerTool(
     TOOL.PREPARAR_ALTERACAO_LANCAMENTO,
     {
       title: 'Preparar alteração de lançamento',
       description: 'Lê o lançamento atual e cria uma operação PENDENTE com o comparativo antes/depois. Não altera nada até "confirmar_operacao".',
-      inputSchema: {
-        tipo_lancamento: z.enum(['receita', 'despesa']),
-        id: z.string().uuid().describe('ID do lançamento.'),
-        data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-        descricao: z.string().min(1).max(300).optional(),
-        valor: z.number().nonnegative().optional(),
-        status: z.string().optional(),
-        unidade_negocio: z.string().optional(),
-        observacoes: z.string().max(2000).optional(),
-        tipo: z.enum(['Fixo', 'Variável']).optional().describe('Somente despesas: tipo da despesa.'),
-        categoria: z.string().optional().describe('Somente despesas: nome da categoria.'),
-        setor: z.string().optional().describe('Somente despesas: nome do setor.'),
-        responsavel: z.string().optional().describe('Somente despesas.'),
-        operadora: z.string().optional().describe('Somente receitas: nome da operadora.'),
-        vendedor: z.string().optional().describe('Somente receitas: nome do vendedor.'),
-      },
+      inputSchema: { ...alteracaoShape },
       annotations: RW_PREP,
     },
     async (args) => {
@@ -1007,26 +1077,20 @@ export function buildServer(ctx: Ctx) {
         const { data: atual, error } = await ctx.supabase.from(tabela).select('*').eq('id', args.id).maybeSingle();
         if (error) return fail(error.message);
         if (!atual) return fail('Lançamento não encontrado.');
-        const updates: Record<string, unknown> = {};
-        for (const campo of ['data', 'descricao', 'valor', 'status', 'unidade_negocio', 'observacoes'] as const) {
-          if (args[campo] !== undefined) updates[campo] = args[campo];
-        }
-        if (args.tipo_lancamento === 'despesa') {
-          if (args.tipo !== undefined) updates.tipo = args.tipo;
-          if (args.categoria) updates.categoria_id = await resolverId('categorias_despesa', args.categoria, 'Categoria');
-          if (args.setor) updates.setor_id = await resolverId('setores_despesa', args.setor, 'Setor');
-          if (args.responsavel !== undefined) updates.responsavel = args.responsavel;
-        } else {
-          if (args.tipo !== undefined) return fail('O campo "tipo" só se aplica a despesas. Nenhuma operação foi criada.');
-          if (args.operadora) updates.operadora_id = await resolverId('operadoras', args.operadora, 'Operadora');
-          if (args.vendedor) updates.vendedor_id = await resolverId('vendedores', args.vendedor, 'Vendedor');
-        }
+        const updates = await montarUpdates(args as any, atual);
         if (!Object.keys(updates).length) return fail('Informe ao menos um campo para alterar.');
         const before = sanitize(atual) as Record<string, unknown>;
         const diff = buildDiff(before, updates);
         if (!diff.length) return fail('Os valores informados já são os atuais. Nenhuma alteração necessária.');
         const summary = `Alterar ${args.tipo_lancamento} "${atual.descricao}" — ${describeDiff(diff)}`;
-        const op = await registrarOperacao(ctx, TOOL.PREPARAR_ALTERACAO_LANCAMENTO, args as any, before, { tabela, id: args.id, updates }, summary);
+        const op = await registrarOperacao(
+          ctx,
+          TOOL.PREPARAR_ALTERACAO_LANCAMENTO,
+          args as any,
+          before,
+          { tabela, id: args.id, updates, versao: atual.versao ?? null },
+          summary,
+        );
         return text({
           confirmation_id: op.id,
           expires_at: op.expires_at,
@@ -1093,6 +1157,20 @@ export function buildServer(ctx: Ctx) {
         const check = canConfirm(op as any);
         if (!check.ok) return fail((check as { ok: false; reason: string }).reason);
 
+        // Lote: a própria função SQL reserva a operação e aplica tudo numa única transação.
+        if (op!.tool_name === TOOL.PREPARAR_ALTERACAO_LOTE) {
+          const itens = (op!.after_data as any)?.itens ?? [];
+          const { data, error } = await ctx.supabase.rpc('mcp_aplicar_lote', { _op_id: args.confirmation_id, _itens: itens });
+          if (error) return fail(error.message);
+          return text({
+            status: 'executed',
+            confirmation_id: args.confirmation_id,
+            resumo: op!.summary,
+            itens_aplicados: itens.length,
+            resultado: sanitize(data),
+          });
+        }
+
         // Reserva atômica: garante execução única mesmo com chamadas concorrentes.
         const { error: claimErr } = await ctx.supabase.rpc('mcp_claim_operacao', { _id: args.confirmation_id });
         if (claimErr) return fail(claimErr.message);
@@ -1121,13 +1199,51 @@ export function buildServer(ctx: Ctx) {
               .single();
             if (error) return await marcarFalha(error.message);
             resultado = data;
-          } else if (op!.tool_name === TOOL.PREPARAR_ALTERACAO_LANCAMENTO || op!.tool_name === TOOL.PREPARAR_MARCACAO_STATUS) {
-            const { tabela, id, updates } = after;
+          } else if (
+            op!.tool_name === TOOL.PREPARAR_ALTERACAO_LANCAMENTO ||
+            op!.tool_name === TOOL.PREPARAR_MARCACAO_STATUS ||
+            op!.tool_name === TOOL.PREPARAR_CANCELAMENTO_LANCAMENTO
+          ) {
+            const { tabela, id, updates, versao } = after;
             const { data: atual } = await ctx.supabase.from(tabela).select('*').eq('id', id).maybeSingle();
             if (!atual) return await marcarFalha('O lançamento não existe mais. Operação não executada.');
+            if (versao != null && atual.versao != null && atual.versao !== versao) {
+              return await marcarFalha('O lançamento foi alterado por outra operação depois do preparo. Refaça o preparo.');
+            }
+            const patch = atual.versao != null ? { ...updates, versao: Number(atual.versao) + 1 } : updates;
+            const { data, error } = await ctx.supabase.from(tabela).update(patch).eq('id', id).select('*').single();
+            if (error) return await marcarFalha(error.message);
+            resultado = data;
+          } else if (
+            op!.tool_name === TOOL.PREPARAR_CRIACAO_CATEGORIA ||
+            op!.tool_name === TOOL.PREPARAR_CRIACAO_SUBCATEGORIA
+          ) {
+            const { tabela, payload } = after;
+            const { data, error } = await ctx.supabase.from(tabela).insert(payload).select('*').single();
+            if (error) return await marcarFalha(error.message);
+            resultado = data;
+          } else if (
+            op!.tool_name === TOOL.PREPARAR_ALTERACAO_CATEGORIA ||
+            op!.tool_name === TOOL.PREPARAR_ALTERACAO_SUBCATEGORIA ||
+            op!.tool_name === TOOL.PREPARAR_ENCERRAMENTO_SERIE
+          ) {
+            const { tabela, id, updates } = after;
             const { data, error } = await ctx.supabase.from(tabela).update(updates).eq('id', id).select('*').single();
             if (error) return await marcarFalha(error.message);
             resultado = data;
+          } else if (op!.tool_name === TOOL.PREPARAR_CRIACAO_SERIE) {
+            const { payload, lancamentos } = after;
+            const { data: serie, error } = await ctx.supabase
+              .from('series_recorrencia')
+              .insert({ ...payload, user_id: ctx.userId })
+              .select('*')
+              .single();
+            if (error) return await marcarFalha(error.message);
+            for (const item of lancamentos ?? []) {
+              const { error: e2 } = await ctx.supabase.from(item.tabela).update({ serie_id: serie.id }).eq('id', item.id);
+              if (e2) return await marcarFalha(e2.message);
+            }
+            resultado = { serie, lancamentos_vinculados: (lancamentos ?? []).length };
           } else {
             return await marcarFalha(`Tipo de operação não suportado: ${op!.tool_name}`);
           }
@@ -1163,6 +1279,492 @@ export function buildServer(ctx: Ctx) {
       if (error) return fail(error.message);
       if (!data) return fail('Operação não encontrada ou já processada.');
       return text({ status: 'cancelled', confirmation_id: data.id, resumo: data.summary });
+    },
+  );
+
+  // ======================= CATEGORIAS, SÉRIES, LOTE E DRE =======================
+
+  async function mapaCategorias() {
+    const rows = await todos<any>(ctx.supabase.from('categorias_despesa').select('id, nome, grupo_dre, tipo_dre, ativo'));
+    const byId = new Map<string, any>();
+    for (const c of rows) byId.set(c.id, c);
+    return { rows, byId };
+  }
+
+  async function mapaSetores() {
+    const rows = await todos<any>(ctx.supabase.from('setores_despesa').select('id, nome, ativo'));
+    const byId = new Map<string, any>();
+    for (const s of rows) byId.set(s.id, s);
+    return byId;
+  }
+
+  server.registerTool(
+    TOOL.LISTAR_CATEGORIAS,
+    {
+      title: 'Listar categorias e subcategorias',
+      description: 'Lista as categorias de despesa com o grupo de DRE e, opcionalmente, suas subcategorias.',
+      inputSchema: {
+        incluir_inativas: z.boolean().optional().describe('Padrão: false.'),
+        incluir_subcategorias: z.boolean().optional().describe('Padrão: true.'),
+        grupo_dre: z.enum(GRUPOS_DRE).optional().describe('Filtra por grupo de DRE.'),
+        sem_grupo: z.boolean().optional().describe('Somente categorias ainda sem grupo de DRE definido.'),
+      },
+      annotations: RO_STRICT,
+    },
+    async (args) => {
+      try {
+        assertNoIdentityArgs(args);
+        const { rows } = await mapaCategorias();
+        let cats = rows;
+        if (!args.incluir_inativas) cats = cats.filter((c) => c.ativo !== false);
+        if (args.grupo_dre) cats = cats.filter((c) => c.grupo_dre === args.grupo_dre);
+        if (args.sem_grupo) cats = cats.filter((c) => !c.grupo_dre);
+        let subs: any[] = [];
+        if (args.incluir_subcategorias !== false) {
+          subs = await todos<any>(ctx.supabase.from('subcategorias_despesa').select('id, categoria_id, nome, ativo'));
+          if (!args.incluir_inativas) subs = subs.filter((s) => s.ativo !== false);
+        }
+        return text({
+          total: cats.length,
+          grupos_disponiveis: GRUPOS_DRE,
+          sem_grupo_dre: rows.filter((c) => !c.grupo_dre).length,
+          itens: sanitize(
+            cats.map((c) => ({
+              id: c.id,
+              nome: c.nome,
+              grupo_dre: c.grupo_dre ?? null,
+              tipo_dre_legado: c.tipo_dre ?? null,
+              ativo: c.ativo !== false,
+              subcategorias: subs.filter((s) => s.categoria_id === c.id).map((s) => ({ id: s.id, nome: s.nome, ativo: s.ativo !== false })),
+            })),
+          ),
+        });
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+    },
+  );
+
+  server.registerTool(
+    TOOL.LISTAR_SERIES,
+    {
+      title: 'Listar séries de recorrência',
+      description: 'Lista as séries de recorrência (identidade real, nunca inferida por semelhança de texto) e seu estado.',
+      inputSchema: {
+        apenas_ativas: z.boolean().optional().describe('Padrão: false (lista todas).'),
+        tipo: z.enum(['receita', 'despesa']).optional(),
+      },
+      annotations: RO_STRICT,
+    },
+    async (args) => {
+      try {
+        assertNoIdentityArgs(args);
+        let q: any = ctx.supabase
+          .from('series_recorrencia')
+          .select('id, tipo, nome, ativa, encerrada_em, motivo_encerramento, unidade_negocio, categoria_id, subcategoria_id, setor_id, created_at');
+        if (args.apenas_ativas) q = q.eq('ativa', true);
+        if (args.tipo) q = q.eq('tipo', args.tipo);
+        const rows = await todos<any>(q);
+        return text({ total: rows.length, itens: sanitize(rows) });
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+    },
+  );
+
+  server.registerTool(
+    TOOL.GERAR_DRE_COMPETENCIA,
+    {
+      title: 'DRE por competência, realizado ou projetado',
+      description:
+        'DRE em cascata separando regime de COMPETÊNCIA (reconhecimento), CAIXA REALIZADO (pagamento efetivo na data efetiva) ' +
+        'e PROJETADO (vencimentos em aberto). Datas ausentes viram pendências explícitas — nunca zero silencioso.',
+      inputSchema: {
+        ...periodoShape,
+        ...unidadeShape,
+        regime: z.enum(['competencia', 'realizado', 'projetado']).optional().describe('Padrão: competencia.'),
+        setor: z.string().optional().describe('Nome do setor. Use "none" para lançamentos sem setor.'),
+      },
+      annotations: RO_STRICT,
+    },
+    async (args) => {
+      try {
+        assertNoIdentityArgs(args);
+        const r = resolveRange(args);
+        if (!r) return fail('Informe mes+ano ou data_inicio+data_fim.');
+        const regime = (args.regime ?? 'competencia') as Regime;
+        const { byId: cats } = await mapaCategorias();
+        const setores = await mapaSetores();
+
+        const receitas = await todos<any>(
+          ctx.supabase.from('receitas').select('id, valor, status, cancelado, competencia, vencimento, data_recebimento, unidade_negocio, categoria_id, data'),
+        );
+        const despesas = await todos<any>(
+          ctx.supabase
+            .from('despesas')
+            .select('id, valor, status, cancelado, competencia, vencimento, data_pagamento, unidade_negocio, categoria_id, setor_id, data'),
+        );
+
+        const lancamentos: LancamentoDRE[] = [
+          ...receitas.map((x) => ({
+            id: x.id,
+            origem: 'receita' as const,
+            valor: x.valor,
+            status: x.status,
+            cancelado: x.cancelado ?? false,
+            competencia: x.competencia ?? null,
+            vencimento: x.vencimento ?? null,
+            data_efetiva: x.data_recebimento ?? null,
+            grupo: cats.get(x.categoria_id)?.grupo_dre ?? null,
+            unidade_negocio: x.unidade_negocio ?? null,
+            setor: null,
+          })),
+          ...despesas.map((x) => ({
+            id: x.id,
+            origem: 'despesa' as const,
+            valor: x.valor,
+            status: x.status,
+            cancelado: x.cancelado ?? false,
+            competencia: x.competencia ?? null,
+            vencimento: x.vencimento ?? null,
+            data_efetiva: x.data_pagamento ?? null,
+            grupo: cats.get(x.categoria_id)?.grupo_dre ?? null,
+            unidade_negocio: x.unidade_negocio ?? null,
+            setor: setores.get(x.setor_id)?.nome ?? null,
+          })),
+        ];
+
+        const res = calcularDRE(lancamentos, {
+          regime,
+          inicio: r.sd,
+          fim: r.ed,
+          filtros: { unidade: args.unidade ?? null, setor: args.setor ?? null },
+        });
+        return text(sanitize(res));
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+    },
+  );
+
+  server.registerTool(
+    TOOL.PREPARAR_ALTERACAO_LOTE,
+    {
+      title: 'Preparar alteração em lote',
+      description:
+        'Prepara a alteração de vários lançamentos com prévia individual e UM único confirmation_id. ' +
+        'A confirmação aplica tudo numa única transação no banco: se um item falhar, nenhum é alterado.',
+      inputSchema: {
+        itens: z
+          .array(z.object(alteracaoShape as any))
+          .min(1)
+          .max(MAX_LIMIT)
+          .describe('Cada item usa os mesmos campos de preparar_alteracao_lancamento.'),
+        motivo: z.string().max(500).optional(),
+      },
+      annotations: RW_PREP,
+    },
+    async (args) => {
+      try {
+        assertNoIdentityArgs(args);
+        const vistos = new Set<string>();
+        const previa: any[] = [];
+        const itens: any[] = [];
+        for (const item of args.itens as any[]) {
+          const chave = `${item.tipo_lancamento}:${item.id}`;
+          if (vistos.has(chave)) return fail(`O lançamento ${item.id} aparece mais de uma vez no lote. Nenhuma operação foi criada.`);
+          vistos.add(chave);
+          const tabela = TABELA[item.tipo_lancamento as 'receita' | 'despesa'];
+          const { data: atual, error } = await ctx.supabase.from(tabela).select('*').eq('id', item.id).maybeSingle();
+          if (error) return fail(error.message);
+          if (!atual) return fail(`Lançamento ${item.id} não encontrado ou sem acesso. Nenhuma operação foi criada.`);
+          const updates = await montarUpdates(item, atual);
+          if (!Object.keys(updates).length) return fail(`Nenhum campo informado para o lançamento ${item.id}.`);
+          const before = sanitize(atual) as Record<string, unknown>;
+          const diff = buildDiff(before, updates);
+          if (!diff.length) return fail(`Os valores informados para ${item.id} já são os atuais. Nenhuma operação foi criada.`);
+          itens.push({ tabela, id: item.id, versao: atual.versao ?? null, updates });
+          previa.push({ tabela, id: item.id, descricao: atual.descricao, alteracoes: diff, resumo: describeDiff(diff) });
+        }
+        const summary = `Alterar ${itens.length} lançamento(s) em lote${args.motivo ? ` — ${args.motivo}` : ''}.`;
+        const op = await registrarOperacao(ctx, TOOL.PREPARAR_ALTERACAO_LOTE, args as any, previa, { itens }, summary);
+        return text({
+          confirmation_id: op.id,
+          expires_at: op.expires_at,
+          status: 'pending',
+          resumo: summary,
+          total_itens: itens.length,
+          previa,
+          proximo_passo: 'Mostre a prévia item a item e só chame confirmar_operacao após o aceite explícito. A aplicação é atômica.',
+        });
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+    },
+  );
+
+  server.registerTool(
+    TOOL.PREPARAR_CANCELAMENTO_LANCAMENTO,
+    {
+      title: 'Preparar cancelamento lógico de lançamento',
+      description:
+        'Prepara o cancelamento LÓGICO de um lançamento (nunca exclusão). Lançamentos já pagos/recebidos são recusados para preservar o histórico.',
+      inputSchema: {
+        tipo_lancamento: z.enum(['receita', 'despesa']),
+        id: z.string().uuid(),
+        motivo: z.string().min(3).max(500).describe('Motivo do cancelamento (auditoria).'),
+      },
+      annotations: RW_PREP,
+    },
+    async (args) => {
+      try {
+        assertNoIdentityArgs(args);
+        const tabela = TABELA[args.tipo_lancamento];
+        const { data: atual, error } = await ctx.supabase.from(tabela).select('*').eq('id', args.id).maybeSingle();
+        if (error) return fail(error.message);
+        if (!atual) return fail('Lançamento não encontrado.');
+        if (atual.cancelado) return fail('Este lançamento já está cancelado.');
+        const liquidados = args.tipo_lancamento === 'receita' ? ['Recebido'] : ['Pago'];
+        if (liquidados.includes(String(atual.status))) {
+          return fail(`Lançamento com status "${atual.status}" não pode ser cancelado — o histórico de pagamentos é preservado.`);
+        }
+        const updates = {
+          cancelado: true,
+          cancelado_em: new Date().toISOString(),
+          motivo_cancelamento: args.motivo,
+        };
+        const before = sanitize(atual) as Record<string, unknown>;
+        const summary = `Cancelar (lógico) ${args.tipo_lancamento} "${atual.descricao}" de ${money(atual.valor).valor_formatado} em ${formatDateBR(atual.data)} — motivo: ${args.motivo}.`;
+        const op = await registrarOperacao(
+          ctx,
+          TOOL.PREPARAR_CANCELAMENTO_LANCAMENTO,
+          args as any,
+          before,
+          { tabela, id: args.id, updates, versao: atual.versao ?? null },
+          summary,
+        );
+        return text({ confirmation_id: op.id, expires_at: op.expires_at, status: 'pending', resumo: summary, antes: before, depois: sanitize({ ...atual, ...updates }) });
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+    },
+  );
+
+  server.registerTool(
+    TOOL.PREPARAR_CRIACAO_CATEGORIA,
+    {
+      title: 'Preparar criação de categoria',
+      description: 'Prepara a criação de uma categoria de despesa/receita com grupo de DRE. Não altera nada até "confirmar_operacao".',
+      inputSchema: {
+        nome: z.string().min(1).max(120),
+        grupo_dre: z.enum(GRUPOS_DRE).describe('Grupo canônico do DRE.'),
+        ativo: z.boolean().optional().describe('Padrão: true.'),
+      },
+      annotations: RW_PREP,
+    },
+    async (args) => {
+      try {
+        assertNoIdentityArgs(args);
+        const { rows } = await mapaCategorias();
+        if (rows.some((c) => String(c.nome).trim().toLowerCase() === args.nome.trim().toLowerCase())) {
+          return fail(`Já existe uma categoria chamada "${args.nome}". Nenhuma operação foi criada.`);
+        }
+        const payload = { nome: args.nome.trim(), grupo_dre: args.grupo_dre, ativo: args.ativo ?? true };
+        const summary = `Criar categoria "${payload.nome}" no grupo ${payload.grupo_dre}.`;
+        const op = await registrarOperacao(ctx, TOOL.PREPARAR_CRIACAO_CATEGORIA, args as any, null, { tabela: 'categorias_despesa', payload }, summary);
+        return text({ confirmation_id: op.id, expires_at: op.expires_at, status: 'pending', resumo: summary, antes: null, depois: payload });
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+    },
+  );
+
+  server.registerTool(
+    TOOL.PREPARAR_ALTERACAO_CATEGORIA,
+    {
+      title: 'Preparar alteração de categoria',
+      description:
+        'Prepara a alteração de nome, grupo de DRE ou inativação de uma categoria. O ID é preservado e nenhuma referência histórica é perdida — não existe exclusão.',
+      inputSchema: {
+        id: z.string().uuid(),
+        nome: z.string().min(1).max(120).optional(),
+        grupo_dre: z.enum(GRUPOS_DRE).optional(),
+        ativo: z.boolean().optional().describe('false inativa a categoria sem apagá-la.'),
+      },
+      annotations: RW_PREP,
+    },
+    async (args) => {
+      try {
+        assertNoIdentityArgs(args);
+        const { data: atual, error } = await ctx.supabase.from('categorias_despesa').select('*').eq('id', args.id).maybeSingle();
+        if (error) return fail(error.message);
+        if (!atual) return fail('Categoria não encontrada.');
+        const updates: Record<string, unknown> = {};
+        if (args.nome !== undefined) updates.nome = args.nome.trim();
+        if (args.grupo_dre !== undefined) updates.grupo_dre = args.grupo_dre;
+        if (args.ativo !== undefined) updates.ativo = args.ativo;
+        if (!Object.keys(updates).length) return fail('Informe ao menos um campo para alterar.');
+        const before = sanitize(atual) as Record<string, unknown>;
+        const diff = buildDiff(before, updates);
+        if (!diff.length) return fail('Os valores informados já são os atuais.');
+        const summary = `Alterar categoria "${atual.nome}" — ${describeDiff(diff)}`;
+        const op = await registrarOperacao(ctx, TOOL.PREPARAR_ALTERACAO_CATEGORIA, args as any, before, { tabela: 'categorias_despesa', id: args.id, updates }, summary);
+        return text({ confirmation_id: op.id, expires_at: op.expires_at, status: 'pending', resumo: summary, antes: before, depois: sanitize({ ...atual, ...updates }), alteracoes: diff });
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+    },
+  );
+
+  server.registerTool(
+    TOOL.PREPARAR_CRIACAO_SUBCATEGORIA,
+    {
+      title: 'Preparar criação de subcategoria',
+      description: 'Prepara a criação de uma subcategoria dentro de uma categoria existente. Não altera nada até "confirmar_operacao".',
+      inputSchema: {
+        categoria_id: z.string().uuid(),
+        nome: z.string().min(1).max(120),
+        ativo: z.boolean().optional(),
+      },
+      annotations: RW_PREP,
+    },
+    async (args) => {
+      try {
+        assertNoIdentityArgs(args);
+        const { data: cat, error } = await ctx.supabase.from('categorias_despesa').select('id, nome').eq('id', args.categoria_id).maybeSingle();
+        if (error) return fail(error.message);
+        if (!cat) return fail('Categoria não encontrada. Nenhuma operação foi criada.');
+        const existentes = await todos<any>(ctx.supabase.from('subcategorias_despesa').select('id, nome, categoria_id').eq('categoria_id', args.categoria_id));
+        if (existentes.some((s) => String(s.nome).trim().toLowerCase() === args.nome.trim().toLowerCase())) {
+          return fail(`Já existe a subcategoria "${args.nome}" nesta categoria.`);
+        }
+        const payload = { categoria_id: args.categoria_id, nome: args.nome.trim(), ativo: args.ativo ?? true };
+        const summary = `Criar subcategoria "${payload.nome}" em "${cat.nome}".`;
+        const op = await registrarOperacao(ctx, TOOL.PREPARAR_CRIACAO_SUBCATEGORIA, args as any, null, { tabela: 'subcategorias_despesa', payload }, summary);
+        return text({ confirmation_id: op.id, expires_at: op.expires_at, status: 'pending', resumo: summary, antes: null, depois: payload });
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+    },
+  );
+
+  server.registerTool(
+    TOOL.PREPARAR_ALTERACAO_SUBCATEGORIA,
+    {
+      title: 'Preparar alteração de subcategoria',
+      description: 'Prepara a alteração de nome, categoria-pai ou inativação de uma subcategoria. Não existe exclusão.',
+      inputSchema: {
+        id: z.string().uuid(),
+        nome: z.string().min(1).max(120).optional(),
+        categoria_id: z.string().uuid().optional(),
+        ativo: z.boolean().optional(),
+      },
+      annotations: RW_PREP,
+    },
+    async (args) => {
+      try {
+        assertNoIdentityArgs(args);
+        const { data: atual, error } = await ctx.supabase.from('subcategorias_despesa').select('*').eq('id', args.id).maybeSingle();
+        if (error) return fail(error.message);
+        if (!atual) return fail('Subcategoria não encontrada.');
+        const updates: Record<string, unknown> = {};
+        if (args.nome !== undefined) updates.nome = args.nome.trim();
+        if (args.ativo !== undefined) updates.ativo = args.ativo;
+        if (args.categoria_id !== undefined) {
+          const { data: cat } = await ctx.supabase.from('categorias_despesa').select('id').eq('id', args.categoria_id).maybeSingle();
+          if (!cat) return fail('Categoria de destino não encontrada.');
+          updates.categoria_id = args.categoria_id;
+        }
+        if (!Object.keys(updates).length) return fail('Informe ao menos um campo para alterar.');
+        const before = sanitize(atual) as Record<string, unknown>;
+        const diff = buildDiff(before, updates);
+        if (!diff.length) return fail('Os valores informados já são os atuais.');
+        const summary = `Alterar subcategoria "${atual.nome}" — ${describeDiff(diff)}`;
+        const op = await registrarOperacao(ctx, TOOL.PREPARAR_ALTERACAO_SUBCATEGORIA, args as any, before, { tabela: 'subcategorias_despesa', id: args.id, updates }, summary);
+        return text({ confirmation_id: op.id, expires_at: op.expires_at, status: 'pending', resumo: summary, antes: before, depois: sanitize({ ...atual, ...updates }), alteracoes: diff });
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+    },
+  );
+
+  server.registerTool(
+    TOOL.PREPARAR_CRIACAO_SERIE,
+    {
+      title: 'Preparar criação de série de recorrência',
+      description:
+        'Cria a identidade REAL de uma série de recorrência e vincula os lançamentos informados por ID. ' +
+        'Nunca agrupa por semelhança de texto. Não altera nada até "confirmar_operacao".',
+      inputSchema: {
+        nome: z.string().min(1).max(200),
+        tipo: z.enum(['receita', 'despesa']),
+        unidade_negocio: z.string().nullable().optional().describe('Unidade vigente da série.'),
+        categoria_id: z.string().uuid().nullable().optional(),
+        subcategoria_id: z.string().uuid().nullable().optional(),
+        setor_id: z.string().uuid().nullable().optional(),
+        lancamento_ids: z.array(z.string().uuid()).min(1).max(MAX_LIMIT).describe('IDs explícitos dos lançamentos da série.'),
+      },
+      annotations: RW_PREP,
+    },
+    async (args) => {
+      try {
+        assertNoIdentityArgs(args);
+        const tabela = TABELA[args.tipo];
+        const lancamentos: any[] = [];
+        for (const id of args.lancamento_ids) {
+          const { data: row, error } = await ctx.supabase.from(tabela).select('id, descricao, data, valor, status, serie_id').eq('id', id).maybeSingle();
+          if (error) return fail(error.message);
+          if (!row) return fail(`Lançamento ${id} não encontrado ou sem acesso. Nenhuma operação foi criada.`);
+          if (row.serie_id) return fail(`O lançamento ${id} já pertence a uma série (${row.serie_id}). Nenhuma operação foi criada.`);
+          lancamentos.push({ tabela, id: row.id, descricao: row.descricao, data: row.data, valor: row.valor, status: row.status });
+        }
+        const payload = {
+          nome: args.nome.trim(),
+          tipo: args.tipo,
+          ativa: true,
+          unidade_negocio: args.unidade_negocio ?? null,
+          categoria_id: args.categoria_id ?? null,
+          subcategoria_id: args.subcategoria_id ?? null,
+          setor_id: args.setor_id ?? null,
+        };
+        const summary = `Criar série "${payload.nome}" (${args.tipo}) e vincular ${lancamentos.length} lançamento(s) por ID.`;
+        const op = await registrarOperacao(ctx, TOOL.PREPARAR_CRIACAO_SERIE, args as any, null, { payload, lancamentos }, summary);
+        return text({ confirmation_id: op.id, expires_at: op.expires_at, status: 'pending', resumo: summary, depois: payload, lancamentos: sanitize(lancamentos) });
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+    },
+  );
+
+  server.registerTool(
+    TOOL.PREPARAR_ENCERRAMENTO_SERIE,
+    {
+      title: 'Preparar encerramento de série de recorrência',
+      description:
+        'Prepara o encerramento de uma série: nenhuma nova ocorrência é gerada a partir da data informada. ' +
+        'Os lançamentos já pagos são preservados intactos.',
+      inputSchema: {
+        serie_id: z.string().uuid(),
+        encerrada_em: z.string().regex(DATA_RX).describe('Data a partir da qual a série deixa de gerar ocorrências.'),
+        motivo: z.string().min(3).max(500),
+      },
+      annotations: RW_PREP,
+    },
+    async (args) => {
+      try {
+        assertNoIdentityArgs(args);
+        const { data: serie, error } = await ctx.supabase.from('series_recorrencia').select('*').eq('id', args.serie_id).maybeSingle();
+        if (error) return fail(error.message);
+        if (!serie) return fail('Série não encontrada ou sem acesso.');
+        if (serie.ativa === false) return fail(`A série "${serie.nome}" já está encerrada em ${serie.encerrada_em ?? 'data não informada'}.`);
+        const updates = { ativa: false, encerrada_em: args.encerrada_em, motivo_encerramento: args.motivo };
+        const before = sanitize(serie) as Record<string, unknown>;
+        const summary = `Encerrar a série "${serie.nome}" em ${formatDateBR(args.encerrada_em)} — motivo: ${args.motivo}. Pagamentos históricos permanecem.`;
+        const op = await registrarOperacao(ctx, TOOL.PREPARAR_ENCERRAMENTO_SERIE, args as any, before, { tabela: 'series_recorrencia', id: args.serie_id, updates }, summary);
+        return text({ confirmation_id: op.id, expires_at: op.expires_at, status: 'pending', resumo: summary, antes: before, depois: sanitize({ ...serie, ...updates }) });
+      } catch (e) {
+        return fail((e as Error).message);
+      }
     },
   );
 
