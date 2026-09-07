@@ -13,8 +13,8 @@ import {
   useContratos, useCreateContrato, useUpdateContrato, useDeleteContrato,
   useBulkCreateContrato, useBulkUpdateContrato, useBulkDeleteContrato,
   useOperadoras, useSupervisores, useVendedores,
-  useReceitasResumoPorNome, getResumoContrato,
-  useReceitasDetalhePorNome, getDetalheContrato, useContratosNomesSet, normalizeNomeContrato,
+  useReceitasDetalhePorContrato, getResumoContrato, getDetalheContrato,
+  useReceitasSemContrato, normalizeNomeContrato,
   useVincularReceitasAoContrato,
 } from '@/hooks/useFinancialData';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
@@ -57,9 +57,8 @@ export default function Contratos() {
   const { data: operadoras = [] } = useOperadoras();
   const { data: supervisores = [] } = useSupervisores();
   const { data: vendedores = [] } = useVendedores();
-  const { data: resumoReceitas } = useReceitasResumoPorNome();
-  const { data: detalheReceitas } = useReceitasDetalhePorNome();
-  const { data: contratosNomesSet } = useContratosNomesSet();
+  const { data: detalheReceitas } = useReceitasDetalhePorContrato();
+  const { data: receitasSemContrato = [] } = useReceitasSemContrato();
 
   const create = useCreateContrato();
   const update = useUpdateContrato();
