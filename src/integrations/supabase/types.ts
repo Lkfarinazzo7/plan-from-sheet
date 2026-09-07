@@ -431,6 +431,7 @@ export type Database = {
         Row: {
           categoria: string
           comissao: number
+          contrato_id: string | null
           created_at: string
           data: string
           descricao: string
@@ -448,6 +449,7 @@ export type Database = {
         Insert: {
           categoria: string
           comissao?: number
+          contrato_id?: string | null
           created_at?: string
           data: string
           descricao: string
@@ -465,6 +467,7 @@ export type Database = {
         Update: {
           categoria?: string
           comissao?: number
+          contrato_id?: string | null
           created_at?: string
           data?: string
           descricao?: string
@@ -480,6 +483,20 @@ export type Database = {
           vendedor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "receitas_contrato_user_fkey"
+            columns: ["user_id", "contrato_id"]
+            isOneToOne: false
+            referencedRelation: "contratos"
+            referencedColumns: ["user_id", "id"]
+          },
+          {
+            foreignKeyName: "receitas_contrato_user_fkey"
+            columns: ["user_id", "contrato_id"]
+            isOneToOne: false
+            referencedRelation: "contratos_financeiro"
+            referencedColumns: ["user_id", "contrato_id"]
+          },
           {
             foreignKeyName: "receitas_operadora_id_fkey"
             columns: ["operadora_id"]
@@ -595,7 +612,19 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      contratos_financeiro: {
+        Row: {
+          contrato_id: string | null
+          nome: string | null
+          producao: number | null
+          qtd_receitas: number | null
+          receita_pendente: number | null
+          receita_prevista: number | null
+          receita_recebida: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       grant_role_by_email: {

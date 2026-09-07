@@ -758,7 +758,7 @@ export function useBulkCreateContrato() {
   });
 }
 
-// ===== Vínculo Contrato ↔ Receitas (por nome da proposta/descrição) =====
+// ===== Vínculo Contrato ↔ Receitas (por receitas.contrato_id) =====
 
 export type ReceitaResumo = { recebido: number; aguardando: number; qtd: number };
 
@@ -766,42 +766,6 @@ function normalizeNome(s: string): string {
   return (s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
-/**
- * Agrupa todas as receitas pela descrição normalizada (que corresponde ao nome
- * da proposta/contrato). Permite calcular quanto cada contrato já recebeu.
- */
-export function useReceitasResumoPorNome() {
-  return useQuery({
-    queryKey: ['receitas-resumo-por-nome'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('receitas')
-        .select('descricao, valor, status');
-      if (error) throw error;
-      const map = new Map<string, ReceitaResumo>();
-      for (const r of data || []) {
-        const key = normalizeNome(r.descricao);
-        if (!key) continue;
-        const cur = map.get(key) || { recebido: 0, aguardando: 0, qtd: 0 };
-        if (r.status === 'Recebido') cur.recebido += Number(r.valor);
-        else cur.aguardando += Number(r.valor);
-        cur.qtd += 1;
-        map.set(key, cur);
-      }
-      return map;
-    },
-  });
-}
-
-export function getResumoContrato(
-  resumo: Map<string, ReceitaResumo> | undefined,
-  nomeContrato: string,
-): ReceitaResumo | null {
-  if (!resumo) return null;
-  return resumo.get(normalizeNome(nomeContrato)) || null;
-}
-
-/** Retorna Map<nomeNormalizado, ReceitaItem[]> com detalhamento por contrato. */
 export type ReceitaDetalheItem = {
   id: string;
   data: string;
@@ -812,19 +776,20 @@ export type ReceitaDetalheItem = {
   vendedor_nome: string | null;
 };
 
-export function useReceitasDetalhePorNome() {
+/** Todas as receitas ligadas a um contrato, agrupadas por contrato_id. */
+export function useReceitasDetalhePorContrato() {
   return useQuery({
-    queryKey: ['receitas-detalhe-por-nome'],
+    queryKey: ['receitas-por-contrato'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('receitas')
-        .select('id, data, descricao, valor, status, operadoras:operadora_id(nome), vendedores:vendedor_id(nome)')
+        .select('id, data, descricao, valor, status, contrato_id, operadoras:operadora_id(nome), vendedores:vendedor_id(nome)')
+        .not('contrato_id', 'is', null)
         .order('data', { ascending: false });
       if (error) throw error;
       const map = new Map<string, ReceitaDetalheItem[]>();
       for (const r of (data || []) as any[]) {
-        const key = normalizeNome(r.descricao);
-        if (!key) continue;
+        if (!r.contrato_id) continue;
         const item: ReceitaDetalheItem = {
           id: r.id,
           data: r.data,
@@ -834,9 +799,9 @@ export function useReceitasDetalhePorNome() {
           operadora_nome: r.operadoras?.nome ?? null,
           vendedor_nome: r.vendedores?.nome ?? null,
         };
-        const cur = map.get(key) || [];
+        const cur = map.get(r.contrato_id) || [];
         cur.push(item);
-        map.set(key, cur);
+        map.set(r.contrato_id, cur);
       }
       return map;
     },
@@ -845,25 +810,49 @@ export function useReceitasDetalhePorNome() {
 
 export function getDetalheContrato(
   detalhe: Map<string, ReceitaDetalheItem[]> | undefined,
-  nomeContrato: string,
+  contratoId: string,
 ): ReceitaDetalheItem[] {
   if (!detalhe) return [];
-  return detalhe.get(normalizeNome(nomeContrato)) || [];
+  return detalhe.get(contratoId) || [];
 }
 
-/** Conjunto de nomes de contratos existentes (normalizados) — usado para detectar receitas sem contrato. */
-export function useContratosNomesSet() {
+export function getResumoContrato(
+  detalhe: Map<string, ReceitaDetalheItem[]> | undefined,
+  contratoId: string,
+): ReceitaResumo | null {
+  const itens = getDetalheContrato(detalhe, contratoId);
+  if (!itens.length) return null;
+  let recebido = 0, aguardando = 0;
+  for (const i of itens) {
+    if (i.status === 'Recebido') recebido += i.valor;
+    else aguardando += i.valor;
+  }
+  return { recebido, aguardando, qtd: itens.length };
+}
+
+export type ReceitaPendenteGrupo = { nome: string; qtd: number; total: number; ids: string[] };
+
+/** Receitas ainda sem contrato_id, agrupadas pela descrição (pendências de vínculo). */
+export function useReceitasSemContrato() {
   return useQuery({
-    queryKey: ['contratos-nomes-set'],
+    queryKey: ['receitas-sem-contrato'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('contratos').select('nome');
+      const { data, error } = await (supabase as any)
+        .from('receitas')
+        .select('id, descricao, valor')
+        .is('contrato_id', null);
       if (error) throw error;
-      const set = new Set<string>();
-      for (const c of (data || []) as any[]) {
-        const key = normalizeNome(c.nome);
-        if (key) set.add(key);
+      const map = new Map<string, ReceitaPendenteGrupo>();
+      for (const r of (data || []) as any[]) {
+        const key = normalizeNome(r.descricao);
+        if (!key) continue;
+        const cur = map.get(key) || { nome: r.descricao, qtd: 0, total: 0, ids: [] };
+        cur.qtd += 1;
+        cur.total += Number(r.valor) || 0;
+        cur.ids.push(r.id);
+        map.set(key, cur);
       }
-      return set;
+      return Array.from(map.values()).sort((a, b) => b.total - a.total);
     },
   });
 }
@@ -872,26 +861,27 @@ export function normalizeNomeContrato(s: string): string {
   return normalizeNome(s);
 }
 
-/** Atualiza a descrição de várias receitas para vincular ao nome de um contrato existente. */
+/** Vincula receitas a um contrato gravando o contrato_id (não altera a descrição). */
 export function useVincularReceitasAoContrato() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ ids, novaDescricao }: { ids: string[]; novaDescricao: string }) => {
+    mutationFn: async ({ ids, contratoId }: { ids: string[]; contratoId: string }) => {
       if (!ids.length) return;
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('receitas')
-        .update({ descricao: novaDescricao })
+        .update({ contrato_id: contratoId })
         .in('id', ids);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['receitas'] });
-      qc.invalidateQueries({ queryKey: ['receitas-resumo-por-nome'] });
-      qc.invalidateQueries({ queryKey: ['receitas-detalhe-por-nome'] });
+      qc.invalidateQueries({ queryKey: ['receitas-por-contrato'] });
+      qc.invalidateQueries({ queryKey: ['receitas-sem-contrato'] });
       qc.invalidateQueries({ queryKey: ['contratos'] });
     },
   });
 }
+
 
 // ===== Comissões (derivadas dos contratos) =====
 

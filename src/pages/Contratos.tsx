@@ -13,8 +13,8 @@ import {
   useContratos, useCreateContrato, useUpdateContrato, useDeleteContrato,
   useBulkCreateContrato, useBulkUpdateContrato, useBulkDeleteContrato,
   useOperadoras, useSupervisores, useVendedores,
-  useReceitasResumoPorNome, getResumoContrato,
-  useReceitasDetalhePorNome, getDetalheContrato, useContratosNomesSet, normalizeNomeContrato,
+  useReceitasDetalhePorContrato, getResumoContrato, getDetalheContrato,
+  useReceitasSemContrato, normalizeNomeContrato,
   useVincularReceitasAoContrato,
 } from '@/hooks/useFinancialData';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
@@ -57,9 +57,8 @@ export default function Contratos() {
   const { data: operadoras = [] } = useOperadoras();
   const { data: supervisores = [] } = useSupervisores();
   const { data: vendedores = [] } = useVendedores();
-  const { data: resumoReceitas } = useReceitasResumoPorNome();
-  const { data: detalheReceitas } = useReceitasDetalhePorNome();
-  const { data: contratosNomesSet } = useContratosNomesSet();
+  const { data: detalheReceitas } = useReceitasDetalhePorContrato();
+  const { data: receitasSemContrato = [] } = useReceitasSemContrato();
 
   const create = useCreateContrato();
   const update = useUpdateContrato();
@@ -90,7 +89,7 @@ export default function Contratos() {
   const toggleExpand = (id: string) => setExpandedIds(prev => {
     const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n;
   });
-  const [vincularAlvo, setVincularAlvo] = useState<{ nome: string; qtd: number; total: number } | null>(null);
+  const [vincularAlvo, setVincularAlvo] = useState<{ nome: string; qtd: number; total: number; ids: string[] } | null>(null);
   const vincular = useVincularReceitasAoContrato();
 
   const mapContratoRow = useCallback((row: Record<string, any>): ParsedRow => {
@@ -392,7 +391,7 @@ export default function Contratos() {
     for (const c of (filtered as any[])) {
       const base = Number(c.valor_contrato) || 0;
       if (base <= 0) continue;
-      const rz = getResumoContrato(resumoReceitas, c.nome);
+      const rz = getResumoContrato(detalheReceitas, c.id);
       if (!rz || rz.recebido <= 0) continue;
       const mult = rz.recebido / base;
       somaGeral += mult; qtdGeral += 1;
@@ -408,19 +407,8 @@ export default function Contratos() {
         .map(([nome, v]) => ({ nome, media: v.soma / v.qtd, qtd: v.qtd }))
         .sort((a, b) => b.qtd - a.qtd),
     };
-  }, [filtered, resumoReceitas]);
+  }, [filtered, detalheReceitas]);
 
-  // Receitas cuja descrição não bate com nenhum contrato cadastrado
-  const receitasSemContrato = useMemo(() => {
-    if (!detalheReceitas || !contratosNomesSet) return [] as { nome: string; qtd: number; total: number }[];
-    const arr: { nome: string; qtd: number; total: number }[] = [];
-    for (const [key, items] of detalheReceitas.entries()) {
-      if (contratosNomesSet.has(key)) continue;
-      const total = items.reduce((s, i) => s + i.valor, 0);
-      arr.push({ nome: items[0]?.descricao || key, qtd: items.length, total });
-    }
-    return arr.sort((a, b) => b.total - a.total);
-  }, [detalheReceitas, contratosNomesSet]);
 
   const criarContratoDeReceita = (nome: string) => {
     setEditId(null);
@@ -817,7 +805,7 @@ export default function Contratos() {
               ) : filtered.length === 0 ? (
                 <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">Nenhum contrato encontrado</TableCell></TableRow>
               ) : (filtered as any[]).flatMap(c => {
-                const detalhes = getDetalheContrato(detalheReceitas, c.nome);
+                const detalhes = getDetalheContrato(detalheReceitas, c.id);
                 const isExpanded = expandedIds.has(c.id);
                 const rows: any[] = [
                   <TableRow key={c.id} data-state={selectedIds.has(c.id) ? 'selected' : undefined}>
@@ -843,7 +831,7 @@ export default function Contratos() {
                     <TableCell className="text-muted-foreground">{formatDateBR(c.data_implantacao)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(Number(c.valor_contrato))}</TableCell>
                     {(() => {
-                      const rz = getResumoContrato(resumoReceitas, c.nome);
+                      const rz = getResumoContrato(detalheReceitas, c.id);
                       const base = Number(c.valor_contrato) || 0;
                       const mult = rz && base > 0 ? rz.recebido / base : null;
                       return (<>
@@ -1063,14 +1051,12 @@ export default function Contratos() {
         alvo={vincularAlvo}
         contratos={contratos as any[]}
         onClose={() => setVincularAlvo(null)}
-        onConfirm={async (contratoNome) => {
-          if (!vincularAlvo || !detalheReceitas) return;
-          const key = normalizeNomeContrato(vincularAlvo.nome);
-          const items = detalheReceitas.get(key) || [];
-          const ids = items.map(i => i.id);
+        onConfirm={async (contrato) => {
+          if (!vincularAlvo) return;
+          const ids = vincularAlvo.ids;
           try {
-            await vincular.mutateAsync({ ids, novaDescricao: contratoNome });
-            toast({ title: 'Vínculo criado', description: `${ids.length} lançamento(s) vinculado(s) a ${contratoNome}` });
+            await vincular.mutateAsync({ ids, contratoId: contrato.id });
+            toast({ title: 'Vínculo criado', description: `${ids.length} lançamento(s) vinculado(s) a ${contrato.nome}` });
             setVincularAlvo(null);
           } catch (e: any) {
             toast({ title: 'Erro ao vincular', description: e.message, variant: 'destructive' });
@@ -1150,10 +1136,10 @@ function ComissaoForm({
 function VincularReceitaDialog({
   alvo, contratos, onClose, onConfirm, isLoading,
 }: {
-  alvo: { nome: string; qtd: number; total: number } | null;
+  alvo: { nome: string; qtd: number; total: number; ids: string[] } | null;
   contratos: any[];
   onClose: () => void;
-  onConfirm: (contratoNome: string) => void;
+  onConfirm: (contrato: { id: string; nome: string }) => void;
   isLoading: boolean;
 }) {
   const [busca, setBusca] = useState('');
@@ -1194,7 +1180,7 @@ function VincularReceitaDialog({
                 {alvo.qtd} lançamento{alvo.qtd !== 1 ? 's' : ''} · {formatCurrency(alvo.total)}
               </p>
               <p className="text-xs text-muted-foreground mt-2">
-                Ao confirmar, a descrição desses lançamentos será atualizada para o nome do contrato escolhido, criando o vínculo.
+                Ao confirmar, esses lançamentos passam a pertencer ao contrato escolhido.
               </p>
             </div>
             <Input placeholder="Buscar contrato..." value={busca} onChange={e => setBusca(e.target.value)} autoFocus />
@@ -1230,7 +1216,7 @@ function VincularReceitaDialog({
             disabled={!selecionado || isLoading}
             onClick={() => {
               const c = contratos.find(x => x.id === selecionado);
-              if (c) onConfirm(c.nome);
+              if (c) onConfirm({ id: c.id, nome: c.nome });
             }}
           >
             {isLoading ? 'Vinculando...' : 'Confirmar vínculo'}

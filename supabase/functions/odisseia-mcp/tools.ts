@@ -3,7 +3,7 @@
 // testes e documentação) DEVE usar estas constantes.
 
 export const SERVER_NAME = 'financeiro-odisseia';
-export const SERVER_VERSION = '1.0.2';
+export const SERVER_VERSION = '1.1.0';
 
 export const TOOL = {
   CONSULTAR_DASHBOARD: 'consultar_dashboard',
@@ -12,6 +12,10 @@ export const TOOL = {
   LISTAR_RECEITAS: 'listar_receitas',
   LISTAR_DESPESAS: 'listar_despesas',
   BUSCAR_CONTRATO: 'buscar_contrato',
+  LISTAR_CONTRATOS: 'listar_contratos',
+  OBTER_CONTRATO: 'obter_contrato',
+  LISTAR_RECEITAS_POR_CONTRATO: 'listar_receitas_por_contrato',
+  RELATORIO_CONTRATOS: 'relatorio_contratos',
   CONSULTAR_COMISSOES: 'consultar_comissoes',
   LISTAR_CADASTROS: 'listar_cadastros',
   OBTER_OPERACAO: 'obter_operacao',
@@ -36,6 +40,10 @@ export const READ_ONLY_TOOLS: ToolName[] = [
   TOOL.LISTAR_RECEITAS,
   TOOL.LISTAR_DESPESAS,
   TOOL.BUSCAR_CONTRATO,
+  TOOL.LISTAR_CONTRATOS,
+  TOOL.OBTER_CONTRATO,
+  TOOL.LISTAR_RECEITAS_POR_CONTRATO,
+  TOOL.RELATORIO_CONTRATOS,
   TOOL.CONSULTAR_COMISSOES,
   TOOL.LISTAR_CADASTROS,
   TOOL.OBTER_OPERACAO,

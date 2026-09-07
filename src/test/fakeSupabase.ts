@@ -9,7 +9,9 @@ function matches(row: Row, filters: Array<[string, string, any]>) {
   return filters.every(([op, col, val]) => {
     const v = row[col];
     if (op === 'eq') return v === val;
-    if (op === 'is') return v === val;
+    if (op === 'is') return (v ?? null) === val;
+    if (op === 'not_is') return (v ?? null) !== val;
+    if (op === 'in') return Array.isArray(val) && val.includes(v);
     if (op === 'ilike') {
       const needle = String(val).replace(/%/g, '').toLowerCase();
       return String(v ?? '').toLowerCase().includes(needle);
@@ -25,6 +27,8 @@ class Query implements PromiseLike<{ data: any; error: any; count?: number }> {
   private mode: 'select' | 'insert' | 'update' = 'select';
   private payload: Row | null = null;
   private limitN: number | null = null;
+  private fromN = 0;
+
 
   constructor(private db: FakeDb, private table: string) {}
 
@@ -50,6 +54,14 @@ class Query implements PromiseLike<{ data: any; error: any; count?: number }> {
     this.filters.push(['is', col, val]);
     return this;
   }
+  not(col: string, op: string, val: any) {
+    if (op === 'is') this.filters.push(['not_is', col, val]);
+    return this;
+  }
+  in(col: string, vals: any[]) {
+    this.filters.push(['in', col, vals]);
+    return this;
+  }
   ilike(col: string, val: any) {
     this.filters.push(['ilike', col, val]);
     return this;
@@ -66,6 +78,7 @@ class Query implements PromiseLike<{ data: any; error: any; count?: number }> {
     return this;
   }
   range(from: number, to: number) {
+    this.fromN = from;
     this.limitN = to - from + 1;
     return this;
   }
@@ -73,6 +86,7 @@ class Query implements PromiseLike<{ data: any; error: any; count?: number }> {
     this.limitN = n;
     return this;
   }
+
 
   private run() {
     const rows = this.db.rows(this.table);
@@ -86,7 +100,7 @@ class Query implements PromiseLike<{ data: any; error: any; count?: number }> {
       hit.forEach((r) => Object.assign(r, this.payload));
       return { data: hit, error: null, count: hit.length };
     }
-    const out = this.limitN === null ? hit : hit.slice(0, this.limitN);
+    const out = this.limitN === null ? hit.slice(this.fromN) : hit.slice(this.fromN, this.fromN + this.limitN);
     return { data: out, error: null, count: hit.length };
   }
 
