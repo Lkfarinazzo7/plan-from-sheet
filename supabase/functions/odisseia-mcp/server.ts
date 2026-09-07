@@ -40,6 +40,7 @@ import {
   receitaItem,
   round2,
 } from './metrics.ts';
+import { GRUPOS_DRE, type LancamentoDRE, type Regime, calcularDRE } from './dre.ts';
 import { SERVER_NAME, SERVER_VERSION, TOOL } from './tools.ts';
 
 /** Cliente Supabase (injetável — em testes usamos um adapter in-memory). */
