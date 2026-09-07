@@ -404,6 +404,331 @@ export function buildServer(ctx: Ctx) {
     },
   );
 
+  // ================= CONTRATOS (vínculo por receitas.contrato_id) =================
+
+  const CONTRATO_SELECT =
+    'id, nome, unidade_negocio, data_implantacao, valor_contrato, observacoes, ' +
+    'supervisor_a_id, supervisor_a_percentual, supervisor_a_valor, supervisor_a_pago, ' +
+    'supervisor_b_id, supervisor_b_percentual, supervisor_b_valor, supervisor_b_pago, ' +
+    'corretor_id, corretor_percentual, corretor_valor, corretor_pago, ' +
+    'operadoras(nome), corretor:vendedores!contratos_corretor_id_fkey(nome), ' +
+    'sa:supervisores!contratos_supervisor_a_id_fkey(nome), sb:supervisores!contratos_supervisor_b_id_fkey(nome)';
+
+  const RECEITA_SELECT = 'id, contrato_id, data, descricao, valor, status, operadoras(nome)';
+
+  const BATCH = 1000;
+
+  /** Lê em lotes para nunca esbarrar no teto de 1000 linhas do PostgREST. */
+  async function fetchAll(build: (from: number, to: number) => any): Promise<any[]> {
+    const out: any[] = [];
+    for (let from = 0; ; from += BATCH) {
+      const { data, error } = await build(from, from + BATCH - 1);
+      if (error) throw new Error(error.message);
+      const rows = data || [];
+      out.push(...rows);
+      if (rows.length < BATCH) break;
+    }
+    return out;
+  }
+
+  function mapContrato(c: any): ContratoRow {
+    return {
+      id: c.id,
+      nome: c.nome,
+      unidade_negocio: c.unidade_negocio ?? null,
+      data_implantacao: c.data_implantacao ?? null,
+      valor_contrato: c.valor_contrato ?? 0,
+      observacoes: c.observacoes ?? null,
+      operadora_nome: c.operadoras?.nome ?? null,
+      corretor_nome: c.corretor?.nome ?? null,
+      supervisor_a_nome: c.sa?.nome ?? null,
+      supervisor_b_nome: c.sb?.nome ?? null,
+      supervisor_a_id: c.supervisor_a_id ?? null,
+      supervisor_a_percentual: c.supervisor_a_percentual ?? null,
+      supervisor_a_valor: c.supervisor_a_valor ?? null,
+      supervisor_a_pago: !!c.supervisor_a_pago,
+      supervisor_b_id: c.supervisor_b_id ?? null,
+      supervisor_b_percentual: c.supervisor_b_percentual ?? null,
+      supervisor_b_valor: c.supervisor_b_valor ?? null,
+      supervisor_b_pago: !!c.supervisor_b_pago,
+      corretor_id: c.corretor_id ?? null,
+      corretor_percentual: c.corretor_percentual ?? null,
+      corretor_valor: c.corretor_valor ?? null,
+      corretor_pago: !!c.corretor_pago,
+    };
+  }
+
+  function mapReceita(r: any): ReceitaRow {
+    return {
+      id: r.id,
+      contrato_id: r.contrato_id ?? null,
+      data: r.data ?? null,
+      descricao: r.descricao ?? null,
+      valor: num(r.valor),
+      status: r.status ?? null,
+      operadora_nome: r.operadoras?.nome ?? null,
+    };
+  }
+
+  const contem = (valor: string | null | undefined, filtro?: string) =>
+    !filtro || String(valor ?? '').toLowerCase().includes(filtro.toLowerCase());
+
+  const contratoFiltrosShape = {
+    data_implantacao_inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Data inicial de implantação (YYYY-MM-DD).'),
+    data_implantacao_fim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Data final de implantação (YYYY-MM-DD).'),
+    operadora: z.string().optional().describe('Nome (parcial) da operadora.'),
+    corretor: z.string().optional().describe('Nome (parcial) do corretor.'),
+    supervisor: z.string().optional().describe('Nome (parcial) do supervisor (A ou B).'),
+    unidade_negocio: z.string().optional().describe('Unidade de negócio. Use "none" para contratos sem unidade.'),
+    status: z.enum(['sem_lancamentos', 'aguardando', 'parcial', 'recebido']).optional()
+      .describe('Status FINANCEIRO derivado dos lançamentos ligados (não é campo cadastral).'),
+  };
+
+  /** Carrega todos os contratos do usuário que atendem aos filtros (antes de paginar). */
+  async function carregarContratosFiltrados(args: any) {
+    const contratos = (
+      await fetchAll((from, to) => {
+        let q = ctx.supabase.from('contratos').select(CONTRATO_SELECT).eq('user_id', ctx.userId);
+        if (args.data_implantacao_inicio) q = q.gte('data_implantacao', args.data_implantacao_inicio);
+        if (args.data_implantacao_fim) q = q.lte('data_implantacao', args.data_implantacao_fim);
+        if (args.unidade_negocio === 'none') q = q.is('unidade_negocio', null);
+        else if (args.unidade_negocio) q = q.eq('unidade_negocio', args.unidade_negocio);
+        return q.range(from, to);
+      })
+    ).map(mapContrato);
+
+    const filtrados = contratos.filter(
+      (c) =>
+        contem(c.operadora_nome, args.operadora) &&
+        contem(c.corretor_nome, args.corretor) &&
+        (!args.supervisor || contem(c.supervisor_a_nome, args.supervisor) || contem(c.supervisor_b_nome, args.supervisor)),
+    );
+
+    const receitas = (
+      await fetchAll((from, to) =>
+        ctx.supabase.from('receitas').select(RECEITA_SELECT).eq('user_id', ctx.userId).not('contrato_id', 'is', null).range(from, to),
+      )
+    ).map(mapReceita);
+
+    const porContrato = new Map<string, ReceitaRow[]>();
+    for (const r of receitas) {
+      if (!r.contrato_id) continue;
+      const cur = porContrato.get(r.contrato_id) || [];
+      cur.push(r);
+      porContrato.set(r.contrato_id, cur);
+    }
+
+    let metricas = ordenarContratos(filtrados).map((c) => montarContrato(c, porContrato.get(c.id) || []));
+    if (args.status) metricas = metricas.filter((m) => m.status_financeiro === args.status);
+    return metricas;
+  }
+
+  async function contarReceitasSemContrato(): Promise<number> {
+    const { count, error } = await ctx.supabase
+      .from('receitas')
+      .select('id', { count: 'exact' })
+      .eq('user_id', ctx.userId)
+      .is('contrato_id', null)
+      .range(0, 0);
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  }
+
+  async function carregarContrato(id: string): Promise<ContratoRow | null> {
+    const { data, error } = await ctx.supabase
+      .from('contratos')
+      .select(CONTRATO_SELECT)
+      .eq('user_id', ctx.userId)
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? mapContrato(data) : null;
+  }
+
+  async function carregarReceitasDoContrato(contratoId: string): Promise<ReceitaRow[]> {
+    const rows = await fetchAll((from, to) =>
+      ctx.supabase.from('receitas').select(RECEITA_SELECT).eq('user_id', ctx.userId).eq('contrato_id', contratoId).range(from, to),
+    );
+    return ordenarReceitas(rows.map(mapReceita));
+  }
+
+  server.registerTool(
+    TOOL.LISTAR_CONTRATOS,
+    {
+      title: 'Listar contratos com métricas financeiras',
+      description:
+        'Lista contratos (sem exigir id ou nome) com filtros opcionais, produção, receita prevista/recebida/pendente, ' +
+        'comissões e margens. O vínculo com receitas é feito exclusivamente por contrato_id.',
+      inputSchema: { ...contratoFiltrosShape, ...pageShape },
+      annotations: RO_STRICT,
+    },
+    async (args) => {
+      try {
+        assertNoIdentityArgs(args);
+        const limit = clampLimit(args.limit);
+        const offset = clampOffset(args.offset);
+        const metricas = await carregarContratosFiltrados(args);
+        const pagina = metricas.slice(offset, offset + limit);
+        return text({
+          total: metricas.length,
+          limit,
+          offset,
+          has_more: offset + pagina.length < metricas.length,
+          producao_fonte: PRODUCAO_FONTE,
+          status_disponiveis: STATUS_FINANCEIRO,
+          itens: sanitize(pagina.map((m) => m.saida)),
+        });
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+    },
+  );
+
+  server.registerTool(
+    TOOL.OBTER_CONTRATO,
+    {
+      title: 'Obter contrato',
+      description: 'Detalha um contrato: cadastro, resumo financeiro, comissões e histórico de receitas ligadas por contrato_id.',
+      inputSchema: { id: z.string().uuid().describe('ID do contrato.') },
+      annotations: RO_STRICT,
+    },
+    async (args) => {
+      try {
+        assertNoIdentityArgs(args);
+        const contrato = await carregarContrato(args.id);
+        if (!contrato) return fail('Contrato não encontrado ou sem acesso.');
+        const receitas = await carregarReceitasDoContrato(args.id);
+        const m = montarContrato(contrato, receitas);
+        return text({
+          contrato: sanitize(m.saida),
+          receitas: {
+            total: receitas.length,
+            ...moneyPair('total_valor', round2(receitas.reduce((a, r) => a + num(r.valor), 0))),
+            ...moneyPair('total_recebido', m.receita_recebida),
+            ...moneyPair('total_pendente', m.receita_pendente),
+            itens: sanitize(receitas.map(receitaItem)),
+          },
+          avisos: AVISOS_QUALIDADE,
+        });
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+    },
+  );
+
+  server.registerTool(
+    TOOL.LISTAR_RECEITAS_POR_CONTRATO,
+    {
+      title: 'Listar receitas de um contrato',
+      description: 'Lista os lançamentos de receita ligados a um contrato por contrato_id (nunca por texto), com totais globais.',
+      inputSchema: { contrato_id: z.string().uuid().describe('ID do contrato.'), ...pageShape },
+      annotations: RO_STRICT,
+    },
+    async (args) => {
+      try {
+        assertNoIdentityArgs(args);
+        const contrato = await carregarContrato(args.contrato_id);
+        if (!contrato) return fail('Contrato não encontrado ou sem acesso.');
+        const limit = clampLimit(args.limit);
+        const offset = clampOffset(args.offset);
+        const receitas = await carregarReceitasDoContrato(args.contrato_id);
+        const m = montarContrato(contrato, receitas);
+        const pagina = receitas.slice(offset, offset + limit);
+        return text({
+          contrato_id: args.contrato_id,
+          contrato: contrato.nome,
+          total: receitas.length,
+          limit,
+          offset,
+          has_more: offset + pagina.length < receitas.length,
+          totais: {
+            ...moneyPair('receita_prevista', m.receita_prevista),
+            ...moneyPair('receita_recebida', m.receita_recebida),
+            ...moneyPair('receita_pendente', m.receita_pendente),
+            status_financeiro: m.status_financeiro,
+          },
+          itens: sanitize(pagina.map(receitaItem)),
+        });
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+    },
+  );
+
+  server.registerTool(
+    TOOL.RELATORIO_CONTRATOS,
+    {
+      title: 'Relatório analítico de contratos',
+      description:
+        'Consolidados, faixas de valor e curva de Pareto sobre TODO o conjunto filtrado de contratos (limit/offset só afetam os detalhes).',
+      inputSchema: {
+        ...contratoFiltrosShape,
+        ...pageShape,
+        faixas_valor: z.array(z.number().nonnegative()).min(1).optional().describe('Cortes crescentes das faixas de produção.'),
+        base_pareto: z.enum(['receita_recebida', 'receita_prevista', 'producao']).optional().describe('Padrão: receita_recebida.'),
+      },
+      annotations: RO_STRICT,
+    },
+    async (args) => {
+      try {
+        assertNoIdentityArgs(args);
+        const faixas = (args.faixas_valor ?? FAIXAS_PADRAO).map(Number);
+        for (let i = 1; i < faixas.length; i++) {
+          if (faixas[i] <= faixas[i - 1]) return fail('"faixas_valor" deve ser estritamente crescente.');
+        }
+        const base = (args.base_pareto ?? 'receita_recebida') as BasePareto;
+        const limit = clampLimit(args.limit);
+        const offset = clampOffset(args.offset);
+        const metricas = await carregarContratosFiltrados(args);
+
+        const producoes = metricas.map((m) => m.producao);
+        const prevista = round2(metricas.reduce((a, m) => a + m.receita_prevista, 0));
+        const recebida = round2(metricas.reduce((a, m) => a + m.receita_recebida, 0));
+        const pendente = round2(metricas.reduce((a, m) => a + m.receita_pendente, 0));
+        const comissoesPagas = round2(metricas.reduce((a, m) => a + m.comissoes_pagas_total, 0));
+        const comissoesPrevistas = round2(metricas.reduce((a, m) => a + m.comissoes_previstas_total, 0));
+
+        const pagina = metricas.slice(offset, offset + limit);
+        return text({
+          filtros_aplicados: {
+            data_implantacao_inicio: args.data_implantacao_inicio ?? null,
+            data_implantacao_fim: args.data_implantacao_fim ?? null,
+            operadora: args.operadora ?? null,
+            corretor: args.corretor ?? null,
+            supervisor: args.supervisor ?? null,
+            unidade_negocio: args.unidade_negocio ?? null,
+            status: args.status ?? null,
+          },
+          consolidado: {
+            quantidade_contratos: metricas.length,
+            ...moneyPair('producao_total', round2(producoes.reduce((a, x) => a + x, 0))),
+            ...moneyPair('producao_media', media(producoes)),
+            ...moneyPair('producao_mediana', mediana(producoes)),
+            ...moneyPair('receita_prevista_total', prevista),
+            ...moneyPair('receita_recebida_total', recebida),
+            ...moneyPair('receita_pendente_total', pendente),
+            ...moneyPair('receita_recebida_media', media(metricas.map((m) => m.receita_recebida))),
+            ...moneyPair('comissoes_pagas_total', comissoesPagas),
+            ...moneyPair('comissoes_previstas_total', comissoesPrevistas),
+            ...moneyPair('margem_bruta_corretora', round2(recebida - comissoesPagas)),
+            ...moneyPair('margem_bruta_prevista', round2(prevista - comissoesPrevistas)),
+            producao_fonte: PRODUCAO_FONTE,
+          },
+          faixas: calcularFaixas(metricas, faixas),
+          pareto: calcularPareto(metricas, base),
+          qualidade_dados: {
+            receitas_sem_contrato: await contarReceitasSemContrato(),
+            avisos: AVISOS_QUALIDADE,
+          },
+          detalhes: { total: metricas.length, limit, offset, has_more: offset + pagina.length < metricas.length, itens: sanitize(pagina.map((m) => m.saida)) },
+        });
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+    },
+  );
+
+
   server.registerTool(
     TOOL.CONSULTAR_COMISSOES,
     {
