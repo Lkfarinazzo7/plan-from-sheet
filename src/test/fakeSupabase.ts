@@ -9,7 +9,9 @@ function matches(row: Row, filters: Array<[string, string, any]>) {
   return filters.every(([op, col, val]) => {
     const v = row[col];
     if (op === 'eq') return v === val;
-    if (op === 'is') return v === val;
+    if (op === 'is') return (v ?? null) === val;
+    if (op === 'not_is') return (v ?? null) !== val;
+    if (op === 'in') return Array.isArray(val) && val.includes(v);
     if (op === 'ilike') {
       const needle = String(val).replace(/%/g, '').toLowerCase();
       return String(v ?? '').toLowerCase().includes(needle);
