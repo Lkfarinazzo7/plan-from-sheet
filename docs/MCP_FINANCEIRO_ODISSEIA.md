@@ -12,7 +12,7 @@ https://<PROJECT_REF>.supabase.co/functions/v1/odisseia-mcp
 ```
 
 - `POST /` — endpoint MCP (JSON-RPC sobre Streamable HTTP). Requer `Authorization: Bearer <token>`.
-- `GET /` — health check (`{"status":"ok","name":"financeiro-odisseia","version":"1.0.2"}`), sem dados sensíveis.
+- `GET /` — health check (`{"status":"ok","name":"financeiro-odisseia","version":"1.2.0"}`), sem dados sensíveis.
 - `GET /.well-known/oauth-protected-resource` — metadata do recurso protegido:
   - `resource`: URL canônica da função
   - `authorization_servers`: `https://<PROJECT_REF>.supabase.co/auth/v1`
@@ -143,7 +143,7 @@ o `confirmation_id`, mas a dupla barreira é intencional.
 
 ## Versão, nomes de tools e observabilidade
 
-- Versão atual do servidor: **1.0.2** (`supabase/functions/odisseia-mcp/tools.ts`).
+- Versão atual do servidor: **1.2.0** (`supabase/functions/odisseia-mcp/tools.ts`).
 - Todos os nomes de tools vivem em `TOOL` / `TOOL_NAMES` nesse mesmo arquivo. Registro, despacho do
   `confirmar_operacao` e testes usam apenas essas constantes — nunca strings soltas.
 - O registro das tools está em `server.ts` (`buildServer`), separado do handler HTTP (`index.ts`),
@@ -162,7 +162,7 @@ o `confirmation_id`, mas a dupla barreira é intencional.
 `src/test/mcpServer.test.ts` sobe o servidor com um adapter Supabase in-memory
 (`src/test/fakeSupabase.ts`) e um Client MCP via `InMemoryTransport`, cobrindo:
 
-- `tools/list` expõe exatamente `TOOL_NAMES` (15 tools, sem duplicatas) e a versão 1.0.2;
+- `tools/list` expõe exatamente `TOOL_NAMES` (30 tools, sem duplicatas) e a versão 1.2.0;
 - cada tool responde pelo nome registrado;
 - `preparar_*` não altera dados e devolve `confirmation_id`;
 - `confirmar_operacao` executa uma única vez — o replay falha e nada é duplicado;
@@ -181,3 +181,71 @@ Rodar: `npx vitest run`.
   para permitir 401 com `WWW-Authenticate` e servir o metadata público.
 - Limites de paginação (máx. 200) evitam respostas gigantes.
 - Nenhuma tela ou regra existente do sistema foi alterada.
+
+## Versão 1.2.0 — categorias, edição completa, lotes, séries e DRE por regime
+
+### Novas ferramentas de leitura
+
+| Tool | O que faz | Principais argumentos |
+| --- | --- | --- |
+| `listar_categorias` | Categorias com `grupo_dre`, subcategorias e quantas ainda estão sem grupo | `incluir_inativas`, `incluir_subcategorias`, `grupo_dre`, `sem_grupo` |
+| `listar_series` | Séries de recorrência e seu estado (ativa/encerrada) | `apenas_ativas`, `tipo` |
+| `gerar_dre_competencia` | DRE em cascata por regime | período, `unidade`, `setor`, `regime`, `usar_data_legada`, `usar_classificacao_legada` |
+
+### Novas ferramentas de escrita (sempre em duas etapas)
+
+`preparar_criacao_categoria`, `preparar_alteracao_categoria`, `preparar_criacao_subcategoria`,
+`preparar_alteracao_subcategoria`, `preparar_criacao_serie`, `preparar_encerramento_serie`,
+`preparar_cancelamento_lancamento`, `preparar_alteracao_lote`.
+
+- **Nunca existe exclusão**: categorias e subcategorias são inativadas (`ativo: false`), lançamentos
+  são cancelados logicamente (`cancelado`, `cancelado_em`, `motivo_cancelamento`). IDs e referências
+  históricas são preservados.
+- **Lançamento pago/recebido não pode ser cancelado** — o histórico é intocável.
+- **Séries** têm identidade real (`series_recorrencia`) e são vinculadas por **ID explícito**, nunca por
+  semelhança de texto. Encerrar uma série impede novas ocorrências; a duplicação de recorrentes no app
+  respeita séries encerradas e usa a unidade/setor do cadastro vigente da série.
+
+### Grupos canônicos do DRE
+
+`receita_operacional`, `deducoes_receita`, `custos_variaveis`, `despesas_fixas`, `despesas_comerciais`,
+`resultado_financeiro`, `depreciacao_amortizacao`, `tributos_lucro`, `fora_dre`.
+
+Categoria, setor, unidade, Fixo/Variável e recorrência são dimensões **independentes**.
+
+Cascata: receita bruta − deduções = **receita líquida**; − custos variáveis = **margem de contribuição**
+(antes das despesas fixas e comerciais); − fixas − comerciais − depreciação = **resultado operacional**;
+− resultado financeiro = resultado antes dos tributos; − tributos sobre o lucro = **resultado líquido**.
+`fora_dre` (empréstimo/principal, compra de ativos, investimentos) nunca afeta o resultado.
+
+### Regimes
+
+| Regime | Data usada | Quem entra |
+| --- | --- | --- |
+| `competencia` | `competencia` | tudo que não está cancelado |
+| `realizado` | `data_pagamento` / `data_recebimento` | somente Pago/Recebido |
+| `projetado` | `vencimento` | somente o que está em aberto |
+
+Nada é inferido: faltando a data do regime, o lançamento sai dos totais e aparece em
+`pendencias.sem_data_do_regime` (quantidade + valor), com `cobertura_percentual` e avisos.
+`usar_data_legada: true` permite, apenas para exibição, cair na data do lançamento — sempre reportado
+em `pendencias.via_data_legada`. Nenhuma data é gravada no banco.
+
+### Alteração completa e em lote
+
+`preparar_alteracao_lancamento` aceita, para receita e despesa: `descricao`, `valor`, `status`,
+`competencia`, `vencimento`, `data_efetiva`, `categoria`/`categoria_id`, `subcategoria`/`subcategoria_id`,
+`unidade_negocio`, `observacoes`, `data` (legada) e, só em despesas, `tipo` (Fixo/Variável), `setor`,
+`responsavel`, `recorrente`. Campo **omitido preserva**; `null` **limpa** quando permitido.
+A subcategoria precisa pertencer à categoria resultante.
+
+`preparar_alteracao_lote` recebe uma lista com os mesmos campos, devolve **prévia item a item** e um
+único `confirmation_id`. A confirmação chama `public.mcp_aplicar_lote`, que aplica tudo em **uma única
+transação** com `SELECT ... FOR UPDATE` e checagem de `versao`: se um item falhar, nenhum é alterado.
+Replay e confirmação simultânea são impossíveis (a operação sai de `pending` dentro da transação).
+
+### Testes
+
+`bunx vitest run` — 101 testes: `dre.test.ts` (regimes, cascata, pendências, filtros),
+`mcpGestao.test.ts` (categorias, subcategorias, inativação, edição campo a campo, lote/rollback,
+idempotência, conflito de versão, cancelamento, séries, DRE pelo protocolo), além das suítes anteriores.
