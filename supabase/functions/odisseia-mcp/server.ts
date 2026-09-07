@@ -15,7 +15,9 @@ import {
   dateFields,
   describeDiff,
   expiresAtFrom,
+  MSG_DATA_INVALIDA,
   formatDateBR,
+  isDataValida,
   money,
   resolveRange,
   sanitize,
@@ -63,11 +65,14 @@ const RO_STRICT = { readOnlyHint: true, destructiveHint: false, openWorldHint: f
 const RW_PREP = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
 const RW_CONFIRM = { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false } as const;
 
+/** Data de calendário real (a regex sozinha aceitaria 2026-02-31). */
+const dataStr = (desc: string) => z.string().refine(isDataValida, MSG_DATA_INVALIDA).describe(desc);
+
 const periodoShape = {
   mes: z.number().int().min(1).max(12).optional().describe('Mês (1-12). Use junto com "ano".'),
   ano: z.number().int().min(2000).max(2100).optional().describe('Ano (ex.: 2026).'),
-  data_inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Data inicial YYYY-MM-DD.'),
-  data_fim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Data final YYYY-MM-DD.'),
+  data_inicio: dataStr('Data inicial YYYY-MM-DD.').optional(),
+  data_fim: dataStr('Data final YYYY-MM-DD.').optional(),
 };
 const unidadeShape = {
   unidade: z.string().optional().describe('Unidade de negócio. Use "none" para lançamentos sem unidade.'),
@@ -420,7 +425,11 @@ export function buildServer(ctx: Ctx) {
 
   const BATCH = 1000;
 
-  /** Lê em lotes para nunca esbarrar no teto de 1000 linhas do PostgREST. */
+  /**
+   * Lê em lotes para nunca esbarrar no teto de 1000 linhas do PostgREST.
+   * O builder DEVE aplicar uma ordem estável (ex.: .order('id')) — caso contrário
+   * a paginação acima de 1000 linhas pode repetir ou perder registros.
+   */
   async function fetchAll(build: (from: number, to: number) => any): Promise<any[]> {
     const out: any[] = [];
     for (let from = 0; ; from += BATCH) {
@@ -476,8 +485,8 @@ export function buildServer(ctx: Ctx) {
     !filtro || String(valor ?? '').toLowerCase().includes(filtro.toLowerCase());
 
   const contratoFiltrosShape = {
-    data_implantacao_inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Data inicial de implantação (YYYY-MM-DD).'),
-    data_implantacao_fim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Data final de implantação (YYYY-MM-DD).'),
+    data_implantacao_inicio: dataStr('Data inicial de implantação (YYYY-MM-DD).').optional(),
+    data_implantacao_fim: dataStr('Data final de implantação (YYYY-MM-DD).').optional(),
     operadora: z.string().optional().describe('Nome (parcial) da operadora.'),
     corretor: z.string().optional().describe('Nome (parcial) do corretor.'),
     supervisor: z.string().optional().describe('Nome (parcial) do supervisor (A ou B).'),
@@ -495,7 +504,8 @@ export function buildServer(ctx: Ctx) {
         if (args.data_implantacao_fim) q = q.lte('data_implantacao', args.data_implantacao_fim);
         if (args.unidade_negocio === 'none') q = q.is('unidade_negocio', null);
         else if (args.unidade_negocio) q = q.eq('unidade_negocio', args.unidade_negocio);
-        return q.range(from, to);
+        // Ordem estável obrigatória: sem ela, páginas > 1000 podem repetir ou pular linhas.
+        return q.order('id', { ascending: true }).range(from, to);
       })
     ).map(mapContrato);
 
@@ -508,7 +518,7 @@ export function buildServer(ctx: Ctx) {
 
     const receitas = (
       await fetchAll((from, to) =>
-        ctx.supabase.from('receitas').select(RECEITA_SELECT).eq('user_id', ctx.userId).not('contrato_id', 'is', null).range(from, to),
+        ctx.supabase.from('receitas').select(RECEITA_SELECT).eq('user_id', ctx.userId).not('contrato_id', 'is', null).order('id', { ascending: true }).range(from, to),
       )
     ).map(mapReceita);
 
@@ -549,7 +559,7 @@ export function buildServer(ctx: Ctx) {
 
   async function carregarReceitasDoContrato(contratoId: string): Promise<ReceitaRow[]> {
     const rows = await fetchAll((from, to) =>
-      ctx.supabase.from('receitas').select(RECEITA_SELECT).eq('user_id', ctx.userId).eq('contrato_id', contratoId).range(from, to),
+      ctx.supabase.from('receitas').select(RECEITA_SELECT).eq('user_id', ctx.userId).eq('contrato_id', contratoId).order('id', { ascending: true }).range(from, to),
     );
     return ordenarReceitas(rows.map(mapReceita));
   }
@@ -868,7 +878,7 @@ export function buildServer(ctx: Ctx) {
       title: 'Preparar criação de receita',
       description: 'Valida os dados e cria uma operação PENDENTE para lançar uma receita. Não altera nada até "confirmar_operacao".',
       inputSchema: {
-        data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('Data do lançamento (YYYY-MM-DD).'),
+        data: dataStr('Data do lançamento (YYYY-MM-DD).'),
         descricao: z.string().min(1).max(300),
         categoria: z.string().min(1).describe('Categoria da receita (texto livre do sistema).'),
         operadora: z.string().min(1).describe('Nome da operadora cadastrada.'),
@@ -927,7 +937,7 @@ export function buildServer(ctx: Ctx) {
       title: 'Preparar criação de despesa',
       description: 'Valida os dados e cria uma operação PENDENTE para lançar uma despesa. Não altera nada até "confirmar_operacao".',
       inputSchema: {
-        data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        data: dataStr('Data do lançamento (YYYY-MM-DD).'),
         descricao: z.string().min(1).max(300),
         categoria: z.string().min(1).describe('Nome da categoria de despesa cadastrada.'),
         tipo: z.string().min(1).describe('Tipo da despesa (ex.: "Fixa", "Variável").'),
@@ -978,21 +988,20 @@ export function buildServer(ctx: Ctx) {
 
   const TABELA = { receita: 'receitas', despesa: 'despesas' } as const;
   const DATA_EFETIVA = { receita: 'data_recebimento', despesa: 'data_pagamento' } as const;
-  const DATA_RX = /^\d{4}-\d{2}-\d{2}$/;
 
   /** Campos aceitos na alteração (individual e em lote). Omitido preserva; null limpa. */
   const alteracaoShape = {
     tipo_lancamento: z.enum(['receita', 'despesa']),
     id: z.string().uuid().describe('ID do lançamento.'),
-    data: z.string().regex(DATA_RX).optional().describe('Data legada do lançamento.'),
+    data: dataStr('Data legada do lançamento.').optional(),
     descricao: z.string().min(1).max(300).optional(),
     valor: z.number().nonnegative().optional(),
     status: z.string().optional(),
     unidade_negocio: z.string().nullable().optional(),
     observacoes: z.string().max(2000).nullable().optional(),
-    competencia: z.string().regex(DATA_RX).nullable().optional().describe('Data de competência (reconhecimento no DRE).'),
-    vencimento: z.string().regex(DATA_RX).nullable().optional().describe('Data de vencimento (fluxo projetado).'),
-    data_efetiva: z.string().regex(DATA_RX).nullable().optional().describe('Data efetiva de pagamento (despesa) ou recebimento (receita).'),
+    competencia: dataStr('Data de competência (reconhecimento no DRE).').nullable().optional(),
+    vencimento: dataStr('Data de vencimento (fluxo projetado).').nullable().optional(),
+    data_efetiva: dataStr('Data efetiva de pagamento (despesa) ou recebimento (receita).').nullable().optional(),
     categoria_id: z.string().uuid().nullable().optional(),
     subcategoria_id: z.string().uuid().nullable().optional().describe('Deve pertencer à categoria do lançamento.'),
     tipo: z.enum(['Fixo', 'Variável']).optional().describe('Somente despesas: tipo da despesa.'),
@@ -1158,102 +1167,58 @@ export function buildServer(ctx: Ctx) {
         const check = canConfirm(op as any);
         if (!check.ok) return fail((check as { ok: false; reason: string }).reason);
 
-        // Lote: a própria função SQL reserva a operação e aplica tudo numa única transação.
-        if (op!.tool_name === TOOL.PREPARAR_ALTERACAO_LOTE) {
-          const itens = (op!.after_data as any)?.itens ?? [];
-          const { data, error } = await ctx.supabase.rpc('mcp_aplicar_lote', { _op_id: args.confirmation_id, _itens: itens });
-          if (error) return fail(error.message);
-          return text({
-            status: 'executed',
-            confirmation_id: args.confirmation_id,
-            resumo: op!.summary,
-            itens_aplicados: itens.length,
-            resultado: sanitize(data),
-          });
-        }
+        // Um ÚNICO RPC faz reserva + validação + gravação + auditoria na MESMA transação.
+        // Nada é marcado como executado antes das gravações; qualquer falha desfaz tudo.
+        const after = op!.after_data as any;
+        const plano: { inserts: any[]; updates: any[] } = { inserts: [], updates: [] };
+        const tool = op!.tool_name;
 
-        // Reserva atômica: garante execução única mesmo com chamadas concorrentes.
-        const { error: claimErr } = await ctx.supabase.rpc('mcp_claim_operacao', { _id: args.confirmation_id });
-        if (claimErr) return fail(claimErr.message);
-
-        const marcarFalha = async (msg: string) => {
-          await ctx.supabase.from('mcp_operacoes').update({ status: 'failed', error: msg }).eq('id', args.confirmation_id);
-          return fail(msg);
-        };
-
-        try {
-          const after = op!.after_data as any;
-          let resultado: any;
-          if (op!.tool_name === TOOL.PREPARAR_CRIACAO_RECEITA) {
-            const { data, error } = await ctx.supabase
-              .from('receitas')
-              .insert({ ...after, comissao: 0, user_id: ctx.userId })
-              .select('*')
-              .single();
-            if (error) return await marcarFalha(error.message);
-            resultado = data;
-          } else if (op!.tool_name === TOOL.PREPARAR_CRIACAO_DESPESA) {
-            const { data, error } = await ctx.supabase
-              .from('despesas')
-              .insert({ ...after, user_id: ctx.userId })
-              .select('*')
-              .single();
-            if (error) return await marcarFalha(error.message);
-            resultado = data;
-          } else if (
-            op!.tool_name === TOOL.PREPARAR_ALTERACAO_LANCAMENTO ||
-            op!.tool_name === TOOL.PREPARAR_MARCACAO_STATUS ||
-            op!.tool_name === TOOL.PREPARAR_CANCELAMENTO_LANCAMENTO
-          ) {
-            const { tabela, id, updates, versao } = after;
-            const { data: atual } = await ctx.supabase.from(tabela).select('*').eq('id', id).maybeSingle();
-            if (!atual) return await marcarFalha('O lançamento não existe mais. Operação não executada.');
-            if (versao != null && atual.versao != null && atual.versao !== versao) {
-              return await marcarFalha('O lançamento foi alterado por outra operação depois do preparo. Refaça o preparo.');
-            }
-            const patch = atual.versao != null ? { ...updates, versao: Number(atual.versao) + 1 } : updates;
-            const { data, error } = await ctx.supabase.from(tabela).update(patch).eq('id', id).select('*').single();
-            if (error) return await marcarFalha(error.message);
-            resultado = data;
-          } else if (
-            op!.tool_name === TOOL.PREPARAR_CRIACAO_CATEGORIA ||
-            op!.tool_name === TOOL.PREPARAR_CRIACAO_SUBCATEGORIA
-          ) {
-            const { tabela, payload } = after;
-            const { data, error } = await ctx.supabase.from(tabela).insert(payload).select('*').single();
-            if (error) return await marcarFalha(error.message);
-            resultado = data;
-          } else if (
-            op!.tool_name === TOOL.PREPARAR_ALTERACAO_CATEGORIA ||
-            op!.tool_name === TOOL.PREPARAR_ALTERACAO_SUBCATEGORIA ||
-            op!.tool_name === TOOL.PREPARAR_ENCERRAMENTO_SERIE
-          ) {
-            const { tabela, id, updates } = after;
-            const { data, error } = await ctx.supabase.from(tabela).update(updates).eq('id', id).select('*').single();
-            if (error) return await marcarFalha(error.message);
-            resultado = data;
-          } else if (op!.tool_name === TOOL.PREPARAR_CRIACAO_SERIE) {
-            const { payload, lancamentos } = after;
-            const { data: serie, error } = await ctx.supabase
-              .from('series_recorrencia')
-              .insert({ ...payload, user_id: ctx.userId })
-              .select('*')
-              .single();
-            if (error) return await marcarFalha(error.message);
-            for (const item of lancamentos ?? []) {
-              const { error: e2 } = await ctx.supabase.from(item.tabela).update({ serie_id: serie.id }).eq('id', item.id);
-              if (e2) return await marcarFalha(e2.message);
-            }
-            resultado = { serie, lancamentos_vinculados: (lancamentos ?? []).length };
-          } else {
-            return await marcarFalha(`Tipo de operação não suportado: ${op!.tool_name}`);
+        if (tool === TOOL.PREPARAR_ALTERACAO_LOTE) {
+          plano.updates = (after?.itens ?? []).map((i: any) => ({ tabela: i.tabela, id: i.id, versao: i.versao ?? null, patch: i.patch }));
+        } else if (tool === TOOL.PREPARAR_CRIACAO_RECEITA) {
+          plano.inserts.push({ tabela: 'receitas', row: { ...after, comissao: 0, user_id: ctx.userId } });
+        } else if (tool === TOOL.PREPARAR_CRIACAO_DESPESA) {
+          plano.inserts.push({ tabela: 'despesas', row: { ...after, user_id: ctx.userId } });
+        } else if (
+          tool === TOOL.PREPARAR_ALTERACAO_LANCAMENTO ||
+          tool === TOOL.PREPARAR_MARCACAO_STATUS ||
+          tool === TOOL.PREPARAR_CANCELAMENTO_LANCAMENTO
+        ) {
+          plano.updates.push({ tabela: after.tabela, id: after.id, versao: after.versao ?? null, patch: after.updates });
+        } else if (tool === TOOL.PREPARAR_CRIACAO_CATEGORIA || tool === TOOL.PREPARAR_CRIACAO_SUBCATEGORIA) {
+          plano.inserts.push({ tabela: after.tabela, row: after.payload });
+        } else if (
+          tool === TOOL.PREPARAR_ALTERACAO_CATEGORIA ||
+          tool === TOOL.PREPARAR_ALTERACAO_SUBCATEGORIA ||
+          tool === TOOL.PREPARAR_ENCERRAMENTO_SERIE
+        ) {
+          plano.updates.push({ tabela: after.tabela, id: after.id, versao: after.versao ?? null, patch: after.updates });
+        } else if (tool === TOOL.PREPARAR_CRIACAO_SERIE) {
+          plano.inserts.push({ tabela: 'series_recorrencia', row: { ...after.payload, user_id: ctx.userId }, ref: 'serie' });
+          for (const item of after.lancamentos ?? []) {
+            plano.updates.push({ tabela: item.tabela, id: item.id, versao: item.versao ?? null, patch: {}, refs: { serie_id: 'serie' } });
           }
-          const limpo = sanitize(resultado);
-          await ctx.supabase.from('mcp_operacoes').update({ after_data: limpo as any }).eq('id', args.confirmation_id);
-          return text({ status: 'executed', confirmation_id: args.confirmation_id, resumo: op!.summary, resultado: limpo });
-        } catch (e) {
-          return await marcarFalha((e as Error).message);
+        } else {
+          return fail(`Tipo de operação não suportado: ${tool}`);
         }
+
+        const { data: exec, error: execErr } = await ctx.supabase.rpc('mcp_executar_operacao', {
+          _op_id: args.confirmation_id,
+          _plano: plano,
+        });
+        if (execErr) {
+          // A transação foi desfeita: nada foi gravado. Registramos a falha à parte.
+          await ctx.supabase.from('mcp_operacoes').update({ status: 'failed', error: execErr.message }).eq('id', args.confirmation_id);
+          return fail(execErr.message);
+        }
+        const limpo = sanitize(exec) as any;
+        return text({
+          status: 'executed',
+          confirmation_id: args.confirmation_id,
+          resumo: op!.summary,
+          itens_aplicados: limpo?.itens ?? plano.inserts.length + plano.updates.length,
+          resultado: limpo,
+        });
       } catch (e) {
         return fail((e as Error).message);
       }
@@ -1297,6 +1262,47 @@ export function buildServer(ctx: Ctx) {
     const byId = new Map<string, any>();
     for (const s of rows) byId.set(s.id, s);
     return byId;
+  }
+
+  /** Cadastros (categorias/subcategorias) são GLOBAIS: só admin ou gestor podem alterá-los. */
+  async function exigirPapelCadastros(): Promise<string | null> {
+    const { data, error } = await ctx.supabase.from('user_roles').select('role').eq('user_id', ctx.userId);
+    if (error) return `Não foi possível verificar suas permissões: ${error.message}`;
+    const papeis = (data || []).map((r: any) => r.role);
+    if (papeis.includes('admin') || papeis.includes('gestor')) return null;
+    return 'Categorias e subcategorias são cadastros compartilhados: apenas administrador ou gestor podem alterá-los. Nenhuma operação foi criada.';
+  }
+
+  /** Impacto de mexer num cadastro global: quantos lançamentos de QUANTOS usuários passam a ser lidos de outro jeito. */
+  async function impactoCategoria(categoriaId: string, subcategoriaId?: string | null) {
+    const col = subcategoriaId ? 'subcategoria_id' : 'categoria_id';
+    const alvo = subcategoriaId ?? categoriaId;
+    const resumo = async (tabela: string) => {
+      const rows = await fetchAll((from, to) =>
+        ctx.supabase.from(tabela).select('id, valor, user_id, status').eq(col, alvo).order('id', { ascending: true }).range(from, to),
+      );
+      const valor = round2(rows.reduce((a: number, r: any) => a + num(r.valor), 0));
+      const liquidados = rows.filter((r: any) => ['Pago', 'Recebido'].includes(String(r.status))).length;
+      return {
+        quantidade: rows.length,
+        ...money(valor),
+        liquidados,
+        usuarios_afetados: new Set(rows.map((r: any) => r.user_id)).size,
+      };
+    };
+    const despesas = await resumo('despesas');
+    const receitas = await resumo('receitas');
+    const subs = subcategoriaId
+      ? []
+      : await todos<any>(ctx.supabase.from('subcategorias_despesa').select('id, nome, ativo').eq('categoria_id', categoriaId));
+    return {
+      despesas_vinculadas: despesas,
+      receitas_vinculadas: receitas,
+      subcategorias: subs.length,
+      aviso:
+        'Este é um cadastro COMPARTILHADO: a mudança altera a leitura do histórico de TODOS os lançamentos vinculados, ' +
+        'inclusive de outros usuários e de lançamentos já pagos. Nenhum valor é alterado — apenas a classificação.',
+    };
   }
 
   server.registerTool(
@@ -1400,13 +1406,19 @@ export function buildServer(ctx: Ctx) {
         const { byId: cats } = await mapaCategorias();
         const setores = await mapaSetores();
 
-        const receitas = await todos<any>(
-          ctx.supabase.from('receitas').select('id, valor, status, cancelado, competencia, vencimento, data_recebimento, unidade_negocio, categoria_id, data'),
+        const receitas = await fetchAll((from, to) =>
+          ctx.supabase
+            .from('receitas')
+            .select('id, valor, status, cancelado, competencia, vencimento, data_recebimento, unidade_negocio, categoria_id, data')
+            .order('id', { ascending: true })
+            .range(from, to),
         );
-        const despesas = await todos<any>(
+        const despesas = await fetchAll((from, to) =>
           ctx.supabase
             .from('despesas')
-            .select('id, valor, status, cancelado, competencia, vencimento, data_pagamento, unidade_negocio, categoria_id, setor_id, data'),
+            .select('id, valor, status, cancelado, competencia, vencimento, data_pagamento, unidade_negocio, categoria_id, setor_id, data')
+            .order('id', { ascending: true })
+            .range(from, to),
         );
 
         const lancamentos: LancamentoDRE[] = [
@@ -1573,6 +1585,8 @@ export function buildServer(ctx: Ctx) {
     async (args) => {
       try {
         assertNoIdentityArgs(args);
+        const semPermissao = await exigirPapelCadastros();
+        if (semPermissao) return fail(semPermissao);
         const { rows } = await mapaCategorias();
         if (rows.some((c) => String(c.nome).trim().toLowerCase() === args.nome.trim().toLowerCase())) {
           return fail(`Já existe uma categoria chamada "${args.nome}". Nenhuma operação foi criada.`);
@@ -1604,6 +1618,8 @@ export function buildServer(ctx: Ctx) {
     async (args) => {
       try {
         assertNoIdentityArgs(args);
+        const semPermissao = await exigirPapelCadastros();
+        if (semPermissao) return fail(semPermissao);
         const { data: atual, error } = await ctx.supabase.from('categorias_despesa').select('*').eq('id', args.id).maybeSingle();
         if (error) return fail(error.message);
         if (!atual) return fail('Categoria não encontrada.');
@@ -1615,9 +1631,10 @@ export function buildServer(ctx: Ctx) {
         const before = sanitize(atual) as Record<string, unknown>;
         const diff = buildDiff(before, updates);
         if (!diff.length) return fail('Os valores informados já são os atuais.');
-        const summary = `Alterar categoria "${atual.nome}" — ${describeDiff(diff)}`;
-        const op = await registrarOperacao(ctx, TOOL.PREPARAR_ALTERACAO_CATEGORIA, args as any, before, { tabela: 'categorias_despesa', id: args.id, updates }, summary);
-        return text({ confirmation_id: op.id, expires_at: op.expires_at, status: 'pending', resumo: summary, antes: before, depois: sanitize({ ...atual, ...updates }), alteracoes: diff });
+        const impacto = await impactoCategoria(args.id);
+        const summary = `Alterar categoria "${atual.nome}" — ${describeDiff(diff)} (impacto: ${impacto.despesas_vinculadas.quantidade} despesa(s) e ${impacto.receitas_vinculadas.quantidade} receita(s) vinculadas).`;
+        const op = await registrarOperacao(ctx, TOOL.PREPARAR_ALTERACAO_CATEGORIA, args as any, { antes: before, impacto }, { tabela: 'categorias_despesa', id: args.id, updates }, summary);
+        return text({ confirmation_id: op.id, expires_at: op.expires_at, status: 'pending', resumo: summary, antes: before, depois: sanitize({ ...atual, ...updates }), alteracoes: diff, impacto });
       } catch (e) {
         return fail((e as Error).message);
       }
@@ -1639,6 +1656,8 @@ export function buildServer(ctx: Ctx) {
     async (args) => {
       try {
         assertNoIdentityArgs(args);
+        const semPermissao = await exigirPapelCadastros();
+        if (semPermissao) return fail(semPermissao);
         const { data: cat, error } = await ctx.supabase.from('categorias_despesa').select('id, nome').eq('id', args.categoria_id).maybeSingle();
         if (error) return fail(error.message);
         if (!cat) return fail('Categoria não encontrada. Nenhuma operação foi criada.');
@@ -1672,6 +1691,8 @@ export function buildServer(ctx: Ctx) {
     async (args) => {
       try {
         assertNoIdentityArgs(args);
+        const semPermissao = await exigirPapelCadastros();
+        if (semPermissao) return fail(semPermissao);
         const { data: atual, error } = await ctx.supabase.from('subcategorias_despesa').select('*').eq('id', args.id).maybeSingle();
         if (error) return fail(error.message);
         if (!atual) return fail('Subcategoria não encontrada.');
@@ -1687,9 +1708,10 @@ export function buildServer(ctx: Ctx) {
         const before = sanitize(atual) as Record<string, unknown>;
         const diff = buildDiff(before, updates);
         if (!diff.length) return fail('Os valores informados já são os atuais.');
-        const summary = `Alterar subcategoria "${atual.nome}" — ${describeDiff(diff)}`;
-        const op = await registrarOperacao(ctx, TOOL.PREPARAR_ALTERACAO_SUBCATEGORIA, args as any, before, { tabela: 'subcategorias_despesa', id: args.id, updates }, summary);
-        return text({ confirmation_id: op.id, expires_at: op.expires_at, status: 'pending', resumo: summary, antes: before, depois: sanitize({ ...atual, ...updates }), alteracoes: diff });
+        const impacto = await impactoCategoria(atual.categoria_id, args.id);
+        const summary = `Alterar subcategoria "${atual.nome}" — ${describeDiff(diff)} (impacto: ${impacto.despesas_vinculadas.quantidade} despesa(s) e ${impacto.receitas_vinculadas.quantidade} receita(s) vinculadas).`;
+        const op = await registrarOperacao(ctx, TOOL.PREPARAR_ALTERACAO_SUBCATEGORIA, args as any, { antes: before, impacto }, { tabela: 'subcategorias_despesa', id: args.id, updates }, summary);
+        return text({ confirmation_id: op.id, expires_at: op.expires_at, status: 'pending', resumo: summary, antes: before, depois: sanitize({ ...atual, ...updates }), alteracoes: diff, impacto });
       } catch (e) {
         return fail((e as Error).message);
       }
@@ -1753,7 +1775,7 @@ export function buildServer(ctx: Ctx) {
         'Os lançamentos já pagos são preservados intactos.',
       inputSchema: {
         serie_id: z.string().uuid(),
-        encerrada_em: z.string().regex(DATA_RX).describe('Data a partir da qual a série deixa de gerar ocorrências.'),
+        encerrada_em: dataStr('Data a partir da qual a série deixa de gerar ocorrências.'),
         motivo: z.string().min(3).max(500),
       },
       annotations: RW_PREP,

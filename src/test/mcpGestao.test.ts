@@ -49,7 +49,7 @@ function despesa(id: string, extra: Record<string, unknown> = {}) {
   };
 }
 
-function seed() {
+function seed(comPapel = true) {
   return new FakeDb({
     operadoras: [{ id: '22222222-2222-4222-8222-222222222222', nome: 'Amil', ativa: true }],
     vendedores: [{ id: '33333333-3333-4333-8333-333333333333', nome: 'Rhayssa', ativo: true }],
@@ -67,6 +67,7 @@ function seed() {
       { id: R1, user_id: USER_ID, data: '2026-08-01', descricao: 'Contrato X', valor: 1000, status: 'Aguardando', categoria: 'Plano de Saúde', categoria_id: null, subcategoria_id: null, competencia: null, vencimento: null, data_recebimento: null, cancelado: false, unidade_negocio: 'Odisseia', versao: 1 },
     ],
     mcp_operacoes: [],
+    user_roles: comPapel ? [{ id: '77777777-7777-4777-8777-777777777701', user_id: USER_ID, role: 'gestor' }] : [],
   });
 }
 
@@ -165,6 +166,26 @@ describe('categorias e subcategorias', () => {
   });
 });
 
+describe('permissão em cadastros compartilhados', () => {
+  it('usuário sem admin/gestor não consegue preparar mudança de categoria', async () => {
+    const semPapel = seed(false);
+    const c = await connect(semPapel);
+    const r: any = await call(c, TOOL.PREPARAR_ALTERACAO_CATEGORIA, { id: CAT_COM, grupo_dre: 'despesas_comerciais' });
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toMatch(/administrador ou gestor/i);
+    expect(semPapel.rows('mcp_operacoes')).toHaveLength(0);
+    expect(semPapel.rows('categorias_despesa').find((c: any) => c.id === CAT_COM).grupo_dre).toBeNull();
+  });
+
+  it('preparo de alteração de categoria mostra o impacto no histórico compartilhado', async () => {
+    const r = payload(await call(client, TOOL.PREPARAR_ALTERACAO_CATEGORIA, { id: CAT_FIXA, grupo_dre: 'custos_variaveis' }));
+    expect(r.impacto.despesas_vinculadas.quantidade).toBe(3);
+    expect(r.impacto.despesas_vinculadas.liquidados).toBe(1);
+    expect(r.impacto.subcategorias).toBe(1);
+    expect(r.impacto.aviso).toMatch(/compartilhado/i);
+  });
+});
+
 describe('alteração completa de lançamento', () => {
   it('altera um único campo preservando todos os demais', async () => {
     const antes = { ...db.rows('despesas')[0] };
@@ -223,7 +244,7 @@ describe('alteração completa de lançamento', () => {
     db.rows('despesas')[0].versao = 7; // alteração concorrente
     const r: any = await call(client, TOOL.CONFIRMAR_OPERACAO, { confirmation_id: prep.confirmation_id });
     expect(r.isError).toBe(true);
-    expect(r.content[0].text).toMatch(/alterado por outra operação/i);
+    expect(r.content[0].text).toMatch(/alterado depois do preparo/i);
     expect(db.rows('despesas')[0].valor).toBe(400);
   });
 });

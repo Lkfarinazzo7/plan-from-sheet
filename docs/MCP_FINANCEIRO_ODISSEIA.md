@@ -244,8 +244,29 @@ A subcategoria precisa pertencer à categoria resultante.
 transação** com `SELECT ... FOR UPDATE` e checagem de `versao`: se um item falhar, nenhum é alterado.
 Replay e confirmação simultânea são impossíveis (a operação sai de `pending` dentro da transação).
 
+### Permissões em cadastros compartilhados
+
+`categorias_despesa` e `subcategorias_despesa` são **globais** (não têm `user_id`). Por isso:
+
+- `preparar_criacao_categoria`, `preparar_alteracao_categoria`, `preparar_criacao_subcategoria` e
+  `preparar_alteracao_subcategoria` exigem papel `admin` ou `gestor` (checado em `user_roles`); sem papel,
+  nem a operação `pending` é criada.
+- O preparo de alteração devolve `impacto`: quantidade/valor de despesas e receitas vinculadas, quantos
+  já estão liquidados, quantos usuários são afetados e quantas subcategorias dependem da categoria.
+  Nenhum valor é alterado — muda apenas a classificação usada na leitura do histórico.
+- Lançamentos (`receitas`/`despesas`) continuam isolados por `auth.uid()` via RLS.
+
+### Limitações conhecidas
+
+- Não há exclusão física de nada; só inativação e cancelamento lógico.
+- O MCP não cria lançamentos financeiros: só altera, cancela e classifica.
+- Depreciação só é apropriada com dados explícitos; nada de vida útil, juros ou parcelas presumidos.
+- Reclassificação em massa do histórico não é feita automaticamente — exige lote preparado e confirmado.
+- Leituras longas são paginadas com ordem estável por `id`; sem ela o PostgREST poderia repetir linhas.
+
 ### Testes
 
-`bunx vitest run` — 101 testes: `dre.test.ts` (regimes, cascata, pendências, filtros),
+`bunx vitest run` — 103 testes: `dre.test.ts` (regimes, cascata, pendências, filtros),
 `mcpGestao.test.ts` (categorias, subcategorias, inativação, edição campo a campo, lote/rollback,
-idempotência, conflito de versão, cancelamento, séries, DRE pelo protocolo), além das suítes anteriores.
+idempotência, conflito de versão, cancelamento, séries, permissão e impacto em cadastros, DRE pelo
+protocolo), além das suítes anteriores. Typecheck (`bunx tsgo --noEmit`) e `bun run build` limpos.

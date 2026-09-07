@@ -888,6 +888,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      mcp_executar_operacao: {
+        Args: { _op_id: string; _plano: Json }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "gestor" | "adm_pipeline"

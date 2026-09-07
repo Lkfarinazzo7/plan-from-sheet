@@ -484,38 +484,54 @@ export function useGenerateRecurringDespesas() {
         if (seriesError) throw seriesError;
         for (const s of series || []) seriesById.set(s.id, s);
       }
-      const targetFirstDay = toDateStr(targetYear, targetMonth, 1);
+      const targetStart = toDateStr(targetYear, targetMonth, 1);
+      const lastDayTarget = new Date(targetYear, targetMonth + 1, 0).getDate();
+      const targetEnd = toDateStr(targetYear, targetMonth, lastDayTarget);
+
+      const ignoradosSerieEncerrada: string[] = [];
+      const ignoradosCancelados: string[] = [];
       const geraveis = recurring.filter((d: any) => {
-        if (d.cancelado) return false;
+        if (d.cancelado) {
+          ignoradosCancelados.push(d.descricao);
+          return false;
+        }
         const serie = d.serie_id ? seriesById.get(d.serie_id) : null;
         if (!serie) return true;
-        if (serie.ativa === false) return false;
-        if (serie.encerrada_em && serie.encerrada_em <= targetFirstDay) return false;
+        // Série encerrada nunca gera nova ocorrência — nem a partir de um mês antigo já pago.
+        if (serie.ativa === false || (serie.encerrada_em && serie.encerrada_em <= targetEnd)) {
+          ignoradosSerieEncerrada.push(d.descricao);
+          return false;
+        }
         return true;
       });
       if (!geraveis.length) {
-        throw new Error('Todas as despesas recorrentes desse mês pertencem a séries encerradas ou estão canceladas. Nada foi gerado.');
+        throw new Error('Todas as despesas recorrentes desse mês estão canceladas ou pertencem a séries encerradas. Nada foi gerado.');
       }
 
-      // Buscar recorrentes já existentes no mês de destino para não duplicar
-      const targetStart = toDateStr(targetYear, targetMonth, 1);
-      const targetEnd = toDateStr(targetYear, targetMonth, new Date(targetYear, targetMonth + 1, 0).getDate());
+      // Já existentes no mês de destino: por SÉRIE (identidade real) quando houver, senão pelo par descrição+valor.
       const { data: existing, error: existingError } = await supabase
         .from('despesas')
-        .select('descricao, valor')
+        .select('descricao, valor, serie_id')
         .eq('recorrente', true)
         .gte('data', targetStart)
         .lte('data', targetEnd);
       if (existingError) throw existingError;
+      const seriesNoDestino = new Set((existing || []).map((e: any) => e.serie_id).filter(Boolean));
       const existingKeys = new Set((existing || []).map(e => `${e.descricao}|${Number(e.valor)}`));
 
-      const lastDayTarget = new Date(targetYear, targetMonth + 1, 0).getDate();
+      const legadosSemSerie: string[] = [];
       const newDespesas = geraveis
-        .filter(d => !existingKeys.has(`${d.descricao}|${Number(d.valor)}`))
+        .filter((d: any) => {
+          // Uma ocorrência por série por mês de destino.
+          if (d.serie_id) return !seriesNoDestino.has(d.serie_id);
+          legadosSemSerie.push(d.descricao);
+          return !existingKeys.has(`${d.descricao}|${Number(d.valor)}`);
+        })
         .map(d => {
           // Extrair o dia direto da string YYYY-MM-DD (new Date() interpretaria como UTC e voltaria 1 dia)
           const originalDay = parseInt(String(d.data).slice(8, 10), 10);
           const day = Math.min(originalDay, lastDayTarget);
+          const serie = d.serie_id ? seriesById.get(d.serie_id) : null;
           return {
             data: toDateStr(targetYear, targetMonth, day),
             descricao: d.descricao,
@@ -525,9 +541,9 @@ export function useGenerateRecurringDespesas() {
             responsavel: d.responsavel,
             recorrente: true,
             status: 'A pagar' as const,
-            // A unidade e o setor vêm do cadastro vigente da série, quando ela existe.
-            unidade_negocio: (d.serie_id && seriesById.get(d.serie_id)?.unidade_negocio) ?? (d as any).unidade_negocio ?? null,
-            setor_id: (d.serie_id && seriesById.get(d.serie_id)?.setor_id) ?? (d as any).setor_id ?? null,
+            // Unidade e setor vêm do cadastro VIGENTE da série (quando definidos), não da cópia antiga.
+            unidade_negocio: serie?.unidade_negocio ?? (d as any).unidade_negocio ?? null,
+            setor_id: serie?.setor_id ?? (d as any).setor_id ?? null,
             serie_id: (d as any).serie_id ?? null,
             observacoes: (d as any).observacoes ?? null,
             user_id: user!.id,
@@ -540,7 +556,12 @@ export function useGenerateRecurringDespesas() {
 
       const { error } = await supabase.from('despesas').insert(newDespesas);
       if (error) throw error;
-      return newDespesas.length;
+      return {
+        geradas: newDespesas.length,
+        ignoradas_serie_encerrada: ignoradosSerieEncerrada.length,
+        ignoradas_canceladas: ignoradosCancelados.length,
+        sem_serie: legadosSemSerie.length,
+      };
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['despesas'] }),
   });
