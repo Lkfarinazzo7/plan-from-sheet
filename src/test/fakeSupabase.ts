@@ -127,14 +127,22 @@ class Query implements PromiseLike<{ data: any; error: any; count?: number }> {
 }
 
 /** Mesma allowlist da função SQL mcp_executar_operacao. */
-const CAMPOS_PERMITIDOS: Record<string, string[]> = {
+const CAMPOS_INSERT: Record<string, string[]> = {
   categorias_despesa: ['nome', 'grupo_dre', 'tipo_dre', 'ativo'],
   subcategorias_despesa: ['nome', 'categoria_id', 'grupo_dre', 'ativo'],
-  series_recorrencia: ['nome', 'tipo', 'ativa', 'encerrada_em', 'motivo_encerramento', 'unidade_negocio', 'categoria_id', 'subcategoria_id', 'setor_id', 'user_id'],
-  receitas: ['data', 'descricao', 'categoria', 'categoria_id', 'subcategoria_id', 'setor_id', 'responsavel', 'recorrente', 'operadora_id', 'vendedor_id', 'contrato_id', 'valor', 'comissao', 'status', 'unidade_negocio', 'observacoes', 'competencia', 'vencimento', 'data_recebimento', 'ocorrencia', 'serie_id', 'cancelado', 'cancelado_em', 'motivo_cancelamento', 'user_id'],
-  despesas: ['data', 'descricao', 'categoria_id', 'subcategoria_id', 'setor_id', 'responsavel', 'recorrente', 'tipo', 'valor', 'status', 'unidade_negocio', 'observacoes', 'competencia', 'vencimento', 'data_pagamento', 'ocorrencia', 'serie_id', 'cancelado', 'cancelado_em', 'motivo_cancelamento', 'user_id'],
+  series_recorrencia: ['nome', 'tipo', 'ativa', 'unidade_negocio', 'categoria_id', 'subcategoria_id', 'setor_id', 'user_id'],
+  receitas: ['data', 'descricao', 'categoria', 'categoria_id', 'subcategoria_id', 'setor_id', 'responsavel', 'recorrente', 'operadora_id', 'vendedor_id', 'contrato_id', 'valor', 'comissao', 'status', 'unidade_negocio', 'observacoes', 'competencia', 'vencimento', 'data_recebimento', 'ocorrencia', 'serie_id', 'user_id'],
+  despesas: ['data', 'descricao', 'categoria_id', 'subcategoria_id', 'setor_id', 'responsavel', 'recorrente', 'tipo', 'valor', 'status', 'unidade_negocio', 'observacoes', 'competencia', 'vencimento', 'data_pagamento', 'ocorrencia', 'serie_id', 'user_id'],
 };
 
+/** Alteração NUNCA pode tocar user_id — espelha a allowlist da função SQL. */
+const CAMPOS_UPDATE: Record<string, string[]> = {
+  categorias_despesa: ['nome', 'grupo_dre', 'tipo_dre', 'ativo'],
+  subcategorias_despesa: ['nome', 'categoria_id', 'grupo_dre', 'ativo'],
+  series_recorrencia: ['nome', 'ativa', 'encerrada_em', 'motivo_encerramento', 'unidade_negocio', 'categoria_id', 'subcategoria_id', 'setor_id'],
+  receitas: ['data', 'descricao', 'categoria', 'categoria_id', 'subcategoria_id', 'setor_id', 'responsavel', 'recorrente', 'operadora_id', 'vendedor_id', 'contrato_id', 'valor', 'status', 'unidade_negocio', 'observacoes', 'competencia', 'vencimento', 'data_recebimento', 'ocorrencia', 'serie_id', 'cancelado', 'cancelado_em', 'motivo_cancelamento'],
+  despesas: ['data', 'descricao', 'categoria_id', 'subcategoria_id', 'setor_id', 'responsavel', 'recorrente', 'tipo', 'valor', 'status', 'unidade_negocio', 'observacoes', 'competencia', 'vencimento', 'data_pagamento', 'ocorrencia', 'serie_id', 'cancelado', 'cancelado_em', 'motivo_cancelamento'],
+};
 export class FakeDb {
   private tables = new Map<string, Row[]>();
   private seq = 0;
@@ -190,7 +198,7 @@ export class FakeDb {
           const alvos: Array<[Row, any]> = [];
           const vistos = new Set<string>();
           for (const it of [...inserts, ...updates]) {
-            const permitidos = CAMPOS_PERMITIDOS[it.tabela];
+            const permitidos = (it.row ? CAMPOS_INSERT : CAMPOS_UPDATE)[it.tabela];
             if (!permitidos) return err(`Tabela não permitida: ${it.tabela}`);
             const chaves = [...Object.keys(it.row || it.patch || {}), ...Object.keys(it.refs || {})];
             for (const k of chaves) {
