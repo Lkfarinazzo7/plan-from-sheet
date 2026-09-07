@@ -425,7 +425,11 @@ export function buildServer(ctx: Ctx) {
 
   const BATCH = 1000;
 
-  /** Lê em lotes para nunca esbarrar no teto de 1000 linhas do PostgREST. */
+  /**
+   * Lê em lotes para nunca esbarrar no teto de 1000 linhas do PostgREST.
+   * O builder DEVE aplicar uma ordem estável (ex.: .order('id')) — caso contrário
+   * a paginação acima de 1000 linhas pode repetir ou perder registros.
+   */
   async function fetchAll(build: (from: number, to: number) => any): Promise<any[]> {
     const out: any[] = [];
     for (let from = 0; ; from += BATCH) {
@@ -500,7 +504,8 @@ export function buildServer(ctx: Ctx) {
         if (args.data_implantacao_fim) q = q.lte('data_implantacao', args.data_implantacao_fim);
         if (args.unidade_negocio === 'none') q = q.is('unidade_negocio', null);
         else if (args.unidade_negocio) q = q.eq('unidade_negocio', args.unidade_negocio);
-        return q.range(from, to);
+        // Ordem estável obrigatória: sem ela, páginas > 1000 podem repetir ou pular linhas.
+        return q.order('id', { ascending: true }).range(from, to);
       })
     ).map(mapContrato);
 
@@ -513,7 +518,7 @@ export function buildServer(ctx: Ctx) {
 
     const receitas = (
       await fetchAll((from, to) =>
-        ctx.supabase.from('receitas').select(RECEITA_SELECT).eq('user_id', ctx.userId).not('contrato_id', 'is', null).range(from, to),
+        ctx.supabase.from('receitas').select(RECEITA_SELECT).eq('user_id', ctx.userId).not('contrato_id', 'is', null).order('id', { ascending: true }).range(from, to),
       )
     ).map(mapReceita);
 
@@ -554,7 +559,7 @@ export function buildServer(ctx: Ctx) {
 
   async function carregarReceitasDoContrato(contratoId: string): Promise<ReceitaRow[]> {
     const rows = await fetchAll((from, to) =>
-      ctx.supabase.from('receitas').select(RECEITA_SELECT).eq('user_id', ctx.userId).eq('contrato_id', contratoId).range(from, to),
+      ctx.supabase.from('receitas').select(RECEITA_SELECT).eq('user_id', ctx.userId).eq('contrato_id', contratoId).order('id', { ascending: true }).range(from, to),
     );
     return ordenarReceitas(rows.map(mapReceita));
   }
@@ -1259,6 +1264,47 @@ export function buildServer(ctx: Ctx) {
     return byId;
   }
 
+  /** Cadastros (categorias/subcategorias) são GLOBAIS: só admin ou gestor podem alterá-los. */
+  async function exigirPapelCadastros(): Promise<string | null> {
+    const { data, error } = await ctx.supabase.from('user_roles').select('role').eq('user_id', ctx.userId);
+    if (error) return `Não foi possível verificar suas permissões: ${error.message}`;
+    const papeis = (data || []).map((r: any) => r.role);
+    if (papeis.includes('admin') || papeis.includes('gestor')) return null;
+    return 'Categorias e subcategorias são cadastros compartilhados: apenas administrador ou gestor podem alterá-los. Nenhuma operação foi criada.';
+  }
+
+  /** Impacto de mexer num cadastro global: quantos lançamentos de QUANTOS usuários passam a ser lidos de outro jeito. */
+  async function impactoCategoria(categoriaId: string, subcategoriaId?: string | null) {
+    const col = subcategoriaId ? 'subcategoria_id' : 'categoria_id';
+    const alvo = subcategoriaId ?? categoriaId;
+    const resumo = async (tabela: string) => {
+      const rows = await fetchAll((from, to) =>
+        ctx.supabase.from(tabela).select('id, valor, user_id, status').eq(col, alvo).order('id', { ascending: true }).range(from, to),
+      );
+      const valor = round2(rows.reduce((a: number, r: any) => a + num(r.valor), 0));
+      const liquidados = rows.filter((r: any) => ['Pago', 'Recebido'].includes(String(r.status))).length;
+      return {
+        quantidade: rows.length,
+        ...money(valor),
+        liquidados,
+        usuarios_afetados: new Set(rows.map((r: any) => r.user_id)).size,
+      };
+    };
+    const despesas = await resumo('despesas');
+    const receitas = await resumo('receitas');
+    const subs = subcategoriaId
+      ? []
+      : await todos<any>(ctx.supabase.from('subcategorias_despesa').select('id, nome, ativo').eq('categoria_id', categoriaId));
+    return {
+      despesas_vinculadas: despesas,
+      receitas_vinculadas: receitas,
+      subcategorias: subs.length,
+      aviso:
+        'Este é um cadastro COMPARTILHADO: a mudança altera a leitura do histórico de TODOS os lançamentos vinculados, ' +
+        'inclusive de outros usuários e de lançamentos já pagos. Nenhum valor é alterado — apenas a classificação.',
+    };
+  }
+
   server.registerTool(
     TOOL.LISTAR_CATEGORIAS,
     {
@@ -1360,13 +1406,19 @@ export function buildServer(ctx: Ctx) {
         const { byId: cats } = await mapaCategorias();
         const setores = await mapaSetores();
 
-        const receitas = await todos<any>(
-          ctx.supabase.from('receitas').select('id, valor, status, cancelado, competencia, vencimento, data_recebimento, unidade_negocio, categoria_id, data'),
+        const receitas = await fetchAll((from, to) =>
+          ctx.supabase
+            .from('receitas')
+            .select('id, valor, status, cancelado, competencia, vencimento, data_recebimento, unidade_negocio, categoria_id, data')
+            .order('id', { ascending: true })
+            .range(from, to),
         );
-        const despesas = await todos<any>(
+        const despesas = await fetchAll((from, to) =>
           ctx.supabase
             .from('despesas')
-            .select('id, valor, status, cancelado, competencia, vencimento, data_pagamento, unidade_negocio, categoria_id, setor_id, data'),
+            .select('id, valor, status, cancelado, competencia, vencimento, data_pagamento, unidade_negocio, categoria_id, setor_id, data')
+            .order('id', { ascending: true })
+            .range(from, to),
         );
 
         const lancamentos: LancamentoDRE[] = [
@@ -1533,6 +1585,8 @@ export function buildServer(ctx: Ctx) {
     async (args) => {
       try {
         assertNoIdentityArgs(args);
+        const semPermissao = await exigirPapelCadastros();
+        if (semPermissao) return fail(semPermissao);
         const { rows } = await mapaCategorias();
         if (rows.some((c) => String(c.nome).trim().toLowerCase() === args.nome.trim().toLowerCase())) {
           return fail(`Já existe uma categoria chamada "${args.nome}". Nenhuma operação foi criada.`);
@@ -1564,6 +1618,8 @@ export function buildServer(ctx: Ctx) {
     async (args) => {
       try {
         assertNoIdentityArgs(args);
+        const semPermissao = await exigirPapelCadastros();
+        if (semPermissao) return fail(semPermissao);
         const { data: atual, error } = await ctx.supabase.from('categorias_despesa').select('*').eq('id', args.id).maybeSingle();
         if (error) return fail(error.message);
         if (!atual) return fail('Categoria não encontrada.');
@@ -1575,9 +1631,10 @@ export function buildServer(ctx: Ctx) {
         const before = sanitize(atual) as Record<string, unknown>;
         const diff = buildDiff(before, updates);
         if (!diff.length) return fail('Os valores informados já são os atuais.');
-        const summary = `Alterar categoria "${atual.nome}" — ${describeDiff(diff)}`;
-        const op = await registrarOperacao(ctx, TOOL.PREPARAR_ALTERACAO_CATEGORIA, args as any, before, { tabela: 'categorias_despesa', id: args.id, updates }, summary);
-        return text({ confirmation_id: op.id, expires_at: op.expires_at, status: 'pending', resumo: summary, antes: before, depois: sanitize({ ...atual, ...updates }), alteracoes: diff });
+        const impacto = await impactoCategoria(args.id);
+        const summary = `Alterar categoria "${atual.nome}" — ${describeDiff(diff)} (impacto: ${impacto.despesas_vinculadas.quantidade} despesa(s) e ${impacto.receitas_vinculadas.quantidade} receita(s) vinculadas).`;
+        const op = await registrarOperacao(ctx, TOOL.PREPARAR_ALTERACAO_CATEGORIA, args as any, { antes: before, impacto }, { tabela: 'categorias_despesa', id: args.id, updates }, summary);
+        return text({ confirmation_id: op.id, expires_at: op.expires_at, status: 'pending', resumo: summary, antes: before, depois: sanitize({ ...atual, ...updates }), alteracoes: diff, impacto });
       } catch (e) {
         return fail((e as Error).message);
       }
@@ -1599,6 +1656,8 @@ export function buildServer(ctx: Ctx) {
     async (args) => {
       try {
         assertNoIdentityArgs(args);
+        const semPermissao = await exigirPapelCadastros();
+        if (semPermissao) return fail(semPermissao);
         const { data: cat, error } = await ctx.supabase.from('categorias_despesa').select('id, nome').eq('id', args.categoria_id).maybeSingle();
         if (error) return fail(error.message);
         if (!cat) return fail('Categoria não encontrada. Nenhuma operação foi criada.');
@@ -1632,6 +1691,8 @@ export function buildServer(ctx: Ctx) {
     async (args) => {
       try {
         assertNoIdentityArgs(args);
+        const semPermissao = await exigirPapelCadastros();
+        if (semPermissao) return fail(semPermissao);
         const { data: atual, error } = await ctx.supabase.from('subcategorias_despesa').select('*').eq('id', args.id).maybeSingle();
         if (error) return fail(error.message);
         if (!atual) return fail('Subcategoria não encontrada.');
@@ -1647,9 +1708,10 @@ export function buildServer(ctx: Ctx) {
         const before = sanitize(atual) as Record<string, unknown>;
         const diff = buildDiff(before, updates);
         if (!diff.length) return fail('Os valores informados já são os atuais.');
-        const summary = `Alterar subcategoria "${atual.nome}" — ${describeDiff(diff)}`;
-        const op = await registrarOperacao(ctx, TOOL.PREPARAR_ALTERACAO_SUBCATEGORIA, args as any, before, { tabela: 'subcategorias_despesa', id: args.id, updates }, summary);
-        return text({ confirmation_id: op.id, expires_at: op.expires_at, status: 'pending', resumo: summary, antes: before, depois: sanitize({ ...atual, ...updates }), alteracoes: diff });
+        const impacto = await impactoCategoria(atual.categoria_id, args.id);
+        const summary = `Alterar subcategoria "${atual.nome}" — ${describeDiff(diff)} (impacto: ${impacto.despesas_vinculadas.quantidade} despesa(s) e ${impacto.receitas_vinculadas.quantidade} receita(s) vinculadas).`;
+        const op = await registrarOperacao(ctx, TOOL.PREPARAR_ALTERACAO_SUBCATEGORIA, args as any, { antes: before, impacto }, { tabela: 'subcategorias_despesa', id: args.id, updates }, summary);
+        return text({ confirmation_id: op.id, expires_at: op.expires_at, status: 'pending', resumo: summary, antes: before, depois: sanitize({ ...atual, ...updates }), alteracoes: diff, impacto });
       } catch (e) {
         return fail((e as Error).message);
       }
