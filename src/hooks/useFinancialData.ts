@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import {
+  type LancamentoDRE,
+  type Regime,
+  type ResultadoDRE,
+  calcularDRE,
+  grupoDeCategoria,
+} from '../../supabase/functions/odisseia-mcp/dre';
 
 function toDateStr(year: number, month: number, day: number): string {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
