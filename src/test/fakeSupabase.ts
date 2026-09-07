@@ -146,42 +146,65 @@ export class FakeDb {
     return {
       from: (table: string) => new Query(db, table),
       rpc: async (fn: string, params: Record<string, any>) => {
-        if (fn === 'mcp_claim_operacao') {
-          const op = db.rows('mcp_operacoes').find((o) => o.id === params._id);
-          if (!op || op.status !== 'pending') {
-            return { data: null, error: { message: 'Operação não está pendente.' } };
-          }
-          op.status = 'executed';
-          op.executed_at = new Date().toISOString();
-          return { data: op.id, error: null };
-        }
-        if (fn === 'mcp_aplicar_lote') {
-          const err = (message: string) => ({ data: null, error: { message } });
+        const err = (message: string) => ({ data: null, error: { message } });
+        const PERMITIDAS = ['receitas', 'despesas', 'categorias_despesa', 'subcategorias_despesa', 'series_recorrencia'];
+        if (fn === 'mcp_executar_operacao') {
+          // Espelha a função SQL: reserva + validação + gravação + auditoria numa transação única.
           const op = db.rows('mcp_operacoes').find((o) => o.id === params._op_id);
           if (!op) return err('Operação não encontrada');
           if (op.status !== 'pending') return err(`Operação já processada (status: ${op.status})`);
-          const itens: any[] = params._itens || [];
+          if (op.expires_at && new Date(op.expires_at).getTime() <= Date.now()) {
+            op.status = 'expired';
+            return err('Operação expirada');
+          }
+          const plano = params._plano || {};
+          const inserts: any[] = plano.inserts || [];
+          const updates: any[] = plano.updates || [];
+          if (!inserts.length && !updates.length) return err('Plano vazio: nada a executar');
+
+          // Valida TUDO antes de tocar em qualquer linha.
           const alvos: Array<[Row, any]> = [];
-          // Valida tudo ANTES de aplicar: falha em um item não altera nenhum (atômico).
-          for (const it of itens) {
-            if (!['receitas', 'despesas'].includes(it.tabela)) return err(`Tabela não permitida: ${it.tabela}`);
+          for (const it of [...inserts, ...updates]) {
+            if (!PERMITIDAS.includes(it.tabela)) return err(`Tabela não permitida: ${it.tabela}`);
+          }
+          for (const it of updates) {
             const row = db.rows(it.tabela).find((r) => r.id === it.id);
-            if (!row) return err(`Lançamento ${it.id} não encontrado ou sem permissão`);
-            if (it.versao != null && (row.versao ?? null) !== it.versao) {
-              return err(`Conflito de concorrência no lançamento ${it.id} (versão ${row.versao} ≠ ${it.versao})`);
+            if (!row) return err(`Registro ${it.id} não encontrado em ${it.tabela} (ou sem acesso)`);
+            if (it.versao != null && (row.versao ?? null) != null && row.versao !== it.versao) {
+              return err(`Registro ${it.id} foi alterado depois do preparo (versão ${row.versao} vs ${it.versao}). Refaça o preparo.`);
             }
             alvos.push([row, it]);
           }
-          const antes = alvos.map(([r]) => ({ ...r }));
-          for (const [row, it] of alvos) {
-            Object.assign(row, it.patch, { versao: Number(row.versao ?? 0) + 1 });
+
+          const refs = new Map<string, string>();
+          const inseridos: any[] = [];
+          for (const it of inserts) {
+            const created = { id: db.nextId(), created_at: new Date().toISOString(), ...it.row };
+            db.rows(it.tabela).push(created);
+            if (it.ref) refs.set(it.ref, created.id);
+            inseridos.push({ tabela: it.tabela, registro: { ...created } });
           }
-          const depois = alvos.map(([r]) => ({ ...r }));
+          for (const it of updates) {
+            if (it.refs) {
+              for (const [k, v] of Object.entries(it.refs as Record<string, string>)) {
+                if (!refs.has(v)) return err(`Referência ${v} não resolvida no plano`);
+              }
+            }
+          }
+          const atualizados: any[] = [];
+          for (const [row, it] of alvos) {
+            const antes = { ...row };
+            const patch: Row = { ...(it.patch || {}) };
+            for (const [k, v] of Object.entries((it.refs || {}) as Record<string, string>)) patch[k] = refs.get(v);
+            if ((row.versao ?? null) != null) patch.versao = Number(row.versao) + 1;
+            Object.assign(row, patch);
+            atualizados.push({ tabela: it.tabela, id: it.id, antes, depois: { ...row } });
+          }
           op.status = 'executed';
           op.executed_at = new Date().toISOString();
-          op.before_data = antes;
-          op.after_data = depois;
-          return { data: { ok: true, antes, depois }, error: null };
+          op.item_count = inseridos.length + atualizados.length;
+          op.after_data = { inserts: inseridos, updates: atualizados };
+          return { data: { status: 'executed', itens: op.item_count, inserts: inseridos, updates: atualizados }, error: null };
         }
         return { data: null, error: { message: `rpc desconhecida: ${fn}` } };
       },
