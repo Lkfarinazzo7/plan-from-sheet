@@ -876,6 +876,7 @@ export function buildServer(ctx: Ctx) {
         status: z.string().optional().describe('Padrão: "Aguardando".'),
         unidade_negocio: z.string().optional(),
         observacoes: z.string().max(2000).optional(),
+        contrato_id: z.string().uuid().optional().describe('Opcional: ID do contrato ao qual esta receita pertence.'),
       },
       annotations: RW_PREP,
     },
@@ -884,12 +885,19 @@ export function buildServer(ctx: Ctx) {
         assertNoIdentityArgs(args);
         const operadora_id = await resolverId('operadoras', args.operadora, 'Operadora');
         const vendedor_id = await resolverId('vendedores', args.vendedor, 'Vendedor');
+        let contrato_id: string | null = null;
+        if (args.contrato_id) {
+          const contrato = await carregarContrato(args.contrato_id);
+          if (!contrato) return fail('Contrato não encontrado ou sem acesso. Nenhuma operação foi criada.');
+          contrato_id = contrato.id;
+        }
         const after = {
           data: args.data,
           descricao: args.descricao,
           categoria: args.categoria,
           operadora_id,
           vendedor_id,
+          contrato_id,
           valor: args.valor,
           status: args.status ?? 'Aguardando',
           unidade_negocio: args.unidade_negocio ?? null,
