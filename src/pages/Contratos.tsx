@@ -1180,7 +1180,7 @@ function VincularReceitaDialog({
                 {alvo.qtd} lançamento{alvo.qtd !== 1 ? 's' : ''} · {formatCurrency(alvo.total)}
               </p>
               <p className="text-xs text-muted-foreground mt-2">
-                Ao confirmar, a descrição desses lançamentos será atualizada para o nome do contrato escolhido, criando o vínculo.
+                Ao confirmar, esses lançamentos passam a pertencer ao contrato escolhido.
               </p>
             </div>
             <Input placeholder="Buscar contrato..." value={busca} onChange={e => setBusca(e.target.value)} autoFocus />
@@ -1216,7 +1216,7 @@ function VincularReceitaDialog({
             disabled={!selecionado || isLoading}
             onClick={() => {
               const c = contratos.find(x => x.id === selecionado);
-              if (c) onConfirm(c.nome);
+              if (c) onConfirm({ id: c.id, nome: c.nome });
             }}
           >
             {isLoading ? 'Vinculando...' : 'Confirmar vínculo'}
