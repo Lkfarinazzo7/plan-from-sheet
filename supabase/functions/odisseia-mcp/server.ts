@@ -20,6 +20,26 @@ import {
   resolveRange,
   sanitize,
 } from './logic.ts';
+import {
+  AVISOS_QUALIDADE,
+  type BasePareto,
+  type ContratoRow,
+  FAIXAS_PADRAO,
+  PRODUCAO_FONTE,
+  type ReceitaRow,
+  STATUS_FINANCEIRO,
+  calcularFaixas,
+  calcularPareto,
+  media,
+  mediana,
+  moneyPair,
+  montarContrato,
+  num,
+  ordenarContratos,
+  ordenarReceitas,
+  receitaItem,
+  round2,
+} from './metrics.ts';
 import { SERVER_NAME, SERVER_VERSION, TOOL } from './tools.ts';
 
 /** Cliente Supabase (injetável — em testes usamos um adapter in-memory). */
