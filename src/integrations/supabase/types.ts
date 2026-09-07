@@ -40,22 +40,31 @@ export type Database = {
       }
       categorias_despesa: {
         Row: {
+          ativo: boolean
           created_at: string
+          grupo_dre: string | null
           id: string
           nome: string
           tipo_dre: string
+          updated_at: string
         }
         Insert: {
+          ativo?: boolean
           created_at?: string
+          grupo_dre?: string | null
           id?: string
           nome: string
           tipo_dre?: string
+          updated_at?: string
         }
         Update: {
+          ativo?: boolean
           created_at?: string
+          grupo_dre?: string | null
           id?: string
           nome?: string
           tipo_dre?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -165,55 +174,82 @@ export type Database = {
       }
       despesas: {
         Row: {
+          cancelado: boolean
+          cancelado_em: string | null
           categoria_id: string
+          competencia: string | null
           created_at: string
           data: string
+          data_pagamento: string | null
           descricao: string
           id: string
+          motivo_cancelamento: string | null
           observacoes: string | null
           recorrente: boolean
           responsavel: string | null
+          serie_id: string | null
           setor_id: string | null
           status: string
+          subcategoria_id: string | null
           tipo: string
           unidade_negocio: string | null
           updated_at: string
           user_id: string
           valor: number
+          vencimento: string | null
+          versao: number
         }
         Insert: {
+          cancelado?: boolean
+          cancelado_em?: string | null
           categoria_id: string
+          competencia?: string | null
           created_at?: string
           data: string
+          data_pagamento?: string | null
           descricao: string
           id?: string
+          motivo_cancelamento?: string | null
           observacoes?: string | null
           recorrente?: boolean
           responsavel?: string | null
+          serie_id?: string | null
           setor_id?: string | null
           status?: string
+          subcategoria_id?: string | null
           tipo: string
           unidade_negocio?: string | null
           updated_at?: string
           user_id: string
           valor?: number
+          vencimento?: string | null
+          versao?: number
         }
         Update: {
+          cancelado?: boolean
+          cancelado_em?: string | null
           categoria_id?: string
+          competencia?: string | null
           created_at?: string
           data?: string
+          data_pagamento?: string | null
           descricao?: string
           id?: string
+          motivo_cancelamento?: string | null
           observacoes?: string | null
           recorrente?: boolean
           responsavel?: string | null
+          serie_id?: string | null
           setor_id?: string | null
           status?: string
+          subcategoria_id?: string | null
           tipo?: string
           unidade_negocio?: string | null
           updated_at?: string
           user_id?: string
           valor?: number
+          vencimento?: string | null
+          versao?: number
         }
         Relationships: [
           {
@@ -224,10 +260,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "despesas_serie_id_fkey"
+            columns: ["serie_id"]
+            isOneToOne: false
+            referencedRelation: "series_recorrencia"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "despesas_setor_id_fkey"
             columns: ["setor_id"]
             isOneToOne: false
             referencedRelation: "setores_despesa"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "despesas_subcategoria_id_fkey"
+            columns: ["subcategoria_id"]
+            isOneToOne: false
+            referencedRelation: "subcategorias_despesa"
             referencedColumns: ["id"]
           },
         ]
@@ -242,6 +292,7 @@ export type Database = {
           executed_at: string | null
           expires_at: string
           id: string
+          item_count: number
           status: string
           summary: string | null
           tool_name: string
@@ -257,6 +308,7 @@ export type Database = {
           executed_at?: string | null
           expires_at?: string
           id?: string
+          item_count?: number
           status?: string
           summary?: string | null
           tool_name: string
@@ -272,6 +324,7 @@ export type Database = {
           executed_at?: string | null
           expires_at?: string
           id?: string
+          item_count?: number
           status?: string
           summary?: string | null
           tool_name?: string
@@ -429,60 +482,97 @@ export type Database = {
       }
       receitas: {
         Row: {
+          cancelado: boolean
+          cancelado_em: string | null
           categoria: string
+          categoria_id: string | null
           comissao: number
+          competencia: string | null
           contrato_id: string | null
           created_at: string
           data: string
+          data_recebimento: string | null
           descricao: string
           id: string
+          motivo_cancelamento: string | null
           observacoes: string | null
           operadora_id: string
           proposta_id: string | null
+          serie_id: string | null
           status: string
+          subcategoria_id: string | null
           unidade_negocio: string | null
           updated_at: string
           user_id: string
           valor: number
+          vencimento: string | null
           vendedor_id: string
+          versao: number
         }
         Insert: {
+          cancelado?: boolean
+          cancelado_em?: string | null
           categoria: string
+          categoria_id?: string | null
           comissao?: number
+          competencia?: string | null
           contrato_id?: string | null
           created_at?: string
           data: string
+          data_recebimento?: string | null
           descricao: string
           id?: string
+          motivo_cancelamento?: string | null
           observacoes?: string | null
           operadora_id: string
           proposta_id?: string | null
+          serie_id?: string | null
           status?: string
+          subcategoria_id?: string | null
           unidade_negocio?: string | null
           updated_at?: string
           user_id: string
           valor?: number
+          vencimento?: string | null
           vendedor_id: string
+          versao?: number
         }
         Update: {
+          cancelado?: boolean
+          cancelado_em?: string | null
           categoria?: string
+          categoria_id?: string | null
           comissao?: number
+          competencia?: string | null
           contrato_id?: string | null
           created_at?: string
           data?: string
+          data_recebimento?: string | null
           descricao?: string
           id?: string
+          motivo_cancelamento?: string | null
           observacoes?: string | null
           operadora_id?: string
           proposta_id?: string | null
+          serie_id?: string | null
           status?: string
+          subcategoria_id?: string | null
           unidade_negocio?: string | null
           updated_at?: string
           user_id?: string
           valor?: number
+          vencimento?: string | null
           vendedor_id?: string
+          versao?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "receitas_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_despesa"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "receitas_contrato_user_fkey"
             columns: ["user_id", "contrato_id"]
@@ -512,10 +602,94 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "receitas_serie_id_fkey"
+            columns: ["serie_id"]
+            isOneToOne: false
+            referencedRelation: "series_recorrencia"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receitas_subcategoria_id_fkey"
+            columns: ["subcategoria_id"]
+            isOneToOne: false
+            referencedRelation: "subcategorias_despesa"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "receitas_vendedor_id_fkey"
             columns: ["vendedor_id"]
             isOneToOne: false
             referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      series_recorrencia: {
+        Row: {
+          ativa: boolean
+          categoria_id: string | null
+          created_at: string
+          encerrada_em: string | null
+          id: string
+          motivo_encerramento: string | null
+          nome: string
+          setor_id: string | null
+          subcategoria_id: string | null
+          tipo: string
+          unidade_negocio: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ativa?: boolean
+          categoria_id?: string | null
+          created_at?: string
+          encerrada_em?: string | null
+          id?: string
+          motivo_encerramento?: string | null
+          nome: string
+          setor_id?: string | null
+          subcategoria_id?: string | null
+          tipo: string
+          unidade_negocio?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ativa?: boolean
+          categoria_id?: string | null
+          created_at?: string
+          encerrada_em?: string | null
+          id?: string
+          motivo_encerramento?: string | null
+          nome?: string
+          setor_id?: string | null
+          subcategoria_id?: string | null
+          tipo?: string
+          unidade_negocio?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "series_recorrencia_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_despesa"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "series_recorrencia_setor_id_fkey"
+            columns: ["setor_id"]
+            isOneToOne: false
+            referencedRelation: "setores_despesa"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "series_recorrencia_subcategoria_id_fkey"
+            columns: ["subcategoria_id"]
+            isOneToOne: false
+            referencedRelation: "subcategorias_despesa"
             referencedColumns: ["id"]
           },
         ]
@@ -540,6 +714,41 @@ export type Database = {
           nome?: string
         }
         Relationships: []
+      }
+      subcategorias_despesa: {
+        Row: {
+          ativo: boolean
+          categoria_id: string
+          created_at: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          categoria_id: string
+          created_at?: string
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          categoria_id?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcategorias_despesa_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_despesa"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       supervisores: {
         Row: {
@@ -650,6 +859,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      mcp_aplicar_lote: {
+        Args: { _itens: Json; _op_id: string }
+        Returns: Json
+      }
       mcp_claim_operacao: {
         Args: { _id: string }
         Returns: {
@@ -661,6 +874,7 @@ export type Database = {
           executed_at: string | null
           expires_at: string
           id: string
+          item_count: number
           status: string
           summary: string | null
           tool_name: string

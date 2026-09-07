@@ -146,14 +146,44 @@ export class FakeDb {
     return {
       from: (table: string) => new Query(db, table),
       rpc: async (fn: string, params: Record<string, any>) => {
-        if (fn !== 'mcp_claim_operacao') return { data: null, error: { message: `rpc desconhecida: ${fn}` } };
-        const op = db.rows('mcp_operacoes').find((o) => o.id === params._id);
-        if (!op || op.status !== 'pending') {
-          return { data: null, error: { message: 'Operação não está pendente.' } };
+        if (fn === 'mcp_claim_operacao') {
+          const op = db.rows('mcp_operacoes').find((o) => o.id === params._id);
+          if (!op || op.status !== 'pending') {
+            return { data: null, error: { message: 'Operação não está pendente.' } };
+          }
+          op.status = 'executed';
+          op.executed_at = new Date().toISOString();
+          return { data: op.id, error: null };
         }
-        op.status = 'executed';
-        op.executed_at = new Date().toISOString();
-        return { data: op.id, error: null };
+        if (fn === 'mcp_aplicar_lote') {
+          const err = (message: string) => ({ data: null, error: { message } });
+          const op = db.rows('mcp_operacoes').find((o) => o.id === params._op_id);
+          if (!op) return err('Operação não encontrada');
+          if (op.status !== 'pending') return err(`Operação já processada (status: ${op.status})`);
+          const itens: any[] = params._itens || [];
+          const alvos: Array<[Row, any]> = [];
+          // Valida tudo ANTES de aplicar: falha em um item não altera nenhum (atômico).
+          for (const it of itens) {
+            if (!['receitas', 'despesas'].includes(it.tabela)) return err(`Tabela não permitida: ${it.tabela}`);
+            const row = db.rows(it.tabela).find((r) => r.id === it.id);
+            if (!row) return err(`Lançamento ${it.id} não encontrado ou sem permissão`);
+            if (it.versao != null && (row.versao ?? null) !== it.versao) {
+              return err(`Conflito de concorrência no lançamento ${it.id} (versão ${row.versao} ≠ ${it.versao})`);
+            }
+            alvos.push([row, it]);
+          }
+          const antes = alvos.map(([r]) => ({ ...r }));
+          for (const [row, it] of alvos) {
+            Object.assign(row, it.patch, { versao: Number(row.versao ?? 0) + 1 });
+          }
+          const depois = alvos.map(([r]) => ({ ...r }));
+          op.status = 'executed';
+          op.executed_at = new Date().toISOString();
+          op.before_data = antes;
+          op.after_data = depois;
+          return { data: { ok: true, antes, depois }, error: null };
+        }
+        return { data: null, error: { message: `rpc desconhecida: ${fn}` } };
       },
     };
   }

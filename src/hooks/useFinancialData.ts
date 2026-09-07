@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import {
+  type LancamentoDRE,
+  type Regime,
+  type ResultadoDRE,
+  calcularDRE,
+  grupoDeCategoria,
+} from '../../supabase/functions/odisseia-mcp/dre';
 
 function toDateStr(year: number, month: number, day: number): string {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -466,6 +473,30 @@ export function useGenerateRecurringDespesas() {
       if (fetchError) throw fetchError;
       if (!recurring?.length) throw new Error('Nenhuma despesa recorrente encontrada no mês selecionado.');
 
+      // Séries encerradas NÃO geram novas ocorrências; lançamentos cancelados também não.
+      const serieIds = [...new Set(recurring.map((d: any) => d.serie_id).filter(Boolean))] as string[];
+      const seriesById = new Map<string, any>();
+      if (serieIds.length) {
+        const { data: series, error: seriesError } = await supabase
+          .from('series_recorrencia')
+          .select('id, ativa, encerrada_em, unidade_negocio, categoria_id, subcategoria_id, setor_id')
+          .in('id', serieIds);
+        if (seriesError) throw seriesError;
+        for (const s of series || []) seriesById.set(s.id, s);
+      }
+      const targetFirstDay = toDateStr(targetYear, targetMonth, 1);
+      const geraveis = recurring.filter((d: any) => {
+        if (d.cancelado) return false;
+        const serie = d.serie_id ? seriesById.get(d.serie_id) : null;
+        if (!serie) return true;
+        if (serie.ativa === false) return false;
+        if (serie.encerrada_em && serie.encerrada_em <= targetFirstDay) return false;
+        return true;
+      });
+      if (!geraveis.length) {
+        throw new Error('Todas as despesas recorrentes desse mês pertencem a séries encerradas ou estão canceladas. Nada foi gerado.');
+      }
+
       // Buscar recorrentes já existentes no mês de destino para não duplicar
       const targetStart = toDateStr(targetYear, targetMonth, 1);
       const targetEnd = toDateStr(targetYear, targetMonth, new Date(targetYear, targetMonth + 1, 0).getDate());
@@ -479,7 +510,7 @@ export function useGenerateRecurringDespesas() {
       const existingKeys = new Set((existing || []).map(e => `${e.descricao}|${Number(e.valor)}`));
 
       const lastDayTarget = new Date(targetYear, targetMonth + 1, 0).getDate();
-      const newDespesas = recurring
+      const newDespesas = geraveis
         .filter(d => !existingKeys.has(`${d.descricao}|${Number(d.valor)}`))
         .map(d => {
           // Extrair o dia direto da string YYYY-MM-DD (new Date() interpretaria como UTC e voltaria 1 dia)
@@ -494,8 +525,10 @@ export function useGenerateRecurringDespesas() {
             responsavel: d.responsavel,
             recorrente: true,
             status: 'A pagar' as const,
-            unidade_negocio: (d as any).unidade_negocio ?? null,
-            setor_id: (d as any).setor_id ?? null,
+            // A unidade e o setor vêm do cadastro vigente da série, quando ela existe.
+            unidade_negocio: (d.serie_id && seriesById.get(d.serie_id)?.unidade_negocio) ?? (d as any).unidade_negocio ?? null,
+            setor_id: (d.serie_id && seriesById.get(d.serie_id)?.setor_id) ?? (d as any).setor_id ?? null,
+            serie_id: (d as any).serie_id ?? null,
             observacoes: (d as any).observacoes ?? null,
             user_id: user!.id,
           };
@@ -967,34 +1000,79 @@ export type DREResult = {
   margemContribuicao: number;
   impostos: number;
   resultadoLiquido: number;
+  /** Detalhamento completo (mesma regra usada pelo assistente/MCP). */
+  detalhe: ResultadoDRE;
 };
 
-export function useDRE(args: PeriodArgs) {
+/**
+ * DRE com a MESMA regra do servidor MCP (regime de competência, caixa realizado ou projetado).
+ * Enquanto os lançamentos não tiverem as datas específicas, usamos a data do lançamento como
+ * apoio de exibição (sinalizado em `detalhe.pendencias.via_data_legada`) — nada é gravado no banco.
+ */
+export function useDRE(args: PeriodArgs & { regime?: Regime; setor?: string }) {
+  const regime: Regime = args.regime ?? 'realizado';
   return useQuery({
-    queryKey: ['dre', args.month, args.year, args.startDate, args.endDate, args.unidade || 'all'],
+    queryKey: ['dre', regime, args.month, args.year, args.startDate, args.endDate, args.unidade || 'all', args.setor || 'all'],
     enabled: !!resolveRange(args),
     queryFn: async (): Promise<DREResult> => {
       const r = resolveRange(args)!;
-      let rq: any = supabase.from('receitas').select('valor, unidade_negocio, status').eq('status', 'Recebido').gte('data', r.sd).lte('data', r.ed);
-      let dq: any = supabase.from('despesas').select('valor, unidade_negocio, categorias_despesa(tipo_dre)').gte('data', r.sd).lte('data', r.ed);
-      rq = applyUnidade(rq, args.unidade);
-      dq = applyUnidade(dq, args.unidade);
-      const [rr, dr] = await Promise.all([rq, dq]);
-      if (rr.error) throw rr.error;
-      if (dr.error) throw dr.error;
-      const receitaBruta = (rr.data || []).reduce((a: number, x: any) => a + Number(x.valor), 0);
-      let despesasOperacionais = 0, custosFixos = 0, impostos = 0;
-      for (const d of dr.data || []) {
-        const t = (d.categorias_despesa as any)?.tipo_dre || 'operacional';
-        const v = Number(d.valor);
-        if (t === 'custo_fixo') custosFixos += v;
-        else if (t === 'imposto') impostos += v;
-        else despesasOperacionais += v;
-      }
-      const margemOperacional = receitaBruta - despesasOperacionais;
-      const margemContribuicao = margemOperacional - custosFixos;
-      const resultadoLiquido = margemContribuicao - impostos;
-      return { receitaBruta, despesasOperacionais, margemOperacional, custosFixos, margemContribuicao, impostos, resultadoLiquido };
+      const [cats, setores, rr, dr] = await Promise.all([
+        supabase.from('categorias_despesa').select('id, grupo_dre, tipo_dre'),
+        supabase.from('setores_despesa').select('id, nome'),
+        supabase.from('receitas').select('id, valor, status, data, competencia, vencimento, data_recebimento, cancelado, unidade_negocio, categoria_id'),
+        supabase.from('despesas').select('id, valor, status, data, competencia, vencimento, data_pagamento, cancelado, unidade_negocio, categoria_id, setor_id'),
+      ]);
+      for (const res of [cats, setores, rr, dr]) if (res.error) throw res.error;
+      const catById = new Map((cats.data || []).map((c: any) => [c.id, c]));
+      const setorById = new Map((setores.data || []).map((s: any) => [s.id, s.nome]));
+
+      const lancamentos: LancamentoDRE[] = [
+        ...(rr.data || []).map((x: any) => ({
+          origem: 'receita' as const,
+          valor: x.valor,
+          status: x.status,
+          cancelado: x.cancelado ?? false,
+          competencia: x.competencia ?? null,
+          vencimento: x.vencimento ?? null,
+          data_efetiva: x.data_recebimento ?? null,
+          data_legada: x.data ?? null,
+          grupo: grupoDeCategoria(catById.get(x.categoria_id), false) ?? 'receita_operacional',
+          unidade_negocio: x.unidade_negocio ?? null,
+          setor: null,
+        })),
+        ...(dr.data || []).map((x: any) => ({
+          origem: 'despesa' as const,
+          valor: x.valor,
+          status: x.status,
+          cancelado: x.cancelado ?? false,
+          competencia: x.competencia ?? null,
+          vencimento: x.vencimento ?? null,
+          data_efetiva: x.data_pagamento ?? null,
+          data_legada: x.data ?? null,
+          grupo: grupoDeCategoria(catById.get(x.categoria_id), true),
+          unidade_negocio: x.unidade_negocio ?? null,
+          setor: setorById.get(x.setor_id) ?? null,
+        })),
+      ];
+
+      const detalhe = calcularDRE(lancamentos, {
+        regime,
+        inicio: r.sd,
+        fim: r.ed,
+        filtros: { unidade: args.unidade ?? null, setor: args.setor ?? null },
+        fallbackDataLegada: true,
+      });
+
+      return {
+        receitaBruta: detalhe.receita_bruta,
+        despesasOperacionais: detalhe.custos_variaveis,
+        margemOperacional: detalhe.margem_contribuicao,
+        custosFixos: detalhe.despesas_fixas + detalhe.despesas_comerciais,
+        margemContribuicao: detalhe.resultado_antes_depreciacao,
+        impostos: detalhe.tributos_lucro,
+        resultadoLiquido: detalhe.resultado_liquido,
+        detalhe,
+      };
     },
   });
 }

@@ -51,7 +51,7 @@ describe('discovery', () => {
     const nomes = tools.map((t) => t.name);
     expect(new Set(nomes).size).toBe(nomes.length);
     expect(nomes.sort()).toEqual([...TOOL_NAMES].sort());
-    expect(nomes).toHaveLength(19);
+    expect(nomes).toHaveLength(30);
   });
 
   it('inclui as tools de preparação de lançamento', async () => {
