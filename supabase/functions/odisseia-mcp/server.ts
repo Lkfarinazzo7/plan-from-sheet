@@ -1484,7 +1484,7 @@ export function buildServer(ctx: Ctx) {
           const before = sanitize(atual) as Record<string, unknown>;
           const diff = buildDiff(before, updates);
           if (!diff.length) return fail(`Os valores informados para ${item.id} já são os atuais. Nenhuma operação foi criada.`);
-          itens.push({ tabela, id: item.id, versao: atual.versao ?? null, updates });
+          itens.push({ tabela, id: item.id, versao: atual.versao ?? null, patch: updates });
           previa.push({ tabela, id: item.id, descricao: atual.descricao, alteracoes: diff, resumo: describeDiff(diff) });
         }
         const summary = `Alterar ${itens.length} lançamento(s) em lote${args.motivo ? ` — ${args.motivo}` : ''}.`;
