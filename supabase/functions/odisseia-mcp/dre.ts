@@ -253,6 +253,12 @@ export function calcularDRE(
   if (filtros.setor && filtros.setor !== 'all') {
     avisos.push('Filtro de setor aplicado aos dois lados; receitas sem setor cadastrado são excluídas por não atenderem ao filtro.');
   }
+  if (viaDataLegada.quantidade) {
+    avisos.push(
+      `${viaDataLegada.quantidade} lançamento(s) (total ${viaDataLegada.valor}) entraram pela data legada do lançamento ` +
+        `por ainda não terem a data específica do regime "${regime}". Nenhuma data foi gravada no banco.`,
+    );
+  }
 
   return {
     regime,
