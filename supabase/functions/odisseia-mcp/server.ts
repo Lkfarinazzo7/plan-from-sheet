@@ -40,7 +40,7 @@ import {
   receitaItem,
   round2,
 } from './metrics.ts';
-import { GRUPOS_DRE, type LancamentoDRE, type Regime, calcularDRE } from './dre.ts';
+import { GRUPOS_DRE, type LancamentoDRE, type Regime, calcularDRE, grupoDeCategoria } from './dre.ts';
 import { SERVER_NAME, SERVER_VERSION, TOOL } from './tools.ts';
 
 /** Cliente Supabase (injetável — em testes usamos um adapter in-memory). */
@@ -1385,6 +1385,8 @@ export function buildServer(ctx: Ctx) {
         ...unidadeShape,
         regime: z.enum(['competencia', 'realizado', 'projetado']).optional().describe('Padrão: competencia.'),
         setor: z.string().optional().describe('Nome do setor. Use "none" para lançamentos sem setor.'),
+        usar_data_legada: z.boolean().optional().describe('Se true, usa a data do lançamento quando a data do regime ainda não existe. Padrão: false.'),
+        usar_classificacao_legada: z.boolean().optional().describe('Se true, categorias sem grupo_dre caem no tipo_dre legado. Padrão: true.'),
       },
       annotations: RO_STRICT,
     },
@@ -1394,6 +1396,7 @@ export function buildServer(ctx: Ctx) {
         const r = resolveRange(args);
         if (!r) return fail('Informe mes+ano ou data_inicio+data_fim.');
         const regime = (args.regime ?? 'competencia') as Regime;
+        const legado = args.usar_classificacao_legada !== false;
         const { byId: cats } = await mapaCategorias();
         const setores = await mapaSetores();
 
@@ -1416,7 +1419,8 @@ export function buildServer(ctx: Ctx) {
             competencia: x.competencia ?? null,
             vencimento: x.vencimento ?? null,
             data_efetiva: x.data_recebimento ?? null,
-            grupo: cats.get(x.categoria_id)?.grupo_dre ?? null,
+            data_legada: x.data ?? null,
+            grupo: grupoDeCategoria(cats.get(x.categoria_id), legado),
             unidade_negocio: x.unidade_negocio ?? null,
             setor: null,
           })),
@@ -1429,7 +1433,8 @@ export function buildServer(ctx: Ctx) {
             competencia: x.competencia ?? null,
             vencimento: x.vencimento ?? null,
             data_efetiva: x.data_pagamento ?? null,
-            grupo: cats.get(x.categoria_id)?.grupo_dre ?? null,
+            data_legada: x.data ?? null,
+            grupo: grupoDeCategoria(cats.get(x.categoria_id), legado),
             unidade_negocio: x.unidade_negocio ?? null,
             setor: setores.get(x.setor_id)?.nome ?? null,
           })),
@@ -1440,6 +1445,7 @@ export function buildServer(ctx: Ctx) {
           inicio: r.sd,
           fim: r.ed,
           filtros: { unidade: args.unidade ?? null, setor: args.setor ?? null },
+          fallbackDataLegada: args.usar_data_legada === true,
         });
         return text(sanitize(res));
       } catch (e) {
