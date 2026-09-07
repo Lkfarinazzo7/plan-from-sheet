@@ -33,6 +33,18 @@ export const STATUS_LIQUIDADO: Record<'receita' | 'despesa', string[]> = {
   despesa: ['Pago'],
 };
 
+/**
+ * Status EXPLICITAMENTE em aberto (entram no projetado). Nada de "else genérico":
+ * um status desconhecido — ou "Cancelado" — nunca é tratado como pendente.
+ */
+export const STATUS_ABERTO: Record<'receita' | 'despesa', string[]> = {
+  receita: ['Aguardando', 'Previsto', 'Atrasado'],
+  despesa: ['A pagar', 'Previsto', 'Atrasado'],
+};
+
+/** Status que significam cancelamento, mesmo sem a flag `cancelado`. */
+export const STATUS_CANCELADO = ['Cancelado', 'Cancelada', 'Estornado', 'Estornada'];
+
 /** Mapa da classificação legada (tipo_dre) para os grupos canônicos, preservando a ordem da cascata. */
 export const GRUPO_LEGADO: Record<string, GrupoDRE> = {
   operacional: 'custos_variaveis',
@@ -73,6 +85,7 @@ export type Bucket = { quantidade: number; valor: number };
 export type PendenciasDRE = {
   sem_data_do_regime: Bucket;
   sem_grupo_dre: Bucket;
+  status_indefinido: Bucket;
   cancelados_ignorados: Bucket;
   via_data_legada: Bucket;
   cobertura_percentual: number | null;
@@ -120,6 +133,19 @@ export function liquidado(l: LancamentoDRE): boolean {
   return STATUS_LIQUIDADO[l.origem].includes(String(l.status ?? ''));
 }
 
+export function emAberto(l: LancamentoDRE): boolean {
+  return STATUS_ABERTO[l.origem].includes(String(l.status ?? ''));
+}
+
+export function cancelado(l: LancamentoDRE): boolean {
+  return l.cancelado === true || STATUS_CANCELADO.includes(String(l.status ?? ''));
+}
+
+/** Status que não é liquidado, nem aberto, nem cancelado: vira pendência explícita. */
+export function statusIndefinido(l: LancamentoDRE): boolean {
+  return !liquidado(l) && !emAberto(l) && !cancelado(l);
+}
+
 /** Data que o regime exige. `null` quando ausente (vira pendência). */
 export function dataDoRegime(l: LancamentoDRE, regime: Regime): string | null {
   if (regime === 'competencia') return l.competencia ?? null;
@@ -129,9 +155,11 @@ export function dataDoRegime(l: LancamentoDRE, regime: Regime): string | null {
 
 /** O lançamento é candidato a aparecer neste regime? */
 export function candidato(l: LancamentoDRE, regime: Regime): boolean {
-  if (l.cancelado) return false;
+  if (cancelado(l)) return false;
+  if (statusIndefinido(l)) return false;
   if (regime === 'realizado') return liquidado(l);
-  if (regime === 'projetado') return !liquidado(l);
+  // Projetado: SOMENTE status explicitamente em aberto (Cancelado jamais entra).
+  if (regime === 'projetado') return emAberto(l);
   return true;
 }
 
@@ -169,6 +197,7 @@ export function calcularDRE(
   const pendSemData = zero();
   const pendSemGrupo = zero();
   const cancelados = zero();
+  const indefinidos = zero();
   const viaDataLegada = zero();
   let considerados = 0;
   let candidatos = 0;
@@ -176,8 +205,12 @@ export function calcularDRE(
   for (const l of lancamentos) {
     if (!passaFiltros(l, filtros)) continue;
     const v = n(l.valor);
-    if (l.cancelado) {
+    if (cancelado(l)) {
       add(cancelados, v);
+      continue;
+    }
+    if (statusIndefinido(l)) {
+      add(indefinidos, v);
       continue;
     }
     if (!candidato(l, regime)) continue;
@@ -254,6 +287,15 @@ export function calcularDRE(
   if (filtros.setor && filtros.setor !== 'all') {
     avisos.push('Filtro de setor aplicado aos dois lados; receitas sem setor cadastrado são excluídas por não atenderem ao filtro.');
   }
+  if (indefinidos.quantidade) {
+    avisos.push(
+      `${indefinidos.quantidade} lançamento(s) (total ${indefinidos.valor}) têm status fora das listas conhecidas ` +
+        '(nem liquidado, nem em aberto, nem cancelado) e ficaram FORA de todos os regimes. Revise o status.',
+    );
+  }
+  if (cancelados.quantidade) {
+    avisos.push(`${cancelados.quantidade} lançamento(s) cancelados (total ${cancelados.valor}) foram ignorados em todos os regimes.`);
+  }
   if (viaDataLegada.quantidade) {
     avisos.push(
       `${viaDataLegada.quantidade} lançamento(s) (total ${viaDataLegada.valor}) entraram pela data legada do lançamento ` +
@@ -289,6 +331,7 @@ export function calcularDRE(
     pendencias: {
       sem_data_do_regime: pendSemData,
       sem_grupo_dre: pendSemGrupo,
+      status_indefinido: indefinidos,
       cancelados_ignorados: cancelados,
       via_data_legada: viaDataLegada,
       cobertura_percentual: cobertura,
