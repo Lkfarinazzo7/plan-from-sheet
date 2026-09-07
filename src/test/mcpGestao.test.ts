@@ -49,7 +49,7 @@ function despesa(id: string, extra: Record<string, unknown> = {}) {
   };
 }
 
-function seed() {
+function seed(comPapel = true) {
   return new FakeDb({
     operadoras: [{ id: '22222222-2222-4222-8222-222222222222', nome: 'Amil', ativa: true }],
     vendedores: [{ id: '33333333-3333-4333-8333-333333333333', nome: 'Rhayssa', ativo: true }],
@@ -67,7 +67,7 @@ function seed() {
       { id: R1, user_id: USER_ID, data: '2026-08-01', descricao: 'Contrato X', valor: 1000, status: 'Aguardando', categoria: 'Plano de Saúde', categoria_id: null, subcategoria_id: null, competencia: null, vencimento: null, data_recebimento: null, cancelado: false, unidade_negocio: 'Odisseia', versao: 1 },
     ],
     mcp_operacoes: [],
-    user_roles: [{ id: '77777777-7777-4777-8777-777777777701', user_id: USER_ID, role: 'gestor' }],
+    user_roles: comPapel ? [{ id: '77777777-7777-4777-8777-777777777701', user_id: USER_ID, role: 'gestor' }] : [],
   });
 }
 
@@ -168,8 +168,7 @@ describe('categorias e subcategorias', () => {
 
 describe('permissão em cadastros compartilhados', () => {
   it('usuário sem admin/gestor não consegue preparar mudança de categoria', async () => {
-    const semPapel = seed();
-    (semPapel as any).tables.user_roles = [];
+    const semPapel = seed(false);
     const c = await connect(semPapel);
     const r: any = await call(c, TOOL.PREPARAR_ALTERACAO_CATEGORIA, { id: CAT_COM, grupo_dre: 'despesas_comerciais' });
     expect(r.isError).toBe(true);
