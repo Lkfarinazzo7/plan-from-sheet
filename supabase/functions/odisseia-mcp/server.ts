@@ -58,6 +58,7 @@ const fail = (message: string) => ({
 });
 
 const RO = { readOnlyHint: true, openWorldHint: false } as const;
+const RO_STRICT = { readOnlyHint: true, destructiveHint: false, openWorldHint: false } as const;
 const RW_PREP = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
 const RW_CONFIRM = { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false } as const;
 
