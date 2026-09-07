@@ -22,7 +22,7 @@ function seedDb() {
     receitas: [],
     despesas: [],
     mcp_operacoes: [],
-  });
+  }, USER_ID);
 }
 
 async function connect(db: FakeDb) {

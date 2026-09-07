@@ -185,6 +185,7 @@ export type Database = {
           id: string
           motivo_cancelamento: string | null
           observacoes: string | null
+          ocorrencia: string | null
           recorrente: boolean
           responsavel: string | null
           serie_id: string | null
@@ -211,6 +212,7 @@ export type Database = {
           id?: string
           motivo_cancelamento?: string | null
           observacoes?: string | null
+          ocorrencia?: string | null
           recorrente?: boolean
           responsavel?: string | null
           serie_id?: string | null
@@ -237,6 +239,7 @@ export type Database = {
           id?: string
           motivo_cancelamento?: string | null
           observacoes?: string | null
+          ocorrencia?: string | null
           recorrente?: boolean
           responsavel?: string | null
           serie_id?: string | null
@@ -274,10 +277,61 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "despesas_subcategoria_coerente_fkey"
+            columns: ["subcategoria_id", "categoria_id"]
+            isOneToOne: false
+            referencedRelation: "subcategorias_despesa"
+            referencedColumns: ["id", "categoria_id"]
+          },
+          {
             foreignKeyName: "despesas_subcategoria_id_fkey"
             columns: ["subcategoria_id"]
             isOneToOne: false
             referencedRelation: "subcategorias_despesa"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_auditoria_registros: {
+        Row: {
+          acao: string
+          antes: Json | null
+          created_at: string
+          depois: Json | null
+          id: string
+          operacao_id: string
+          registro_id: string
+          tabela: string
+          user_id: string
+        }
+        Insert: {
+          acao: string
+          antes?: Json | null
+          created_at?: string
+          depois?: Json | null
+          id?: string
+          operacao_id: string
+          registro_id: string
+          tabela: string
+          user_id: string
+        }
+        Update: {
+          acao?: string
+          antes?: Json | null
+          created_at?: string
+          depois?: Json | null
+          id?: string
+          operacao_id?: string
+          registro_id?: string
+          tabela?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_auditoria_registros_operacao_id_fkey"
+            columns: ["operacao_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_operacoes"
             referencedColumns: ["id"]
           },
         ]
@@ -293,6 +347,7 @@ export type Database = {
           expires_at: string
           id: string
           item_count: number
+          plano: Json | null
           status: string
           summary: string | null
           tool_name: string
@@ -309,6 +364,7 @@ export type Database = {
           expires_at?: string
           id?: string
           item_count?: number
+          plano?: Json | null
           status?: string
           summary?: string | null
           tool_name: string
@@ -325,6 +381,7 @@ export type Database = {
           expires_at?: string
           id?: string
           item_count?: number
+          plano?: Json | null
           status?: string
           summary?: string | null
           tool_name?: string
@@ -496,9 +553,13 @@ export type Database = {
           id: string
           motivo_cancelamento: string | null
           observacoes: string | null
+          ocorrencia: string | null
           operadora_id: string
           proposta_id: string | null
+          recorrente: boolean
+          responsavel: string | null
           serie_id: string | null
+          setor_id: string | null
           status: string
           subcategoria_id: string | null
           unidade_negocio: string | null
@@ -524,9 +585,13 @@ export type Database = {
           id?: string
           motivo_cancelamento?: string | null
           observacoes?: string | null
+          ocorrencia?: string | null
           operadora_id: string
           proposta_id?: string | null
+          recorrente?: boolean
+          responsavel?: string | null
           serie_id?: string | null
+          setor_id?: string | null
           status?: string
           subcategoria_id?: string | null
           unidade_negocio?: string | null
@@ -552,9 +617,13 @@ export type Database = {
           id?: string
           motivo_cancelamento?: string | null
           observacoes?: string | null
+          ocorrencia?: string | null
           operadora_id?: string
           proposta_id?: string | null
+          recorrente?: boolean
+          responsavel?: string | null
           serie_id?: string | null
+          setor_id?: string | null
           status?: string
           subcategoria_id?: string | null
           unidade_negocio?: string | null
@@ -607,6 +676,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "series_recorrencia"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receitas_setor_id_fkey"
+            columns: ["setor_id"]
+            isOneToOne: false
+            referencedRelation: "setores_despesa"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receitas_subcategoria_coerente_fkey"
+            columns: ["subcategoria_id", "categoria_id"]
+            isOneToOne: false
+            referencedRelation: "subcategorias_despesa"
+            referencedColumns: ["id", "categoria_id"]
           },
           {
             foreignKeyName: "receitas_subcategoria_id_fkey"
@@ -720,6 +803,7 @@ export type Database = {
           ativo: boolean
           categoria_id: string
           created_at: string
+          grupo_dre: string | null
           id: string
           nome: string
           updated_at: string
@@ -728,6 +812,7 @@ export type Database = {
           ativo?: boolean
           categoria_id: string
           created_at?: string
+          grupo_dre?: string | null
           id?: string
           nome: string
           updated_at?: string
@@ -736,6 +821,7 @@ export type Database = {
           ativo?: boolean
           categoria_id?: string
           created_at?: string
+          grupo_dre?: string | null
           id?: string
           nome?: string
           updated_at?: string
@@ -859,10 +945,6 @@ export type Database = {
           user_id: string
         }[]
       }
-      mcp_aplicar_lote: {
-        Args: { _itens: Json; _op_id: string }
-        Returns: Json
-      }
       mcp_claim_operacao: {
         Args: { _id: string }
         Returns: {
@@ -875,6 +957,7 @@ export type Database = {
           expires_at: string
           id: string
           item_count: number
+          plano: Json | null
           status: string
           summary: string | null
           tool_name: string
@@ -888,10 +971,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      mcp_executar_operacao: {
-        Args: { _op_id: string; _plano: Json }
-        Returns: Json
-      }
+      mcp_executar_operacao: { Args: { _op_id: string }; Returns: Json }
     }
     Enums: {
       app_role: "admin" | "gestor" | "adm_pipeline"
