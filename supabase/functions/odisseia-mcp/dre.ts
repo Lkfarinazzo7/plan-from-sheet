@@ -33,6 +33,24 @@ export const STATUS_LIQUIDADO: Record<'receita' | 'despesa', string[]> = {
   despesa: ['Pago'],
 };
 
+/** Mapa da classificação legada (tipo_dre) para os grupos canônicos, preservando a ordem da cascata. */
+export const GRUPO_LEGADO: Record<string, GrupoDRE> = {
+  operacional: 'custos_variaveis',
+  custo_fixo: 'despesas_fixas',
+  imposto: 'tributos_lucro',
+};
+
+/** Grupo de uma categoria: usa grupo_dre e, opcionalmente, cai no tipo_dre legado. */
+export function grupoDeCategoria(
+  cat: { grupo_dre?: string | null; tipo_dre?: string | null } | null | undefined,
+  usarLegado = false,
+): string | null {
+  if (!cat) return null;
+  if (cat.grupo_dre) return cat.grupo_dre;
+  if (usarLegado && cat.tipo_dre) return GRUPO_LEGADO[cat.tipo_dre] ?? null;
+  return null;
+}
+
 export type LancamentoDRE = {
   id?: string;
   origem: 'receita' | 'despesa';
@@ -43,6 +61,8 @@ export type LancamentoDRE = {
   vencimento?: string | null;
   /** data_pagamento (despesa) ou data_recebimento (receita) */
   data_efetiva?: string | null;
+  /** Data legada do lançamento; só usada se `fallback_data_legada` for ligado explicitamente. */
+  data_legada?: string | null;
   grupo?: string | null;
   unidade_negocio?: string | null;
   setor?: string | null;
