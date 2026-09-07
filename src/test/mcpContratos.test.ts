@@ -64,14 +64,16 @@ function contratos() {
 }
 
 function receitas() {
-  return [
+  return ([
     { id: 'r1', user_id: USER_ID, contrato_id: C1, data: '2026-03-20', descricao: 'Alfa 1', valor: 6000, status: 'Recebido', operadoras: { nome: 'Amil' } },
     { id: 'r2', user_id: USER_ID, contrato_id: C1, data: '2026-04-20', descricao: 'Alfa 2', valor: 4000, status: 'Aguardando', operadoras: { nome: 'Amil' } },
     { id: 'r3', user_id: USER_ID, contrato_id: C2, data: '2026-02-10', descricao: 'Beta 1', valor: 5000, status: 'Aguardando', operadoras: { nome: 'Bradesco' } },
     { id: 'r4', user_id: USER_ID, contrato_id: C3, data: '2026-01-20', descricao: 'Alfa homônimo', valor: 2000, status: 'Recebido', operadoras: { nome: 'Amil' } },
     { id: 'r5', user_id: USER_ID, contrato_id: null, data: '2026-05-01', descricao: 'Sem contrato', valor: 1234, status: 'Recebido', operadoras: null },
     { id: 'r6', user_id: OUTRO_USER, contrato_id: C5, data: '2026-04-05', descricao: 'De outro', valor: 777, status: 'Recebido', operadoras: null },
-  ];
+    // Cancelado: nunca pode entrar em nenhum total de contrato.
+    { id: 'r7', user_id: USER_ID, contrato_id: C1, data: '2026-05-20', descricao: 'Alfa cancelada', valor: 9999, status: 'Aguardando', operadoras: { nome: 'Amil' }, cancelado: true },
+  ] as any[]).map((r) => ({ cancelado: false, ...r }));
 }
 
 function seed(extra: Record<string, any[]> = {}) {
@@ -82,7 +84,7 @@ function seed(extra: Record<string, any[]> = {}) {
     vendedores: [{ id: 'ven-1', nome: 'Rhayssa', ativo: true }],
     mcp_operacoes: [],
     ...extra,
-  });
+  }, USER_ID);
 }
 
 async function connect(db: FakeDb) {

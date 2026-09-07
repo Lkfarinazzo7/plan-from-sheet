@@ -99,6 +99,59 @@ async function todos<T>(q: any): Promise<T[]> {
   return (data || []) as T[];
 }
 
+type PlanoInsert = { tabela: string; row: Record<string, unknown>; ref?: string; refs?: Record<string, string> };
+type PlanoUpdate = { tabela: string; id: string; versao: number | null; patch: Record<string, unknown>; refs?: Record<string, string> };
+type Plano = { inserts: PlanoInsert[]; updates: PlanoUpdate[] };
+
+/**
+ * Traduz o payload da PRÉVIA no plano de gravação. Roda no PREPARO e é persistido:
+ * a confirmação nunca aceita conteúdo vindo do cliente.
+ */
+export function planoDaOperacao(tool: string, after: any, userId: string): Plano {
+  const plano: Plano = { inserts: [], updates: [] };
+  if (tool === TOOL.PREPARAR_ALTERACAO_LOTE) {
+    plano.updates = (after?.itens ?? []).map((i: any) => ({ tabela: i.tabela, id: i.id, versao: i.versao ?? null, patch: i.patch }));
+  } else if (tool === TOOL.PREPARAR_CRIACAO_RECEITA) {
+    plano.inserts.push({ tabela: 'receitas', row: { ...after, comissao: 0, user_id: userId } });
+  } else if (tool === TOOL.PREPARAR_CRIACAO_DESPESA) {
+    plano.inserts.push({ tabela: 'despesas', row: { ...after, user_id: userId } });
+  } else if (
+    tool === TOOL.PREPARAR_ALTERACAO_LANCAMENTO ||
+    tool === TOOL.PREPARAR_MARCACAO_STATUS ||
+    tool === TOOL.PREPARAR_CANCELAMENTO_LANCAMENTO ||
+    tool === TOOL.PREPARAR_ALTERACAO_CATEGORIA ||
+    tool === TOOL.PREPARAR_ALTERACAO_SUBCATEGORIA ||
+    tool === TOOL.PREPARAR_ENCERRAMENTO_SERIE
+  ) {
+    plano.updates.push({ tabela: after.tabela, id: after.id, versao: after.versao ?? null, patch: after.updates });
+  } else if (tool === TOOL.PREPARAR_CRIACAO_CATEGORIA || tool === TOOL.PREPARAR_CRIACAO_SUBCATEGORIA) {
+    plano.inserts.push({ tabela: after.tabela, row: after.payload });
+  } else if (tool === TOOL.PREPARAR_CRIACAO_SERIE) {
+    plano.inserts.push({ tabela: 'series_recorrencia', row: { ...after.payload, user_id: userId }, ref: 'serie' });
+    for (const item of after.lancamentos ?? []) {
+      plano.updates.push({ tabela: item.tabela, id: item.id, versao: item.versao ?? null, patch: {}, refs: { serie_id: 'serie' } });
+    }
+  } else {
+    throw new Error(`Tipo de operação não suportado: ${tool}`);
+  }
+  const total = plano.inserts.length + plano.updates.length;
+  if (total === 0) throw new Error('Nada a executar: a prévia ficou vazia.');
+  if (total > 200) throw new Error(`Prévia com ${total} itens excede o limite de 200.`);
+  const vistos = new Set<string>();
+  for (const u of plano.updates) {
+    if (!u.id) throw new Error('Alteração sem identificador na prévia.');
+    const chave = `${u.tabela}:${u.id}`;
+    if (vistos.has(chave)) throw new Error(`Registro repetido na prévia: ${u.id}.`);
+    vistos.add(chave);
+  }
+  return plano;
+}
+
+/** Cancelado é histórico: nunca entra em soma, ranking, contrato ou fluxo. */
+function semCancelados(q: any) {
+  return q.eq('cancelado', false);
+}
+
 async function registrarOperacao(
   ctx: Ctx,
   toolName: string,
@@ -108,6 +161,8 @@ async function registrarOperacao(
   summary: string,
 ) {
   const expires_at = expiresAtFrom();
+  // O plano vai gravado junto com a prévia e é imutável (a coluna não pode ser alterada por quem confirma).
+  const plano = planoDaOperacao(toolName, after, ctx.userId);
   const { data, error } = await ctx.supabase
     .from('mcp_operacoes')
     .insert({
@@ -117,6 +172,8 @@ async function registrarOperacao(
       arguments: args as any,
       before_data: (before ?? null) as any,
       after_data: (after ?? null) as any,
+      plano: plano as any,
+      item_count: plano.inserts.length + plano.updates.length,
       summary,
       expires_at,
     })
@@ -157,8 +214,8 @@ export function buildServer(ctx: Ctx) {
       assertNoIdentityArgs(args);
       const r = resolveRange(args);
       if (!r) return fail('Informe mes+ano ou data_inicio+data_fim.');
-      let rq = applyUnidade(applyPeriodo(ctx.supabase.from('receitas').select('valor, status'), args), args.unidade);
-      let dq = applyUnidade(applyPeriodo(ctx.supabase.from('despesas').select('valor, status'), args), args.unidade);
+      let rq = applyUnidade(applyPeriodo(semCancelados(ctx.supabase.from('receitas').select('valor, status')), args), args.unidade);
+      let dq = applyUnidade(applyPeriodo(semCancelados(ctx.supabase.from('despesas').select('valor, status')), args), args.unidade);
       const [receitas, despesas] = await Promise.all([
         todos<{ valor: number; status: string }>(rq),
         todos<{ valor: number; status: string }>(dq),
@@ -202,11 +259,11 @@ export function buildServer(ctx: Ctx) {
       const r = resolveRange(args);
       if (!r) return fail('Informe mes+ano ou data_inicio+data_fim.');
       const rq = applyUnidade(
-        applyPeriodo(ctx.supabase.from('receitas').select('valor').eq('status', 'Recebido'), args),
+        applyPeriodo(semCancelados(ctx.supabase.from('receitas').select('valor').eq('status', 'Recebido')), args),
         args.unidade,
       );
       const dq = applyUnidade(
-        applyPeriodo(ctx.supabase.from('despesas').select('valor, categorias_despesa(tipo_dre)'), args),
+        applyPeriodo(semCancelados(ctx.supabase.from('despesas').select('valor, categorias_despesa(tipo_dre)')), args),
         args.unidade,
       );
       const [rec, des] = await Promise.all([todos<any>(rq), todos<any>(dq)]);
@@ -241,8 +298,8 @@ export function buildServer(ctx: Ctx) {
       assertNoIdentityArgs(args);
       const r = resolveRange(args);
       if (!r) return fail('Informe mes+ano ou data_inicio+data_fim.');
-      const rq = applyUnidade(applyPeriodo(ctx.supabase.from('receitas').select('valor, status, data'), args), args.unidade);
-      const dq = applyUnidade(applyPeriodo(ctx.supabase.from('despesas').select('valor, status, data'), args), args.unidade);
+      const rq = applyUnidade(applyPeriodo(semCancelados(ctx.supabase.from('receitas').select('valor, status, data')), args), args.unidade);
+      const dq = applyUnidade(applyPeriodo(semCancelados(ctx.supabase.from('despesas').select('valor, status, data')), args), args.unidade);
       const [rec, des] = await Promise.all([todos<any>(rq), todos<any>(dq)]);
       const visao = args.visao ?? 'realizado';
       let entradasRealizadas = 0, entradasPrevistas = 0, saidasRealizadas = 0, saidasPrevistas = 0;
@@ -518,7 +575,7 @@ export function buildServer(ctx: Ctx) {
 
     const receitas = (
       await fetchAll((from, to) =>
-        ctx.supabase.from('receitas').select(RECEITA_SELECT).eq('user_id', ctx.userId).not('contrato_id', 'is', null).order('id', { ascending: true }).range(from, to),
+        ctx.supabase.from('receitas').select(RECEITA_SELECT).eq('user_id', ctx.userId).eq('cancelado', false).not('contrato_id', 'is', null).order('id', { ascending: true }).range(from, to),
       )
     ).map(mapReceita);
 
@@ -559,7 +616,7 @@ export function buildServer(ctx: Ctx) {
 
   async function carregarReceitasDoContrato(contratoId: string): Promise<ReceitaRow[]> {
     const rows = await fetchAll((from, to) =>
-      ctx.supabase.from('receitas').select(RECEITA_SELECT).eq('user_id', ctx.userId).eq('contrato_id', contratoId).order('id', { ascending: true }).range(from, to),
+      ctx.supabase.from('receitas').select(RECEITA_SELECT).eq('user_id', ctx.userId).eq('cancelado', false).eq('contrato_id', contratoId).order('id', { ascending: true }).range(from, to),
     );
     return ordenarReceitas(rows.map(mapReceita));
   }
@@ -1167,44 +1224,10 @@ export function buildServer(ctx: Ctx) {
         const check = canConfirm(op as any);
         if (!check.ok) return fail((check as { ok: false; reason: string }).reason);
 
-        // Um ÚNICO RPC faz reserva + validação + gravação + auditoria na MESMA transação.
-        // Nada é marcado como executado antes das gravações; qualquer falha desfaz tudo.
-        const after = op!.after_data as any;
-        const plano: { inserts: any[]; updates: any[] } = { inserts: [], updates: [] };
-        const tool = op!.tool_name;
-
-        if (tool === TOOL.PREPARAR_ALTERACAO_LOTE) {
-          plano.updates = (after?.itens ?? []).map((i: any) => ({ tabela: i.tabela, id: i.id, versao: i.versao ?? null, patch: i.patch }));
-        } else if (tool === TOOL.PREPARAR_CRIACAO_RECEITA) {
-          plano.inserts.push({ tabela: 'receitas', row: { ...after, comissao: 0, user_id: ctx.userId } });
-        } else if (tool === TOOL.PREPARAR_CRIACAO_DESPESA) {
-          plano.inserts.push({ tabela: 'despesas', row: { ...after, user_id: ctx.userId } });
-        } else if (
-          tool === TOOL.PREPARAR_ALTERACAO_LANCAMENTO ||
-          tool === TOOL.PREPARAR_MARCACAO_STATUS ||
-          tool === TOOL.PREPARAR_CANCELAMENTO_LANCAMENTO
-        ) {
-          plano.updates.push({ tabela: after.tabela, id: after.id, versao: after.versao ?? null, patch: after.updates });
-        } else if (tool === TOOL.PREPARAR_CRIACAO_CATEGORIA || tool === TOOL.PREPARAR_CRIACAO_SUBCATEGORIA) {
-          plano.inserts.push({ tabela: after.tabela, row: after.payload });
-        } else if (
-          tool === TOOL.PREPARAR_ALTERACAO_CATEGORIA ||
-          tool === TOOL.PREPARAR_ALTERACAO_SUBCATEGORIA ||
-          tool === TOOL.PREPARAR_ENCERRAMENTO_SERIE
-        ) {
-          plano.updates.push({ tabela: after.tabela, id: after.id, versao: after.versao ?? null, patch: after.updates });
-        } else if (tool === TOOL.PREPARAR_CRIACAO_SERIE) {
-          plano.inserts.push({ tabela: 'series_recorrencia', row: { ...after.payload, user_id: ctx.userId }, ref: 'serie' });
-          for (const item of after.lancamentos ?? []) {
-            plano.updates.push({ tabela: item.tabela, id: item.id, versao: item.versao ?? null, patch: {}, refs: { serie_id: 'serie' } });
-          }
-        } else {
-          return fail(`Tipo de operação não suportado: ${tool}`);
-        }
-
+        // Um ÚNICO RPC faz reserva + validação + gravação + auditoria na MESMA transação,
+        // lendo SOMENTE o plano persistido na prévia. Nada do cliente entra aqui.
         const { data: exec, error: execErr } = await ctx.supabase.rpc('mcp_executar_operacao', {
           _op_id: args.confirmation_id,
-          _plano: plano,
         });
         if (execErr) {
           // A transação foi desfeita: nada foi gravado. Registramos a falha à parte.
@@ -1216,7 +1239,7 @@ export function buildServer(ctx: Ctx) {
           status: 'executed',
           confirmation_id: args.confirmation_id,
           resumo: op!.summary,
-          itens_aplicados: limpo?.itens ?? plano.inserts.length + plano.updates.length,
+          itens_aplicados: limpo?.itens ?? op!.item_count,
           resultado: limpo,
         });
       } catch (e) {
@@ -1742,11 +1765,11 @@ export function buildServer(ctx: Ctx) {
         const tabela = TABELA[args.tipo];
         const lancamentos: any[] = [];
         for (const id of args.lancamento_ids) {
-          const { data: row, error } = await ctx.supabase.from(tabela).select('id, descricao, data, valor, status, serie_id').eq('id', id).maybeSingle();
+          const { data: row, error } = await ctx.supabase.from(tabela).select('id, descricao, data, valor, status, serie_id, versao').eq('id', id).maybeSingle();
           if (error) return fail(error.message);
           if (!row) return fail(`Lançamento ${id} não encontrado ou sem acesso. Nenhuma operação foi criada.`);
           if (row.serie_id) return fail(`O lançamento ${id} já pertence a uma série (${row.serie_id}). Nenhuma operação foi criada.`);
-          lancamentos.push({ tabela, id: row.id, descricao: row.descricao, data: row.data, valor: row.valor, status: row.status });
+          lancamentos.push({ tabela, id: row.id, versao: row.versao ?? null, descricao: row.descricao, data: row.data, valor: row.valor, status: row.status });
         }
         const payload = {
           nome: args.nome.trim(),

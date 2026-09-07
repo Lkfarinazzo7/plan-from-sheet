@@ -68,7 +68,7 @@ function seed(comPapel = true) {
     ],
     mcp_operacoes: [],
     user_roles: comPapel ? [{ id: '77777777-7777-4777-8777-777777777701', user_id: USER_ID, role: 'gestor' }] : [],
-  });
+  }, USER_ID);
 }
 
 async function connect(db: FakeDb) {
@@ -328,7 +328,8 @@ describe('cancelamento lógico', () => {
 describe('séries de recorrência', () => {
   it('cria série por IDs explícitos e recusa lançamento já vinculado', async () => {
     const prep = payload(await call(client, TOOL.PREPARAR_CRIACAO_SERIE, { nome: 'Anúncios Facebook', tipo: 'despesa', unidade_negocio: 'Odisseia', lancamento_ids: [D1, D2] }));
-    await call(client, TOOL.CONFIRMAR_OPERACAO, { confirmation_id: prep.confirmation_id });
+    const conf: any = await call(client, TOOL.CONFIRMAR_OPERACAO, { confirmation_id: prep.confirmation_id });
+    expect(conf.isError, conf.content[0].text).toBeFalsy();
     const novaSerie = db.rows('series_recorrencia').find((s) => s.nome === 'Anúncios Facebook')!;
     expect(db.rows('despesas')[0].serie_id).toBe(novaSerie.id);
     const r: any = await call(client, TOOL.PREPARAR_CRIACAO_SERIE, { nome: 'Outra', tipo: 'despesa', lancamento_ids: [D1] });
