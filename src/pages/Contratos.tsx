@@ -89,7 +89,7 @@ export default function Contratos() {
   const toggleExpand = (id: string) => setExpandedIds(prev => {
     const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n;
   });
-  const [vincularAlvo, setVincularAlvo] = useState<{ nome: string; qtd: number; total: number } | null>(null);
+  const [vincularAlvo, setVincularAlvo] = useState<{ nome: string; qtd: number; total: number; ids: string[] } | null>(null);
   const vincular = useVincularReceitasAoContrato();
 
   const mapContratoRow = useCallback((row: Record<string, any>): ParsedRow => {
@@ -1136,10 +1136,10 @@ function ComissaoForm({
 function VincularReceitaDialog({
   alvo, contratos, onClose, onConfirm, isLoading,
 }: {
-  alvo: { nome: string; qtd: number; total: number } | null;
+  alvo: { nome: string; qtd: number; total: number; ids: string[] } | null;
   contratos: any[];
   onClose: () => void;
-  onConfirm: (contratoNome: string) => void;
+  onConfirm: (contrato: { id: string; nome: string }) => void;
   isLoading: boolean;
 }) {
   const [busca, setBusca] = useState('');
