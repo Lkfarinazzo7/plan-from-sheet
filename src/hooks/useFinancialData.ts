@@ -1036,7 +1036,7 @@ export function useDRE(args: PeriodArgs & { regime?: Regime; setor?: string }) {
           vencimento: x.vencimento ?? null,
           data_efetiva: x.data_recebimento ?? null,
           data_legada: x.data ?? null,
-          grupo: grupoDeCategoria(catById.get(x.categoria_id), true) ?? 'receita_operacional',
+          grupo: grupoDeCategoria(catById.get(x.categoria_id), false) ?? 'receita_operacional',
           unidade_negocio: x.unidade_negocio ?? null,
           setor: null,
         })),

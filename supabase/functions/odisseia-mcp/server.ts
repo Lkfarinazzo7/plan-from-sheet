@@ -1420,7 +1420,8 @@ export function buildServer(ctx: Ctx) {
             vencimento: x.vencimento ?? null,
             data_efetiva: x.data_recebimento ?? null,
             data_legada: x.data ?? null,
-            grupo: grupoDeCategoria(cats.get(x.categoria_id), legado),
+            // Receita nunca herda a classificação legada de despesa.
+            grupo: grupoDeCategoria(cats.get(x.categoria_id), false),
             unidade_negocio: x.unidade_negocio ?? null,
             setor: null,
           })),
