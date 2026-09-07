@@ -131,12 +131,12 @@ describe('plano de execução vive no servidor', () => {
 
 describe('lançamentos cancelados nunca entram em totais', () => {
   it('resumo do dashboard soma apenas o não cancelado', async () => {
-    const out = payload(await call(client, TOOL.CONSULTAR_DASHBOARD, { inicio: '2026-08-01', fim: '2026-08-31' }));
+    const out = payload(await call(client, TOOL.CONSULTAR_DASHBOARD, { data_inicio: '2026-08-01', data_fim: '2026-08-31' }));
     expect(JSON.stringify(out)).not.toContain('6000');
   });
 
   it('listar_receitas não devolve o cancelado como ativo', async () => {
-    const out = payload(await call(client, TOOL.LISTAR_RECEITAS, { inicio: '2026-08-01', fim: '2026-08-31' }));
+    const out = payload(await call(client, TOOL.LISTAR_RECEITAS, { data_inicio: '2026-08-01', data_fim: '2026-08-31' }));
     const ids = (out.itens ?? []).map((i: any) => i.id);
     expect(ids).toContain(R_OK);
   });
