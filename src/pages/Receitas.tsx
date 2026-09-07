@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita, useBulkUpdateReceita, useBulkDeleteReceita, usePropostas, useContratos, useContratosNomesSet, normalizeNomeContrato } from '@/hooks/useFinancialData';
+import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita, useBulkUpdateReceita, useBulkDeleteReceita, usePropostas, useContratos, normalizeNomeContrato } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName, todayStr } from '@/lib/format';
 import { Plus, Trash2, Pencil, Upload, Copy, Download, Sparkles, X, StickyNote, Check } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
@@ -48,7 +48,10 @@ export default function Receitas() {
   const { data: operadoras = [] } = useOperadoras();
   const { data: propostas = [] } = usePropostas();
   const { data: contratos = [] } = useContratos();
-  const { data: contratosNomesSet } = useContratosNomesSet();
+  const contratosNomesSet = useMemo(
+    () => new Set((contratos as any[]).map(c => normalizeNomeContrato(c.nome || ''))),
+    [contratos],
+  );
   const createReceita = useCreateReceita();
   const updateReceita = useUpdateReceita();
   const deleteReceita = useDeleteReceita();
