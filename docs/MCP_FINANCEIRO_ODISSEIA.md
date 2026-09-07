@@ -240,9 +240,17 @@ em `pendencias.via_data_legada`. Nenhuma data é gravada no banco.
 A subcategoria precisa pertencer à categoria resultante.
 
 `preparar_alteracao_lote` recebe uma lista com os mesmos campos, devolve **prévia item a item** e um
-único `confirmation_id`. A confirmação chama `public.mcp_aplicar_lote`, que aplica tudo em **uma única
-transação** com `SELECT ... FOR UPDATE` e checagem de `versao`: se um item falhar, nenhum é alterado.
-Replay e confirmação simultânea são impossíveis (a operação sai de `pending` dentro da transação).
+único `confirmation_id`. A confirmação chama `public.mcp_executar_operacao(_op_id)`, que aplica tudo em
+**uma única transação** com `SELECT ... FOR UPDATE` e checagem de `versao`: se um item falhar, nenhum é
+alterado. Replay e confirmação simultânea são impossíveis (a operação sai de `pending` dentro da transação).
+
+**O plano de execução mora no servidor.** A prévia grava `mcp_operacoes.plano` (coluna imutável) e a
+confirmação só recebe o `confirmation_id`: nada do que o cliente enviar em `confirmar_operacao` altera o
+que será gravado. A função ainda valida, dentro da transação: dono da operação (`auth.uid()`), allowlist
+de tabelas e de campos por operação (inserção e alteração têm listas distintas — `user_id` **nunca** pode
+ser alterado), plano vazio, teto de 200 itens, IDs repetidos, `versao` obrigatória onde a coluna existe e
+`ROW_COUNT = 1` por gravação. Cada registro tocado gera uma linha em `mcp_auditoria_registros`
+(`antes`/`depois`, tabela, ação, usuário).
 
 ### Permissões em cadastros compartilhados
 
@@ -263,10 +271,12 @@ Replay e confirmação simultânea são impossíveis (a operação sai de `pendi
 - Depreciação só é apropriada com dados explícitos; nada de vida útil, juros ou parcelas presumidos.
 - Reclassificação em massa do histórico não é feita automaticamente — exige lote preparado e confirmado.
 - Leituras longas são paginadas com ordem estável por `id`; sem ela o PostgREST poderia repetir linhas.
+- Lançamentos cancelados são histórico: ficam fora de somas, rankings, contratos, fluxo de caixa e DRE.
 
 ### Testes
 
-`bunx vitest run` — 103 testes: `dre.test.ts` (regimes, cascata, pendências, filtros),
+`bunx vitest run` — 108 testes: `dre.test.ts` (regimes, cascata, pendências, filtros),
 `mcpGestao.test.ts` (categorias, subcategorias, inativação, edição campo a campo, lote/rollback,
 idempotência, conflito de versão, cancelamento, séries, permissão e impacto em cadastros, DRE pelo
-protocolo), além das suítes anteriores. Typecheck (`bunx tsgo --noEmit`) e `bun run build` limpos.
+protocolo), `mcpSeguranca.test.ts` (plano persistido imune a adulteração do cliente, campo fora da
+allowlist recusado, auditoria por registro, cancelados fora dos totais), além das suítes anteriores. Typecheck (`bunx tsgo --noEmit`) e `bun run build` limpos.
