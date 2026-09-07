@@ -473,6 +473,30 @@ export function useGenerateRecurringDespesas() {
       if (fetchError) throw fetchError;
       if (!recurring?.length) throw new Error('Nenhuma despesa recorrente encontrada no mês selecionado.');
 
+      // Séries encerradas NÃO geram novas ocorrências; lançamentos cancelados também não.
+      const serieIds = [...new Set(recurring.map((d: any) => d.serie_id).filter(Boolean))] as string[];
+      const seriesById = new Map<string, any>();
+      if (serieIds.length) {
+        const { data: series, error: seriesError } = await supabase
+          .from('series_recorrencia')
+          .select('id, ativa, encerrada_em, unidade_negocio, categoria_id, subcategoria_id, setor_id')
+          .in('id', serieIds);
+        if (seriesError) throw seriesError;
+        for (const s of series || []) seriesById.set(s.id, s);
+      }
+      const targetFirstDay = toDateStr(targetYear, targetMonth, 1);
+      const geraveis = recurring.filter((d: any) => {
+        if (d.cancelado) return false;
+        const serie = d.serie_id ? seriesById.get(d.serie_id) : null;
+        if (!serie) return true;
+        if (serie.ativa === false) return false;
+        if (serie.encerrada_em && serie.encerrada_em <= targetFirstDay) return false;
+        return true;
+      });
+      if (!geraveis.length) {
+        throw new Error('Todas as despesas recorrentes desse mês pertencem a séries encerradas ou estão canceladas. Nada foi gerado.');
+      }
+
       // Buscar recorrentes já existentes no mês de destino para não duplicar
       const targetStart = toDateStr(targetYear, targetMonth, 1);
       const targetEnd = toDateStr(targetYear, targetMonth, new Date(targetYear, targetMonth + 1, 0).getDate());
@@ -486,7 +510,7 @@ export function useGenerateRecurringDespesas() {
       const existingKeys = new Set((existing || []).map(e => `${e.descricao}|${Number(e.valor)}`));
 
       const lastDayTarget = new Date(targetYear, targetMonth + 1, 0).getDate();
-      const newDespesas = recurring
+      const newDespesas = geraveis
         .filter(d => !existingKeys.has(`${d.descricao}|${Number(d.valor)}`))
         .map(d => {
           // Extrair o dia direto da string YYYY-MM-DD (new Date() interpretaria como UTC e voltaria 1 dia)
@@ -501,8 +525,10 @@ export function useGenerateRecurringDespesas() {
             responsavel: d.responsavel,
             recorrente: true,
             status: 'A pagar' as const,
-            unidade_negocio: (d as any).unidade_negocio ?? null,
-            setor_id: (d as any).setor_id ?? null,
+            // A unidade e o setor vêm do cadastro vigente da série, quando ela existe.
+            unidade_negocio: (d.serie_id && seriesById.get(d.serie_id)?.unidade_negocio) ?? (d as any).unidade_negocio ?? null,
+            setor_id: (d.serie_id && seriesById.get(d.serie_id)?.setor_id) ?? (d as any).setor_id ?? null,
+            serie_id: (d as any).serie_id ?? null,
             observacoes: (d as any).observacoes ?? null,
             user_id: user!.id,
           };
