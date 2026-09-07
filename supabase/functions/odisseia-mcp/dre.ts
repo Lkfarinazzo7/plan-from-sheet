@@ -74,6 +74,7 @@ export type PendenciasDRE = {
   sem_data_do_regime: Bucket;
   sem_grupo_dre: Bucket;
   cancelados_ignorados: Bucket;
+  via_data_legada: Bucket;
   cobertura_percentual: number | null;
   avisos: string[];
 };
