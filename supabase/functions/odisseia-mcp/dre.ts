@@ -157,16 +157,18 @@ export function passaFiltros(l: LancamentoDRE, f: FiltrosDRE): boolean {
 
 export function calcularDRE(
   lancamentos: LancamentoDRE[],
-  opts: { regime: Regime; inicio: string; fim: string; filtros?: FiltrosDRE },
+  opts: { regime: Regime; inicio: string; fim: string; filtros?: FiltrosDRE; fallbackDataLegada?: boolean },
 ): ResultadoDRE {
   const { regime, inicio, fim } = opts;
   const filtros = opts.filtros ?? {};
+  const fallback = opts.fallbackDataLegada === true;
   const grupos: Record<string, Bucket> = {};
   for (const g of GRUPOS_DRE) grupos[g] = zero();
   const naoClassificado = zero();
   const pendSemData = zero();
   const pendSemGrupo = zero();
   const cancelados = zero();
+  const viaDataLegada = zero();
   let considerados = 0;
   let candidatos = 0;
 
@@ -179,12 +181,17 @@ export function calcularDRE(
     }
     if (!candidato(l, regime)) continue;
     candidatos += 1;
-    const d = dataDoRegime(l, regime);
+    let d = dataDoRegime(l, regime);
+    if (!d && fallback && l.data_legada) {
+      d = l.data_legada;
+      add(viaDataLegada, v);
+    }
     if (!d) {
       add(pendSemData, v);
       continue;
     }
     if (d < inicio || d > fim) continue;
+
 
     const g = grupoDe(l);
     if (!g) {
