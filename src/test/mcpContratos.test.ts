@@ -104,12 +104,12 @@ beforeEach(async () => {
 });
 
 describe('registro das novas tools', () => {
-  it('expõe 19 tools sem duplicatas e na versão 1.1.0', async () => {
+  it('expõe 30 tools sem duplicatas e na versão 1.2.0', async () => {
     const { tools } = await client.listTools();
     const nomes = tools.map((t) => t.name);
-    expect(new Set(nomes).size).toBe(19);
+    expect(new Set(nomes).size).toBe(30);
     expect(nomes.sort()).toEqual([...TOOL_NAMES].sort());
-    expect(SERVER_VERSION).toBe('1.1.0');
+    expect(SERVER_VERSION).toBe('1.2.0');
   });
 
   it('as 4 novas tools são read-only com annotations corretas', async () => {
