@@ -47,6 +47,7 @@ export type Database = {
           nome: string
           tipo_dre: string
           updated_at: string
+          versao: number
         }
         Insert: {
           ativo?: boolean
@@ -56,6 +57,7 @@ export type Database = {
           nome: string
           tipo_dre?: string
           updated_at?: string
+          versao?: number
         }
         Update: {
           ativo?: boolean
@@ -65,6 +67,7 @@ export type Database = {
           nome?: string
           tipo_dre?: string
           updated_at?: string
+          versao?: number
         }
         Relationships: []
       }
@@ -348,6 +351,7 @@ export type Database = {
           id: string
           item_count: number
           plano: Json | null
+          resultado: Json | null
           status: string
           summary: string | null
           tool_name: string
@@ -365,6 +369,7 @@ export type Database = {
           id?: string
           item_count?: number
           plano?: Json | null
+          resultado?: Json | null
           status?: string
           summary?: string | null
           tool_name: string
@@ -382,6 +387,7 @@ export type Database = {
           id?: string
           item_count?: number
           plano?: Json | null
+          resultado?: Json | null
           status?: string
           summary?: string | null
           tool_name?: string
@@ -722,6 +728,7 @@ export type Database = {
           unidade_negocio: string | null
           updated_at: string
           user_id: string
+          versao: number
         }
         Insert: {
           ativa?: boolean
@@ -737,6 +744,7 @@ export type Database = {
           unidade_negocio?: string | null
           updated_at?: string
           user_id: string
+          versao?: number
         }
         Update: {
           ativa?: boolean
@@ -752,6 +760,7 @@ export type Database = {
           unidade_negocio?: string | null
           updated_at?: string
           user_id?: string
+          versao?: number
         }
         Relationships: [
           {
@@ -774,6 +783,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "subcategorias_despesa"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "series_subcategoria_coerente_fkey"
+            columns: ["subcategoria_id", "categoria_id"]
+            isOneToOne: false
+            referencedRelation: "subcategorias_despesa"
+            referencedColumns: ["id", "categoria_id"]
           },
         ]
       }
@@ -807,6 +823,7 @@ export type Database = {
           id: string
           nome: string
           updated_at: string
+          versao: number
         }
         Insert: {
           ativo?: boolean
@@ -816,6 +833,7 @@ export type Database = {
           id?: string
           nome: string
           updated_at?: string
+          versao?: number
         }
         Update: {
           ativo?: boolean
@@ -825,6 +843,7 @@ export type Database = {
           id?: string
           nome?: string
           updated_at?: string
+          versao?: number
         }
         Relationships: [
           {
@@ -922,6 +941,14 @@ export type Database = {
       }
     }
     Functions: {
+      gerar_ocorrencias_recorrentes: {
+        Args: {
+          _source_fim: string
+          _source_inicio: string
+          _target_inicio: string
+        }
+        Returns: Json
+      }
       grant_role_by_email: {
         Args: {
           _email: string
@@ -945,6 +972,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      mcp_campos_permitidos: {
+        Args: { _insert: boolean; _tabela: string }
+        Returns: string[]
+      }
       mcp_claim_operacao: {
         Args: { _id: string }
         Returns: {
@@ -958,6 +989,7 @@ export type Database = {
           id: string
           item_count: number
           plano: Json | null
+          resultado: Json | null
           status: string
           summary: string | null
           tool_name: string
@@ -972,6 +1004,14 @@ export type Database = {
         }
       }
       mcp_executar_operacao: { Args: { _op_id: string }; Returns: Json }
+      mcp_impacto_categoria: {
+        Args: { _categoria_id: string; _subcategoria_id?: string }
+        Returns: Json
+      }
+      mcp_plano_esperado: {
+        Args: { _after: Json; _tool: string; _user: string }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "gestor" | "adm_pipeline"
