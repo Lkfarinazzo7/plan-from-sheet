@@ -200,6 +200,7 @@ export default function Despesas() {
     setSelectedIds(next);
   };
   const clearSelection = () => setSelectedIds(new Set());
+  useEffect(() => { setSelectedIds(new Set()); }, [month, year, filterCategoria, filterStatus, filterTipo, filterResponsavel, filterUnidade, filterSetor, filterPeriodo, customStart, customEnd]);
 
   const openNew = () => {
     setEditId(null);
