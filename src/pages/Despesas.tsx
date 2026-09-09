@@ -65,11 +65,8 @@ export default function Despesas() {
 
   // Selecao em massa
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkOpen, setBulkOpen] = useState(false);
-  const [bulkData, setBulkData] = useState('');
-  const [bulkStatus, setBulkStatus] = useState<string>('none');
-  const [bulkUnidade, setBulkUnidade] = useState<string>('none');
-  const [bulkSetor, setBulkSetor] = useState<string>('none');
+  const [bulkData, setBulkData] = useState(todayStr());
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const { data: despesas = [], isLoading } = useDespesas(month, year);
   const { data: categorias = [] } = useCategoriasDespesa();
