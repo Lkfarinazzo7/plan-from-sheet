@@ -528,6 +528,28 @@ export function useBulkCreateReceita() {
   });
 }
 
+export function useBulkUpdateDespesa() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, updates }: { ids: string[]; updates: Record<string, any> }) => {
+      const { error } = await supabase.from('despesas').update(updates as any).in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['despesas'] }),
+  });
+}
+
+export function useBulkDeleteDespesa() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from('despesas').delete().in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['despesas'] }),
+  });
+}
+
 export function useBulkCreateDespesa() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
