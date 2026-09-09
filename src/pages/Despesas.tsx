@@ -76,6 +76,8 @@ export default function Despesas() {
   const deleteDespesa = useDeleteDespesa();
   const generateRecurring = useGenerateRecurringDespesas();
   const bulkCreateDespesa = useBulkCreateDespesa();
+  const bulkUpdateDespesa = useBulkUpdateDespesa();
+  const bulkDeleteDespesa = useBulkDeleteDespesa();
   const { toast } = useToast();
   const [importOpen, setImportOpen] = useState(false);
 
