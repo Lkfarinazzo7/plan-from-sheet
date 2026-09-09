@@ -718,56 +718,6 @@ export default function Despesas() {
         Total: <span className="font-bold text-foreground">{formatCurrency(total)}</span> ({filtered.length} registros)
       </div>
 
-      {/* Bulk edit dialog */}
-      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Editar {selectedIds.size} despesa(s) em massa</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Preencha apenas os campos que deseja alterar. Os demais permanecerão como estão.</p>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Nova data</label>
-              <Input type="date" value={bulkData} onChange={e => setBulkData(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Novo status</label>
-              <Select value={bulkStatus} onValueChange={setBulkStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Não alterar</SelectItem>
-                  <SelectItem value="Pago">Pago</SelectItem>
-                  <SelectItem value="A pagar">A pagar</SelectItem>
-                  <SelectItem value="Atrasado">Atrasado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Nova unidade de negócio</label>
-              <Select value={bulkUnidade} onValueChange={setBulkUnidade}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Não alterar</SelectItem>
-                  <SelectItem value="clear">Remover unidade</SelectItem>
-                  {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Novo setor</label>
-              <Select value={bulkSetor} onValueChange={setBulkSetor}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Não alterar</SelectItem>
-                  <SelectItem value="clear">Remover setor</SelectItem>
-                  {setores.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button className="w-full" onClick={applyBulkEdit} disabled={updateDespesa.isPending}>
-              {updateDespesa.isPending ? 'Aplicando...' : `Aplicar a ${selectedIds.size} despesa(s)`}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <ExcelImportDialog
         open={importOpen}
