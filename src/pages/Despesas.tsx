@@ -536,18 +536,86 @@ export default function Despesas() {
 
       {/* Bulk action bar */}
       {selectedIds.size > 0 && (
-        <div className="flex items-center justify-between gap-3 p-3 rounded-md border bg-accent/40">
-          <span className="text-sm font-medium">{selectedIds.size} selecionada(s)</span>
-          <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => setBulkOpen(true)}>
-              <Pencil className="h-4 w-4 mr-1" /> Editar em massa
-            </Button>
-            <Button size="sm" variant="ghost" onClick={clearSelection}>
-              <X className="h-4 w-4 mr-1" /> Limpar
-            </Button>
-          </div>
+        <div className="flex flex-wrap items-center gap-2 p-3 border rounded-lg bg-primary/5 border-primary/30">
+          <span className="text-sm font-medium mr-2">{selectedIds.size} selecionada(s)</span>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Status</Button></PopoverTrigger>
+            <PopoverContent className="w-44 p-2 space-y-1">
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ status: 'Pago' }, 'Status')}>Pago</Button>
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ status: 'A pagar' }, 'Status')}>A pagar</Button>
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ status: 'Atrasado' }, 'Status')}>Atrasado</Button>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Data</Button></PopoverTrigger>
+            <PopoverContent className="w-60 space-y-2">
+              <Input type="date" value={bulkData} onChange={e => setBulkData(e.target.value)} />
+              <Button size="sm" className="w-full" onClick={() => applyBulk({ data: bulkData }, 'Data')}>Aplicar</Button>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Categoria</Button></PopoverTrigger>
+            <PopoverContent className="w-56 space-y-2">
+              <Select onValueChange={v => applyBulk({ categoria_id: v }, 'Categoria')}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  {categorias.map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Setor</Button></PopoverTrigger>
+            <PopoverContent className="w-56 space-y-2">
+              <Select onValueChange={v => applyBulk({ setor_id: v === 'none' ? null : v }, 'Setor')}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {setores.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Unidade</Button></PopoverTrigger>
+            <PopoverContent className="w-56 space-y-2">
+              <Select onValueChange={v => applyBulk({ unidade_negocio: v === 'none' ? null : v }, 'Unidade')}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma</SelectItem>
+                  {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
+
+          <Button size="sm" variant="destructive" onClick={() => setConfirmDeleteOpen(true)}>
+            <Trash2 className="h-4 w-4 mr-1" /> Excluir
+          </Button>
+
+          <Button size="sm" variant="ghost" className="ml-auto" onClick={clearSelection}>
+            <X className="h-4 w-4 mr-1" /> Limpar
+          </Button>
         </div>
       )}
+
+      <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {selectedIds.size} despesa(s)?</AlertDialogTitle>
+            <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete}>Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Table */}
       <Card>
