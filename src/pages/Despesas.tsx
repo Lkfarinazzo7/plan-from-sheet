@@ -272,24 +272,24 @@ export default function Despesas() {
     }
   };
 
-  const applyBulkEdit = async () => {
-    const updates: Record<string, any> = {};
-    if (bulkData) updates.data = bulkData;
-    if (bulkStatus !== 'none') updates.status = bulkStatus;
-    if (bulkUnidade !== 'none') updates.unidade_negocio = bulkUnidade === 'clear' ? null : bulkUnidade;
-    if (bulkSetor !== 'none') updates.setor_id = bulkSetor === 'clear' ? null : bulkSetor;
-
-    if (Object.keys(updates).length === 0) {
-      toast({ title: 'Nada para atualizar', description: 'Preencha ao menos um campo.', variant: 'destructive' });
-      return;
-    }
-    const ids = Array.from(selectedIds);
+  const applyBulk = async (updates: Record<string, any>, label: string) => {
     try {
-      await Promise.all(ids.map(id => updateDespesa.mutateAsync({ id, ...updates })));
-      toast({ title: `${ids.length} despesas atualizadas com sucesso!` });
-      setBulkOpen(false);
-      setBulkData(''); setBulkStatus('none'); setBulkUnidade('none'); setBulkSetor('none');
+      const n = selectedIds.size;
+      await bulkUpdateDespesa.mutateAsync({ ids: Array.from(selectedIds), updates });
+      toast({ title: `${label} atualizado em ${n} despesa(s)` });
       clearSelection();
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      const n = selectedIds.size;
+      await bulkDeleteDespesa.mutateAsync(Array.from(selectedIds));
+      toast({ title: `${n} despesa(s) excluída(s)` });
+      clearSelection();
+      setConfirmDeleteOpen(false);
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     }
