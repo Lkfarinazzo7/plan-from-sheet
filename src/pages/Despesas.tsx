@@ -5,10 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa, useSetoresDespesa } from '@/hooks/useFinancialData';
+import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa, useBulkUpdateDespesa, useBulkDeleteDespesa, useSetoresDespesa } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName, todayStr } from '@/lib/format';
 import { Plus, Trash2, RotateCcw, Pencil, Upload, Check, Copy, Download, X, StickyNote, Repeat } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
@@ -63,11 +65,8 @@ export default function Despesas() {
 
   // Selecao em massa
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkOpen, setBulkOpen] = useState(false);
-  const [bulkData, setBulkData] = useState('');
-  const [bulkStatus, setBulkStatus] = useState<string>('none');
-  const [bulkUnidade, setBulkUnidade] = useState<string>('none');
-  const [bulkSetor, setBulkSetor] = useState<string>('none');
+  const [bulkData, setBulkData] = useState(todayStr());
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const { data: despesas = [], isLoading } = useDespesas(month, year);
   const { data: categorias = [] } = useCategoriasDespesa();
@@ -77,6 +76,8 @@ export default function Despesas() {
   const deleteDespesa = useDeleteDespesa();
   const generateRecurring = useGenerateRecurringDespesas();
   const bulkCreateDespesa = useBulkCreateDespesa();
+  const bulkUpdateDespesa = useBulkUpdateDespesa();
+  const bulkDeleteDespesa = useBulkDeleteDespesa();
   const { toast } = useToast();
   const [importOpen, setImportOpen] = useState(false);
 
@@ -199,6 +200,7 @@ export default function Despesas() {
     setSelectedIds(next);
   };
   const clearSelection = () => setSelectedIds(new Set());
+  useEffect(() => { setSelectedIds(new Set()); }, [month, year, filterCategoria, filterStatus, filterTipo, filterResponsavel, filterUnidade, filterSetor, filterPeriodo, customStart, customEnd]);
 
   const openNew = () => {
     setEditId(null);
@@ -273,24 +275,24 @@ export default function Despesas() {
     }
   };
 
-  const applyBulkEdit = async () => {
-    const updates: Record<string, any> = {};
-    if (bulkData) updates.data = bulkData;
-    if (bulkStatus !== 'none') updates.status = bulkStatus;
-    if (bulkUnidade !== 'none') updates.unidade_negocio = bulkUnidade === 'clear' ? null : bulkUnidade;
-    if (bulkSetor !== 'none') updates.setor_id = bulkSetor === 'clear' ? null : bulkSetor;
-
-    if (Object.keys(updates).length === 0) {
-      toast({ title: 'Nada para atualizar', description: 'Preencha ao menos um campo.', variant: 'destructive' });
-      return;
-    }
-    const ids = Array.from(selectedIds);
+  const applyBulk = async (updates: Record<string, any>, label: string) => {
     try {
-      await Promise.all(ids.map(id => updateDespesa.mutateAsync({ id, ...updates })));
-      toast({ title: `${ids.length} despesas atualizadas com sucesso!` });
-      setBulkOpen(false);
-      setBulkData(''); setBulkStatus('none'); setBulkUnidade('none'); setBulkSetor('none');
+      const n = selectedIds.size;
+      await bulkUpdateDespesa.mutateAsync({ ids: Array.from(selectedIds), updates });
+      toast({ title: `${label} atualizado em ${n} despesa(s)` });
       clearSelection();
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      const n = selectedIds.size;
+      await bulkDeleteDespesa.mutateAsync(Array.from(selectedIds));
+      toast({ title: `${n} despesa(s) excluída(s)` });
+      clearSelection();
+      setConfirmDeleteOpen(false);
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
     }
@@ -535,18 +537,86 @@ export default function Despesas() {
 
       {/* Bulk action bar */}
       {selectedIds.size > 0 && (
-        <div className="flex items-center justify-between gap-3 p-3 rounded-md border bg-accent/40">
-          <span className="text-sm font-medium">{selectedIds.size} selecionada(s)</span>
-          <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => setBulkOpen(true)}>
-              <Pencil className="h-4 w-4 mr-1" /> Editar em massa
-            </Button>
-            <Button size="sm" variant="ghost" onClick={clearSelection}>
-              <X className="h-4 w-4 mr-1" /> Limpar
-            </Button>
-          </div>
+        <div className="flex flex-wrap items-center gap-2 p-3 border rounded-lg bg-primary/5 border-primary/30">
+          <span className="text-sm font-medium mr-2">{selectedIds.size} selecionada(s)</span>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Status</Button></PopoverTrigger>
+            <PopoverContent className="w-44 p-2 space-y-1">
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ status: 'Pago' }, 'Status')}>Pago</Button>
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ status: 'A pagar' }, 'Status')}>A pagar</Button>
+              <Button size="sm" variant="ghost" className="w-full justify-start" onClick={() => applyBulk({ status: 'Atrasado' }, 'Status')}>Atrasado</Button>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Data</Button></PopoverTrigger>
+            <PopoverContent className="w-60 space-y-2">
+              <Input type="date" value={bulkData} onChange={e => setBulkData(e.target.value)} />
+              <Button size="sm" className="w-full" onClick={() => applyBulk({ data: bulkData }, 'Data')}>Aplicar</Button>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Categoria</Button></PopoverTrigger>
+            <PopoverContent className="w-56 space-y-2">
+              <Select onValueChange={v => applyBulk({ categoria_id: v }, 'Categoria')}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  {categorias.map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Setor</Button></PopoverTrigger>
+            <PopoverContent className="w-56 space-y-2">
+              <Select onValueChange={v => applyBulk({ setor_id: v === 'none' ? null : v }, 'Setor')}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {setores.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild><Button size="sm" variant="outline">Unidade</Button></PopoverTrigger>
+            <PopoverContent className="w-56 space-y-2">
+              <Select onValueChange={v => applyBulk({ unidade_negocio: v === 'none' ? null : v }, 'Unidade')}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma</SelectItem>
+                  {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
+
+          <Button size="sm" variant="destructive" onClick={() => setConfirmDeleteOpen(true)}>
+            <Trash2 className="h-4 w-4 mr-1" /> Excluir
+          </Button>
+
+          <Button size="sm" variant="ghost" className="ml-auto" onClick={clearSelection}>
+            <X className="h-4 w-4 mr-1" /> Limpar
+          </Button>
         </div>
       )}
+
+      <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {selectedIds.size} despesa(s)?</AlertDialogTitle>
+            <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete}>Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Table */}
       <Card>
@@ -719,56 +789,6 @@ export default function Despesas() {
         Total: <span className="font-bold text-foreground">{formatCurrency(total)}</span> ({filtered.length} registros)
       </div>
 
-      {/* Bulk edit dialog */}
-      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Editar {selectedIds.size} despesa(s) em massa</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Preencha apenas os campos que deseja alterar. Os demais permanecerão como estão.</p>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Nova data</label>
-              <Input type="date" value={bulkData} onChange={e => setBulkData(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Novo status</label>
-              <Select value={bulkStatus} onValueChange={setBulkStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Não alterar</SelectItem>
-                  <SelectItem value="Pago">Pago</SelectItem>
-                  <SelectItem value="A pagar">A pagar</SelectItem>
-                  <SelectItem value="Atrasado">Atrasado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Nova unidade de negócio</label>
-              <Select value={bulkUnidade} onValueChange={setBulkUnidade}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Não alterar</SelectItem>
-                  <SelectItem value="clear">Remover unidade</SelectItem>
-                  {UNIDADES_NEGOCIO.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Novo setor</label>
-              <Select value={bulkSetor} onValueChange={setBulkSetor}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Não alterar</SelectItem>
-                  <SelectItem value="clear">Remover setor</SelectItem>
-                  {setores.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button className="w-full" onClick={applyBulkEdit} disabled={updateDespesa.isPending}>
-              {updateDespesa.isPending ? 'Aplicando...' : `Aplicar a ${selectedIds.size} despesa(s)`}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <ExcelImportDialog
         open={importOpen}
