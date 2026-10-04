@@ -4,6 +4,7 @@ import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useReceitas, useDespesas, useMonthlyComparison, useDRE, useSetoresDespesa } from '@/hooks/useFinancialData';
 import type { Regime } from '../../supabase/functions/odisseia-mcp/dre';
 import { DREWaterfall } from '@/components/DREWaterfall';
+import { PainelExecutivo } from '@/components/PainelExecutivo';
 import { formatCurrency, getCurrentMonthYear } from '@/lib/format';
 import { ArrowUpCircle, ArrowDownCircle, Wallet, Clock, AlertTriangle, CreditCard, CalendarRange, X, TrendingUp, TrendingDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -195,6 +196,11 @@ export default function Dashboard() {
           </Popover>
         </div>
       </div>
+
+      {(() => {
+        const r = activeRange ?? { start: `${year}-${String(month + 1).padStart(2, '0')}-01`, end: `${year}-${String(month + 1).padStart(2, '0')}-${String(new Date(year, month + 1, 0).getDate()).padStart(2, '0')}` };
+        return <PainelExecutivo inicio={r.start} fim={r.end} unidade={filterUnidade} setor={filterSetor} />;
+      })()}
 
       {/* Summary Cards */}
       {dreError && <p role="alert" className="text-destructive">Não foi possível calcular o DRE: {String(dreError.message)}</p>}
