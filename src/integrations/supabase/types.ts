@@ -184,6 +184,7 @@ export type Database = {
           created_at: string
           data: string
           data_pagamento: string | null
+          datas_legado: boolean
           descricao: string
           id: string
           motivo_cancelamento: string | null
@@ -191,6 +192,7 @@ export type Database = {
           ocorrencia: string | null
           recorrente: boolean
           responsavel: string | null
+          revisao_manual: string | null
           serie_id: string | null
           setor_id: string | null
           status: string
@@ -211,6 +213,7 @@ export type Database = {
           created_at?: string
           data: string
           data_pagamento?: string | null
+          datas_legado?: boolean
           descricao: string
           id?: string
           motivo_cancelamento?: string | null
@@ -218,6 +221,7 @@ export type Database = {
           ocorrencia?: string | null
           recorrente?: boolean
           responsavel?: string | null
+          revisao_manual?: string | null
           serie_id?: string | null
           setor_id?: string | null
           status?: string
@@ -238,6 +242,7 @@ export type Database = {
           created_at?: string
           data?: string
           data_pagamento?: string | null
+          datas_legado?: boolean
           descricao?: string
           id?: string
           motivo_cancelamento?: string | null
@@ -245,6 +250,7 @@ export type Database = {
           ocorrencia?: string | null
           recorrente?: boolean
           responsavel?: string | null
+          revisao_manual?: string | null
           serie_id?: string | null
           setor_id?: string | null
           status?: string
@@ -294,6 +300,90 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      despesas_backup_20261004: {
+        Row: {
+          cancelado: boolean | null
+          cancelado_em: string | null
+          categoria_id: string | null
+          competencia: string | null
+          created_at: string | null
+          data: string | null
+          data_pagamento: string | null
+          descricao: string | null
+          id: string | null
+          motivo_cancelamento: string | null
+          observacoes: string | null
+          ocorrencia: string | null
+          recorrente: boolean | null
+          responsavel: string | null
+          serie_id: string | null
+          setor_id: string | null
+          status: string | null
+          subcategoria_id: string | null
+          tipo: string | null
+          unidade_negocio: string | null
+          updated_at: string | null
+          user_id: string | null
+          valor: number | null
+          vencimento: string | null
+          versao: number | null
+        }
+        Insert: {
+          cancelado?: boolean | null
+          cancelado_em?: string | null
+          categoria_id?: string | null
+          competencia?: string | null
+          created_at?: string | null
+          data?: string | null
+          data_pagamento?: string | null
+          descricao?: string | null
+          id?: string | null
+          motivo_cancelamento?: string | null
+          observacoes?: string | null
+          ocorrencia?: string | null
+          recorrente?: boolean | null
+          responsavel?: string | null
+          serie_id?: string | null
+          setor_id?: string | null
+          status?: string | null
+          subcategoria_id?: string | null
+          tipo?: string | null
+          unidade_negocio?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          valor?: number | null
+          vencimento?: string | null
+          versao?: number | null
+        }
+        Update: {
+          cancelado?: boolean | null
+          cancelado_em?: string | null
+          categoria_id?: string | null
+          competencia?: string | null
+          created_at?: string | null
+          data?: string | null
+          data_pagamento?: string | null
+          descricao?: string | null
+          id?: string | null
+          motivo_cancelamento?: string | null
+          observacoes?: string | null
+          ocorrencia?: string | null
+          recorrente?: boolean | null
+          responsavel?: string | null
+          serie_id?: string | null
+          setor_id?: string | null
+          status?: string | null
+          subcategoria_id?: string | null
+          tipo?: string | null
+          unidade_negocio?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          valor?: number | null
+          vencimento?: string | null
+          versao?: number | null
+        }
+        Relationships: []
       }
       mcp_auditoria_registros: {
         Row: {
@@ -555,6 +645,7 @@ export type Database = {
           created_at: string
           data: string
           data_recebimento: string | null
+          datas_legado: boolean
           descricao: string
           id: string
           motivo_cancelamento: string | null
@@ -587,6 +678,7 @@ export type Database = {
           created_at?: string
           data: string
           data_recebimento?: string | null
+          datas_legado?: boolean
           descricao: string
           id?: string
           motivo_cancelamento?: string | null
@@ -619,6 +711,7 @@ export type Database = {
           created_at?: string
           data?: string
           data_recebimento?: string | null
+          datas_legado?: boolean
           descricao?: string
           id?: string
           motivo_cancelamento?: string | null
@@ -712,6 +805,105 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      receitas_backup_20261004: {
+        Row: {
+          cancelado: boolean | null
+          cancelado_em: string | null
+          categoria: string | null
+          categoria_id: string | null
+          comissao: number | null
+          competencia: string | null
+          contrato_id: string | null
+          created_at: string | null
+          data: string | null
+          data_recebimento: string | null
+          descricao: string | null
+          id: string | null
+          motivo_cancelamento: string | null
+          observacoes: string | null
+          ocorrencia: string | null
+          operadora_id: string | null
+          proposta_id: string | null
+          recorrente: boolean | null
+          responsavel: string | null
+          serie_id: string | null
+          setor_id: string | null
+          status: string | null
+          subcategoria_id: string | null
+          unidade_negocio: string | null
+          updated_at: string | null
+          user_id: string | null
+          valor: number | null
+          vencimento: string | null
+          vendedor_id: string | null
+          versao: number | null
+        }
+        Insert: {
+          cancelado?: boolean | null
+          cancelado_em?: string | null
+          categoria?: string | null
+          categoria_id?: string | null
+          comissao?: number | null
+          competencia?: string | null
+          contrato_id?: string | null
+          created_at?: string | null
+          data?: string | null
+          data_recebimento?: string | null
+          descricao?: string | null
+          id?: string | null
+          motivo_cancelamento?: string | null
+          observacoes?: string | null
+          ocorrencia?: string | null
+          operadora_id?: string | null
+          proposta_id?: string | null
+          recorrente?: boolean | null
+          responsavel?: string | null
+          serie_id?: string | null
+          setor_id?: string | null
+          status?: string | null
+          subcategoria_id?: string | null
+          unidade_negocio?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          valor?: number | null
+          vencimento?: string | null
+          vendedor_id?: string | null
+          versao?: number | null
+        }
+        Update: {
+          cancelado?: boolean | null
+          cancelado_em?: string | null
+          categoria?: string | null
+          categoria_id?: string | null
+          comissao?: number | null
+          competencia?: string | null
+          contrato_id?: string | null
+          created_at?: string | null
+          data?: string | null
+          data_recebimento?: string | null
+          descricao?: string | null
+          id?: string | null
+          motivo_cancelamento?: string | null
+          observacoes?: string | null
+          ocorrencia?: string | null
+          operadora_id?: string | null
+          proposta_id?: string | null
+          recorrente?: boolean | null
+          responsavel?: string | null
+          serie_id?: string | null
+          setor_id?: string | null
+          status?: string | null
+          subcategoria_id?: string | null
+          unidade_negocio?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          valor?: number | null
+          vencimento?: string | null
+          vendedor_id?: string | null
+          versao?: number | null
+        }
+        Relationships: []
       }
       series_recorrencia: {
         Row: {
