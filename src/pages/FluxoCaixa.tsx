@@ -155,6 +155,10 @@ export default function FluxoCaixa() {
           <table className="w-full text-sm">
             <tbody>
               <tr className="border-b">
+                <td className="py-2 font-semibold">Saldo inicial (realizado antes do período)</td>
+                <td className="py-2 text-right font-medium">{formatCurrency(dfc?.detalhe.saldo_inicial ?? 0)}</td>
+              </tr>
+              <tr className="border-b">
                 <td className="py-2 font-semibold">(+) Entradas efetivamente recebidas</td>
                 <td className="py-2 text-right text-success font-medium">{formatCurrency(dfc?.entradasRealizadas ?? 0)}</td>
               </tr>
@@ -163,8 +167,12 @@ export default function FluxoCaixa() {
                 <td className="py-2 text-right text-destructive font-medium">{formatCurrency(dfc?.saidasRealizadas ?? 0)}</td>
               </tr>
               <tr className="border-b bg-muted/40">
-                <td className="py-2 font-bold">(=) Caixa líquido (inclui investimentos e financiamento)</td>
+                <td className="py-2 font-bold">(=) Geração de caixa (inclui investimentos e financiamento)</td>
                 <td className={`py-2 text-right font-bold ${(dfc?.saldoRealizado ?? 0) >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(dfc?.saldoRealizado ?? 0)}</td>
+              </tr>
+              <tr className="border-b bg-muted/40">
+                <td className="py-2 font-bold">(=) Saldo final</td>
+                <td className={`py-2 text-right font-bold ${(dfc?.detalhe.saldo_final ?? 0) >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(dfc?.detalhe.saldo_final ?? 0)}</td>
               </tr>
               <tr className="border-b text-muted-foreground">
                 <td className="py-2 italic">Entradas previstas (a receber)</td>

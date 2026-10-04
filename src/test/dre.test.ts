@@ -240,3 +240,26 @@ describe('regressões independentes: classificação, financeiro e caixa', () =>
     expect(r.pendencias.sem_vencimento.quantidade).toBe(1);
   });
 });
+
+describe('Fase 1 — saldo inicial do DFC e competência', () => {
+  it('saldo inicial usa só realizado anterior; DRE competência não depende de pagamento', async () => {
+    const { calcularFluxoCaixa, calcularDRE } = await import('../../supabase/functions/odisseia-mcp/dre');
+    const l = [
+      { origem: 'receita' as const, valor: 1000, status: 'Recebido', data_efetiva: '2026-08-10', competencia: '2026-08-10' },
+      { origem: 'despesa' as const, valor: 300, status: 'Pago', data_efetiva: '2026-08-20', competencia: '2026-08-20' },
+      { origem: 'receita' as const, valor: 500, status: 'Aguardando', vencimento: '2026-09-15', competencia: '2026-09-15', grupo: 'receita_operacional' },
+      { origem: 'despesa' as const, valor: 200, status: 'Pago', data_efetiva: '2026-09-05', competencia: '2026-09-05', grupo: 'despesas_fixas' },
+      { origem: 'despesa' as const, valor: 999, status: 'A pagar', cancelado: true, vencimento: '2026-09-05', competencia: '2026-09-05', grupo: 'despesas_fixas' },
+    ];
+    const c = calcularFluxoCaixa(l, { inicio: '2026-09-01', fim: '2026-09-30' });
+    expect(c.saldo_inicial).toBe(700);
+    expect(c.saidas_realizadas).toBe(200);
+    expect(c.entradas_realizadas).toBe(0);
+    expect(c.entradas_previstas).toBe(500);
+    expect(c.saldo_final).toBe(500);
+    const d = calcularDRE(l, { regime: 'competencia', inicio: '2026-09-01', fim: '2026-09-30' });
+    expect(d.receita_bruta).toBe(500);
+    expect(d.despesas_fixas).toBe(200);
+    expect(d.resultado_liquido).toBe(300);
+  });
+});
