@@ -25,7 +25,9 @@ export function lancamentosParaRelatorio(receitas: any[], despesas: any[], categ
     data_efetiva: origem === 'receita' ? r.data_recebimento : r.data_pagamento,
     grupo: grupoEfetivo(cats.get(r.categoria_id), subs.get(r.subcategoria_id)),
     unidade_negocio: r.unidade_negocio, setor: sectors.get(r.setor_id) ?? null,
-  });
+    categoria_nome: cats.get(r.categoria_id)?.nome ?? null, serie_id: r.serie_id ?? null,
+    descricao: r.descricao ?? null, datas_legado: !!r.datas_legado,
+  } as LancamentoDRE);
   return [...receitas.map(map('receita')), ...despesas.map(map('despesa'))];
 }
 
@@ -33,9 +35,9 @@ export function lancamentosParaRelatorio(receitas: any[], despesas: any[], categ
 export async function carregarLancamentosRelatorio(client: any): Promise<LancamentoDRE[]> {
   const read = (table: string, fields: string) => fetchAllRows((from, to) => client.from(table).select(fields).order('id').range(from, to));
   const [receitas, despesas, categorias, subs, setores] = await Promise.all([
-    read('receitas', 'id,valor,status,cancelado,competencia,vencimento,data_recebimento,categoria_id,subcategoria_id,unidade_negocio,setor_id'),
-    read('despesas', 'id,valor,status,cancelado,competencia,vencimento,data_pagamento,categoria_id,subcategoria_id,unidade_negocio,setor_id'),
-    read('categorias_despesa', 'id,grupo_dre'), read('subcategorias_despesa', 'id,grupo_dre'), read('setores_despesa', 'id,nome'),
+    read('receitas', 'id,valor,status,cancelado,competencia,vencimento,data_recebimento,categoria_id,subcategoria_id,unidade_negocio,setor_id,serie_id,datas_legado'),
+    read('despesas', 'id,valor,status,cancelado,competencia,vencimento,data_pagamento,categoria_id,subcategoria_id,unidade_negocio,setor_id,serie_id,datas_legado'),
+    read('categorias_despesa', 'id,nome,grupo_dre'), read('subcategorias_despesa', 'id,grupo_dre'), read('setores_despesa', 'id,nome'),
   ]);
   return lancamentosParaRelatorio(receitas, despesas, categorias, subs, setores);
 }
