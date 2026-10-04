@@ -356,6 +356,9 @@ export function calcularDRE(
 
 export type ResultadoCaixa = {
   periodo: { inicio: string; fim: string };
+  /** Caixa realizado acumulado antes do período (somente data efetiva). */
+  saldo_inicial: number;
+  saldo_final: number;
   entradas_realizadas: number;
   saidas_realizadas: number;
   saldo_realizado: number;
@@ -375,7 +378,7 @@ export function calcularFluxoCaixa(
   validarPeriodo(opts.inicio, opts.fim);
   const semEfetiva = zero(), semVencimento = zero(), indefinidos = zero(), cancelados = zero();
   const vencidosEntradas = zero(), vencidosSaidas = zero();
-  let entradas = 0, saidas = 0, previstas = 0, previstasSaidas = 0;
+  let entradas = 0, saidas = 0, previstas = 0, previstasSaidas = 0, saldoInicial = 0;
   for (const l of lancamentos) {
     if (!passaFiltros(l, opts.filtros ?? {})) continue;
     const v = n(l.valor);
@@ -384,6 +387,7 @@ export function calcularFluxoCaixa(
     const realizado = liquidado(l);
     const d = realizado ? l.data_efetiva : l.vencimento;
     if (!dataValida(d)) { add(realizado ? semEfetiva : semVencimento, v); continue; }
+    if (realizado && d < opts.inicio) { saldoInicial = r2(saldoInicial + (l.origem === 'receita' ? v : -v)); continue; }
     if (!realizado && d < opts.inicio) {
       add(l.origem === 'receita' ? vencidosEntradas : vencidosSaidas, v);
       continue;
@@ -401,6 +405,7 @@ export function calcularFluxoCaixa(
   if (vencidosEntradas.quantidade || vencidosSaidas.quantidade) avisos.push('Vencidos antes do período aparecem separadamente; não foi presumida uma nova data de liquidação.');
   return {
     periodo: { inicio: opts.inicio, fim: opts.fim },
+    saldo_inicial: saldoInicial, saldo_final: r2(saldoInicial + entradas - saidas),
     entradas_realizadas: entradas, saidas_realizadas: saidas, saldo_realizado: r2(entradas - saidas),
     entradas_previstas: previstas, saidas_previstas: previstasSaidas, saldo_previsto: r2(previstas - previstasSaidas),
     saldo_total: r2(entradas - saidas + previstas - previstasSaidas),
