@@ -9,10 +9,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatCurrency } from '@/lib/format';
 import { carregarLancamentosRelatorio, fetchAllRows } from '@/lib/financialReporting';
 import {
-  calcularPainel, periodoAnterior, qualidadeFinanceira, indicadoresPorCorretor, METAS_PADRAO,
+  calcularPainel, periodoAnterior, qualidadeFinanceira, indicadoresPorCorretor, indicadoresPorEquipe, METAS_PADRAO,
   type LancamentoExec, type Metas, type StatusMeta,
 } from '@/lib/painelExecutivo';
 import { Settings2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from 'sonner';
+import { dataLocal } from '@/lib/financialReporting';
 
 type Props = { inicio: string; fim: string; unidade: string; setor: string };
 
@@ -66,6 +69,18 @@ function MetasEditor({ metas }: { metas: Metas }) {
 }
 
 export function PainelExecutivo({ inicio, fim, unidade, setor }: Props) {
+  const qc = useQueryClient();
+  const [fEquipe, setFEquipe] = useState('all');
+  const [fSup, setFSup] = useState('all');
+  const [fCorretor, setFCorretor] = useState('all');
+  const encerrar = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('series_recorrencia').update({ ativa: false, encerrada_em: dataLocal(new Date()), motivo_encerramento: 'Série duplicada (painel de qualidade)' }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['painel-base'] }); toast.success('Série encerrada. Nada foi apagado.'); },
+    onError: (e: any) => toast.error(e.message),
+  });
   const { data: metas = METAS_PADRAO } = useQuery({
     queryKey: ['metas-financeiras'],
     queryFn: async (): Promise<Metas> => {
@@ -79,13 +94,16 @@ export function PainelExecutivo({ inicio, fim, unidade, setor }: Props) {
   const { data: base } = useQuery({
     queryKey: ['painel-base'],
     queryFn: async () => {
-      const [lancs, series, contratos, receitas] = await Promise.all([
+      const [lancs, series, contratos, receitas, equipes, vendedores, supervisores] = await Promise.all([
         carregarLancamentosRelatorio(supabase) as Promise<LancamentoExec[]>,
         fetchAllRows((f, t) => supabase.from('series_recorrencia').select('id,nome,tipo,ativa').order('id').range(f, t)),
         fetchAllRows((f, t) => supabase.from('contratos').select('id,valor_contrato,data_implantacao,unidade_negocio,corretor_id,corretor_valor,corretor_percentual,corretor_pago,supervisor_a_id,supervisor_a_valor,supervisor_a_percentual,supervisor_a_pago,supervisor_b_id,supervisor_b_valor,supervisor_b_percentual,supervisor_b_pago,vendedores(nome)').order('id').range(f, t)),
         fetchAllRows((f, t) => supabase.from('receitas').select('id,contrato_id,valor,status,cancelado').not('contrato_id', 'is', null).order('id').range(f, t)),
+        fetchAllRows((f, t) => supabase.from('equipes' as any).select('id,nome,supervisor_id,ativo').order('id').range(f, t)),
+        fetchAllRows((f, t) => supabase.from('vendedores').select('id,nome,ativo,equipe_id' as any).order('id').range(f, t)),
+        fetchAllRows((f, t) => supabase.from('supervisores').select('id,nome,ativo').order('id').range(f, t)),
       ]);
-      return { lancs, series, contratos, receitas };
+      return { lancs, series, contratos, receitas, equipes: equipes as any[], vendedores: vendedores as any[], supervisores: supervisores as any[] };
     },
   });
 
@@ -96,11 +114,16 @@ export function PainelExecutivo({ inicio, fim, unidade, setor }: Props) {
   const a = calcularPainel(base.lancs, ant.inicio, ant.fim, filtros, metas);
   const q = qualidadeFinanceira(base.lancs, base.series as any);
 
+  const equipeDe = new Map<string, string | null>(base.vendedores.map(v => [v.id, v.equipe_id]));
+  const equipesAtivas = base.equipes.filter(e => e.ativo);
   const contratosPeriodo = (base.contratos as any[])
     .filter(c => c.data_implantacao && c.data_implantacao >= inicio && c.data_implantacao <= fim)
     .filter(c => unidade === 'all' || (unidade === 'none' ? !c.unidade_negocio : c.unidade_negocio === unidade))
+    .filter(c => fCorretor === 'all' || c.corretor_id === fCorretor)
+    .filter(c => fSup === 'all' || c.supervisor_a_id === fSup || c.supervisor_b_id === fSup)
+    .filter(c => fEquipe === 'all' || equipeDe.get(c.corretor_id) === fEquipe)
     .map(c => ({
-      id: c.id, corretor_id: c.corretor_id, corretor_nome: c.vendedores?.nome, valor_contrato: c.valor_contrato, data_implantacao: c.data_implantacao,
+      id: c.id, corretor_id: c.corretor_id, corretor_nome: c.vendedores?.nome, equipe_id: equipeDe.get(c.corretor_id) ?? null, valor_contrato: c.valor_contrato, data_implantacao: c.data_implantacao,
       slots: [
         { pessoa: c.corretor_id, valor: c.corretor_valor, percentual: c.corretor_percentual, pago: c.corretor_pago },
         { pessoa: c.supervisor_a_id, valor: c.supervisor_a_valor, percentual: c.supervisor_a_percentual, pago: c.supervisor_a_pago },
@@ -108,15 +131,24 @@ export function PainelExecutivo({ inicio, fim, unidade, setor }: Props) {
       ],
     }));
   const corretores = indicadoresPorCorretor(contratosPeriodo, base.receitas as any);
+  const porEquipe = indicadoresPorEquipe(corretores, fEquipe === 'all' ? equipesAtivas : equipesAtivas.filter(e => e.id === fEquipe));
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h3 className="text-lg font-semibold">Painel de gestão</h3>
-          <p className="text-xs text-muted-foreground">DRE por competência · caixa por data efetiva · comparado a {ant.inicio.split('-').reverse().join('/')} – {ant.fim.split('-').reverse().join('/')}</p>
+          <p className="text-xs text-muted-foreground">Filtros de equipe, supervisor e corretor valem para os quadros de corretores e equipes. DRE por competência · caixa por data efetiva · comparado a {ant.inicio.split('-').reverse().join('/')} – {ant.fim.split('-').reverse().join('/')}</p>
         </div>
-        <MetasEditor metas={metas} />
+        <div className="flex gap-2 flex-wrap items-center">
+          <Select value={fEquipe} onValueChange={setFEquipe}><SelectTrigger className="w-[170px]" aria-label="Equipe"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">Todas as equipes</SelectItem>{equipesAtivas.map(e => <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>)}</SelectContent></Select>
+          <Select value={fSup} onValueChange={setFSup}><SelectTrigger className="w-[170px]" aria-label="Supervisor"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">Todos supervisores</SelectItem>{base.supervisores.filter(x => x.ativo).map(x => <SelectItem key={x.id} value={x.id}>{x.nome}</SelectItem>)}</SelectContent></Select>
+          <Select value={fCorretor} onValueChange={setFCorretor}><SelectTrigger className="w-[170px]" aria-label="Corretor"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">Todos corretores</SelectItem>{base.vendedores.filter(x => x.ativo).sort((a, b) => a.nome.localeCompare(b.nome)).map(x => <SelectItem key={x.id} value={x.id}>{x.nome}</SelectItem>)}</SelectContent></Select>
+          <MetasEditor metas={metas} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -171,10 +203,17 @@ export function PainelExecutivo({ inicio, fim, unidade, setor }: Props) {
         <Linha rotulo="Abertos sem vencimento" valor={String(q.itens.abertos_sem_vencimento.quantidade)} />
         <Linha rotulo="Sem grupo DRE" valor={String(q.itens.sem_grupo_dre.quantidade)} />
         <Linha rotulo="Datas preenchidas por regra de legado" valor={String(q.itens.datas_de_legado.quantidade)} />
-        <Linha rotulo="Despesas de comissão sem vínculo a contrato" valor={`${q.itens.comissoes_sem_vinculo.quantidade} (${formatCurrency(q.itens.comissoes_sem_vinculo.valor)})`} />
         <Linha rotulo="Séries recorrentes possivelmente duplicadas" valor={String(q.seriesDuplicadas.length)} />
         <Linha rotulo="Séries com 2+ lançamentos no mesmo mês" valor={String(q.ocorrenciasRepetidas.length)} />
-        {q.seriesDuplicadas.length > 0 && <p className="md:col-span-2 text-xs text-muted-foreground pt-2">Possíveis duplicadas: {q.seriesDuplicadas.map(s => `${s.nome} (${s.ids.length})`).join(', ')}. Nada é apagado automaticamente.</p>}
+        {q.seriesDuplicadas.length > 0 && <div className="md:col-span-2 pt-3">
+          <p className="text-xs text-muted-foreground mb-2">Despesas recorrentes com o mesmo nome ativas ao mesmo tempo — podem gerar a mesma despesa duas vezes por mês. Encerrar só para de gerar meses futuros; nada já lançado é apagado.</p>
+          <Table><TableHeader><TableRow><TableHead>Série</TableHead><TableHead className="text-right">Último valor</TableHead><TableHead>Último mês</TableHead><TableHead></TableHead></TableRow></TableHeader>
+            <TableBody>{q.seriesDuplicadas.flatMap(g => g.series).map(x => (
+              <TableRow key={x.id}><TableCell>{x.nome}</TableCell><TableCell className="text-right">{x.valor == null ? '—' : formatCurrency(x.valor)}</TableCell>
+                <TableCell>{x.ultimo_mes ? x.ultimo_mes.split('-').reverse().join('/') : '—'}</TableCell>
+                <TableCell className="text-right"><Button size="sm" variant="outline" disabled={encerrar.isPending} onClick={() => { if (confirm(`Encerrar a série "${x.nome}"? Os lançamentos já feitos continuam.`)) encerrar.mutate(x.id); }}>Encerrar esta série</Button></TableCell></TableRow>
+            ))}</TableBody></Table>
+        </div>}
       </CardContent></Card>
 
       <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Indicadores por corretor (contratos implantados no período)</CardTitle></CardHeader><CardContent className="overflow-x-auto">
@@ -195,7 +234,21 @@ export function PainelExecutivo({ inicio, fim, unidade, setor }: Props) {
             </TableRow>)}
           </TableBody></Table>
         )}
-        <p className="text-xs text-muted-foreground mt-2">Receita = receitas vinculadas ao contrato. Comissão inclui corretor e supervisores do contrato.</p>
+        <p className="text-xs text-muted-foreground mt-2">Receita = receitas vinculadas ao contrato. Comissão = valores anotados no contrato (corretor + supervisores), só como referência — o resultado usa as despesas de Comissão.</p>
+      </CardContent></Card>
+
+      <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Resultado por equipe</CardTitle></CardHeader><CardContent className="grid md:grid-cols-3 gap-4">
+        {porEquipe.map(e => (
+          <div key={e.id} className="rounded-md border p-3">
+            <p className="font-semibold mb-1">{e.nome}</p>
+            <Linha rotulo="Receita" valor={formatCurrency(e.receita)} />
+            <Linha rotulo="(-) Comissão corretores" valor={formatCurrency(e.comissao_corretor)} />
+            <Linha rotulo="(-) Comissão supervisor" valor={formatCurrency(e.comissao_supervisor)} />
+            <Linha rotulo="= Contribuição" valor={formatCurrency(e.contribuicao)} extra={<span className="text-xs text-muted-foreground">margem {fp(e.margem_pct)}</span>} />
+            <Linha rotulo="Contratos / produção" valor={`${e.contratos} · ${formatCurrency(e.producao)}`} />
+            {e.corretores.length > 0 && <div className="mt-2 text-xs text-muted-foreground space-y-0.5">{e.corretores.map((c: any) => <div key={c.corretor_id ?? 'sem'} className="flex justify-between"><span>{c.nome}</span><span>{formatCurrency(c.receita)} · com. {formatCurrency(c.comissao)}</span></div>)}</div>}
+          </div>
+        ))}
       </CardContent></Card>
     </div>
   );

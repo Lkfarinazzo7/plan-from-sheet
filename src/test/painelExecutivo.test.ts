@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcularPainel, periodoAnterior, qualidadeFinanceira, indicadoresPorCorretor, statusMeta, METAS_PADRAO, type LancamentoExec } from '@/lib/painelExecutivo';
+import { calcularPainel, periodoAnterior, qualidadeFinanceira, indicadoresPorCorretor, indicadoresPorEquipe, statusMeta, METAS_PADRAO, type LancamentoExec } from '@/lib/painelExecutivo';
 
 const L = (o: Partial<LancamentoExec>): LancamentoExec => ({
   id: Math.random().toString(36), origem: 'despesa', valor: 0, status: 'Pago', cancelado: false,
@@ -62,5 +62,18 @@ describe('painel executivo', () => {
       slots: [{ pessoa: 'v1', valor: null, percentual: 50, pago: true }, { pessoa: null, valor: 100, percentual: null, pago: false }] }],
       [{ contrato_id: 'c1', valor: 800, status: 'Recebido' }, { contrato_id: 'c1', valor: 200, status: 'Aguardando', cancelado: true }]);
     expect(r[0]).toMatchObject({ receita: 800, comissao: 500, comissao_paga: 500, margem: 300 });
+  });
+  it('mini-DRE por equipe, supervisor vendendo conta na própria equipe', () => {
+    const c = indicadoresPorCorretor([
+      { id: 'c1', corretor_id: 'v1', equipe_id: 'e1', valor_contrato: 1000, data_implantacao: '2026-09-01', slots: [{ pessoa: 'v1', valor: 100, percentual: null, pago: false }, { pessoa: 's1', valor: 50, percentual: null, pago: false }] },
+      { id: 'c2', corretor_id: 's1', equipe_id: 'e1', valor_contrato: 500, data_implantacao: '2026-09-01', slots: [{ pessoa: 's1', valor: 40, percentual: null, pago: false }] },
+    ], [{ contrato_id: 'c1', valor: 600, status: 'Recebido' }, { contrato_id: 'c2', valor: 300, status: 'Recebido' }]);
+    const [e] = indicadoresPorEquipe(c, [{ id: 'e1', nome: 'Equipe X' }]);
+    expect(e).toMatchObject({ receita: 900, comissao_corretor: 140, comissao_supervisor: 50, contribuicao: 710, contratos: 2 });
+  });
+  it('séries duplicadas trazem último valor e mês', () => {
+    const q = qualidadeFinanceira([L({ serie_id: 'a', valor: 50, competencia: '2026-08-01' }), L({ serie_id: 'a', valor: 60, competencia: '2026-09-01' })],
+      [{ id: 'a', nome: 'ADM', tipo: 'despesa', ativa: true }, { id: 'b', nome: 'ADM', tipo: 'despesa', ativa: true }]);
+    expect(q.seriesDuplicadas[0].series[0]).toMatchObject({ id: 'a', valor: 60, ultimo_mes: '2026-09' });
   });
 });

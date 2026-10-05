@@ -385,6 +385,41 @@ export type Database = {
         }
         Relationships: []
       }
+      equipes: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nome: string
+          supervisor_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome: string
+          supervisor_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome?: string
+          supervisor_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipes_supervisor_id_fkey"
+            columns: ["supervisor_id"]
+            isOneToOne: false
+            referencedRelation: "supervisores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mcp_auditoria_registros: {
         Row: {
           acao: string
@@ -1120,6 +1155,7 @@ export type Database = {
         Row: {
           ativo: boolean
           created_at: string
+          equipe_id: string | null
           id: string
           nome: string
           updated_at: string
@@ -1127,6 +1163,7 @@ export type Database = {
         Insert: {
           ativo?: boolean
           created_at?: string
+          equipe_id?: string | null
           id?: string
           nome: string
           updated_at?: string
@@ -1134,11 +1171,20 @@ export type Database = {
         Update: {
           ativo?: boolean
           created_at?: string
+          equipe_id?: string | null
           id?: string
           nome?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "vendedores_equipe_id_fkey"
+            columns: ["equipe_id"]
+            isOneToOne: false
+            referencedRelation: "equipes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
