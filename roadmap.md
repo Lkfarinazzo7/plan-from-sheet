@@ -6,6 +6,6 @@
 - [x] Card Qualidade financeira + auditoria de séries duplicadas
 - [x] Indicadores por corretor
 - [ ] Empréstimo: parcelas/juros — aguardando nº de parcelas do usuário
-- [ ] Equipes/supervisores (mini-DRE, filtros) — aguardando definição de quem é de cada equipe
-- [ ] Consolidar/inativar séries duplicadas — aguardando usuário revisar a lista
-- [ ] Vincular despesas de comissão a contratos — aguardando confirmação da regra
+- [x] Equipes/supervisores (mini-DRE, filtros, aba Equipes)
+- [x] Tabela de séries duplicadas com botão Encerrar (usuário decide quais)
+- [x] Comissão: despesas da categoria Comissão são a única fonte do resultado
