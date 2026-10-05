@@ -9,3 +9,4 @@
 - [x] Equipes/supervisores (mini-DRE, filtros, aba Equipes)
 - [x] Tabela de séries duplicadas com botão Encerrar (usuário decide quais)
 - [x] Comissão: despesas da categoria Comissão são a única fonte do resultado
+- [ ] Dashboard: reorganizar topo, comparativo anual navegável e DRE/qualidade recolhíveis
