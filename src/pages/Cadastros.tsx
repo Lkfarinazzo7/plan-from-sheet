@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { EquipesTab } from '@/components/EquipesTab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -437,6 +438,7 @@ export default function Cadastros() {
           <TabsTrigger value="operadoras">Operadoras</TabsTrigger>
           <TabsTrigger value="categorias">Categorias de Despesa</TabsTrigger>
           <TabsTrigger value="supervisores">Supervisores</TabsTrigger>
+          <TabsTrigger value="equipes">Equipes</TabsTrigger>
           <TabsTrigger value="setores">Setores</TabsTrigger>
           <TabsTrigger value="canais">Canais de Venda</TabsTrigger>
           <TabsTrigger value="usuarios">Usuários</TabsTrigger>
@@ -445,6 +447,7 @@ export default function Cadastros() {
         <TabsContent value="operadoras"><OperadorasTab /></TabsContent>
         <TabsContent value="categorias"><CategoriasTab /></TabsContent>
         <TabsContent value="supervisores"><SupervisoresTab /></TabsContent>
+        <TabsContent value="equipes"><EquipesTab /></TabsContent>
         <TabsContent value="setores"><SetoresTab /></TabsContent>
         <TabsContent value="canais"><CanaisVendaTab /></TabsContent>
         <TabsContent value="usuarios"><UsuariosTab /></TabsContent>

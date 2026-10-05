@@ -81,6 +81,7 @@ export function periodoAnterior(inicio: string, fim: string) {
 }
 
 export type SerieInfo = { id: string; nome: string; tipo: string; ativa: boolean };
+export type SerieDetalhe = { id: string; valor: number | null; ultimo_mes: string | null };
 
 /** Auditoria de dados: tudo que impede cobertura de 100%. Não altera nada. */
 export function qualidadeFinanceira(lancs: LancamentoExec[], series: SerieInfo[]) {
@@ -96,7 +97,15 @@ export function qualidadeFinanceira(lancs: LancamentoExec[], series: SerieInfo[]
     const k = `${s.tipo}|${norm(s.nome)}`;
     grupos.set(k, [...(grupos.get(k) ?? []), s]);
   }
-  const seriesDuplicadas = [...grupos.values()].filter(g => g.length > 1).map(g => ({ nome: g[0].nome, tipo: g[0].tipo, ids: g.map(s => s.id) }));
+  const ultimo = new Map<string, { mes: string; valor: number }>();
+  for (const l of ativos) if (l.serie_id && dataValida(l.competencia)) {
+    const u = ultimo.get(l.serie_id);
+    if (!u || l.competencia > u.mes) ultimo.set(l.serie_id, { mes: l.competencia, valor: Number(l.valor) });
+  }
+  const seriesDuplicadas = [...grupos.values()].filter(g => g.length > 1).map(g => ({
+    nome: g[0].nome, tipo: g[0].tipo, ids: g.map(s => s.id),
+    series: g.map(s => ({ id: s.id, nome: s.nome, valor: ultimo.get(s.id)?.valor ?? null, ultimo_mes: ultimo.get(s.id)?.mes.slice(0, 7) ?? null })),
+  }));
 
   const porSerieMes = new Map<string, number>();
   for (const l of ativos) if (l.serie_id && dataValida(l.competencia)) {
@@ -111,7 +120,6 @@ export function qualidadeFinanceira(lancs: LancamentoExec[], series: SerieInfo[]
     abertos_sem_vencimento: conta(l => emAberto(l) && !dataValida(l.vencimento)),
     sem_grupo_dre: conta(l => !l.grupo),
     datas_de_legado: conta(l => !!l.datas_legado),
-    comissoes_sem_vinculo: conta(ehComissao),
   };
   const problemas = new Set<string>();
   for (const l of ativos) {
@@ -124,7 +132,7 @@ export function qualidadeFinanceira(lancs: LancamentoExec[], series: SerieInfo[]
 }
 
 export type ContratoCorretor = {
-  id: string; corretor_id: string | null; corretor_nome?: string | null; valor_contrato: number; data_implantacao: string | null;
+  id: string; corretor_id: string | null; corretor_nome?: string | null; equipe_id?: string | null; valor_contrato: number; data_implantacao: string | null;
   slots: { pessoa: string | null; valor: number | null; percentual: number | null; pago: boolean }[];
 };
 
@@ -148,7 +156,7 @@ export function indicadoresPorCorretor(contratos: ContratoCorretor[], receitas: 
   const mapa = new Map<string, any>();
   for (const c of contratos) {
     const k = c.corretor_id ?? 'sem';
-    const a = mapa.get(k) ?? { corretor_id: c.corretor_id, nome: c.corretor_nome ?? 'Sem corretor', contratos: 0, producao: 0, receita: 0, recebida: 0, comissao: 0, comissao_paga: 0 };
+    const a = mapa.get(k) ?? { corretor_id: c.corretor_id, equipe_id: c.equipe_id ?? null, nome: c.corretor_nome ?? 'Sem corretor', contratos: 0, producao: 0, receita: 0, recebida: 0, comissao: 0, comissao_paga: 0 };
     const rec = recPorContrato.get(c.id) ?? { gerada: 0, recebida: 0 };
     a.contratos += 1; a.producao += Number(c.valor_contrato); a.receita += rec.gerada; a.recebida += rec.recebida;
     for (const s of c.slots) {
@@ -166,4 +174,17 @@ export function indicadoresPorCorretor(contratos: ContratoCorretor[], receitas: 
       receita_media: a.contratos ? r2(a.receita / a.contratos) : 0,
     };
   }).sort((x, y) => y.margem - x.margem);
+}
+
+export type EquipeInfo = { id: string; nome: string };
+
+/** Mini-DRE por equipe: soma os corretores da equipe (supervisor vendendo conta na própria equipe). */
+export function indicadoresPorEquipe(corretores: ReturnType<typeof indicadoresPorCorretor>, equipes: EquipeInfo[]) {
+  return [...equipes, { id: '__sem', nome: 'Sem equipe' }].map(e => {
+    const membros = corretores.filter(c => (c.equipe_id ?? '__sem') === e.id);
+    const s = (k: 'receita' | 'producao' | 'comissao' | 'contratos') => r2(membros.reduce((a, c) => a + Number(c[k]), 0));
+    const receita = s('receita'), comissao = s('comissao');
+    const contribuicao = r2(receita - comissao);
+    return { ...e, corretores: membros, contratos: s('contratos'), producao: s('producao'), receita, comissao, contribuicao, margem_pct: pct(contribuicao, receita) };
+  }).filter(e => e.id !== '__sem' || e.corretores.length > 0);
 }
