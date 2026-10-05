@@ -1,12 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { useReceitas, useDespesas, useMonthlyComparison, useDRE, useSetoresDespesa } from '@/hooks/useFinancialData';
 import type { Regime } from '../../supabase/functions/odisseia-mcp/dre';
 import { DREWaterfall } from '@/components/DREWaterfall';
 import { PainelExecutivo } from '@/components/PainelExecutivo';
+import { QualidadeFinanceira } from '@/components/QualidadeFinanceira';
 import { formatCurrency, getCurrentMonthYear } from '@/lib/format';
-import { ArrowUpCircle, ArrowDownCircle, Wallet, Clock, AlertTriangle, CreditCard, CalendarRange, X, TrendingUp, TrendingDown } from 'lucide-react';
+import { CalendarRange, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -28,6 +29,7 @@ export default function Dashboard() {
   const { month: curMonth, year: curYear } = getCurrentMonthYear();
   const [month, setMonth] = useState(curMonth);
   const [year, setYear] = useState(curYear);
+  const [comparisonYear, setComparisonYear] = useState(curYear);
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [activeRange, setActiveRange] = useState<{ start: string; end: string } | null>(null);
@@ -47,7 +49,7 @@ export default function Dashboard() {
     activeRange?.start, activeRange?.end
   );
   
-  const { data: monthlyData = [] } = useMonthlyComparison(filterUnidade === 'all' ? undefined : filterUnidade);
+  const { data: monthlyData = [] } = useMonthlyComparison(filterUnidade === 'all' ? undefined : filterUnidade, comparisonYear);
   const { data: dreData, isLoading: dreLoading, error: dreError } = useDRE({
     month: isCustom ? undefined : month,
     year: isCustom ? undefined : year,
@@ -65,14 +67,6 @@ export default function Dashboard() {
   const receitas = receitasRaw.filter(filtrarCadastro);
   const despesas = despesasRaw.filter(filtrarCadastro);
 
-  const totalReceitas = receitas.reduce((acc, r) => acc + Number(r.valor), 0);
-  const totalDespesas = despesas.reduce((acc, d) => acc + Number(d.valor), 0);
-  const saldo = totalReceitas - totalDespesas;
-
-  const receitasAReceber = receitas.filter(r => r.status === 'Aguardando').reduce((acc, r) => acc + Number(r.valor), 0);
-  const despesasAPagar = despesas.filter(d => d.status === 'A pagar').reduce((acc, d) => acc + Number(d.valor), 0);
-  const despesasAtrasadas = despesas.filter(d => d.status === 'Atrasado').reduce((acc, d) => acc + Number(d.valor), 0);
-
   // Custos fixos vs variáveis
   const custosFixos = despesas.filter(d => d.tipo === 'Fixo').reduce((acc, d) => acc + Number(d.valor), 0);
   const custosVariaveis = despesas.filter(d => d.tipo === 'Variável').reduce((acc, d) => acc + Number(d.valor), 0);
@@ -80,12 +74,6 @@ export default function Dashboard() {
     { name: 'Fixo', value: custosFixos },
     { name: 'Variável', value: custosVariaveis },
   ].filter(d => d.value > 0);
-
-  // Margens
-  const margemBruta = dreData?.detalhe.margem_contribuicao ?? 0;
-  const margemBrutaPct = dreData?.detalhe.margens.contribuicao;
-  const margemLiquida = dreData?.detalhe.resultado_liquido ?? 0;
-  const margemLiquidaPct = dreData?.detalhe.margens.liquida;
 
   // Despesas por categoria
   const despesasPorCategoria: Record<string, number> = despesas.reduce((acc, d) => {
@@ -115,16 +103,6 @@ export default function Dashboard() {
     }, {} as Record<string, { nome: string; total: number }>)
   ).sort((a, b) => b.total - a.total);
 
-  // Ticket médio recebido (por descrição única)
-  const recebidas = receitas.filter(r => r.status === 'Recebido');
-  // Numerador e denominador precisam usar o MESMO conjunto: só receitas vinculadas a proposta
-  const recebidasComProposta = recebidas.filter(r => (r as any).proposta_id);
-  const totalRecebidoComProposta = recebidasComProposta.reduce((acc, r) => acc + Number(r.valor), 0);
-  const propostasComRecebimento = new Set(
-    recebidasComProposta.map(r => (r as any).proposta_id)
-  ).size;
-  const ticketMedio = propostasComRecebimento > 0 ? totalRecebidoComProposta / propostasComRecebimento : 0;
-
   // Despesas por categoria (ordenado para barras horizontais)
   const barCategoriaData = pieData.slice().sort((a, b) => b.value - a.value);
 
@@ -137,9 +115,9 @@ export default function Dashboard() {
   const formatDateBR = (d: string) => { const [y, m, day] = d.split('-'); return `${day}/${m}/${y}`; };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7 font-body">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-2xl font-bold">Dashboard</h2>
+        <h2 className="font-heading text-2xl font-bold">Dashboard</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <Select value={filterUnidade} onValueChange={setFilterUnidade}>
             <SelectTrigger className="w-[180px]"><SelectValue placeholder="Unidade" /></SelectTrigger>
@@ -202,40 +180,32 @@ export default function Dashboard() {
         return <PainelExecutivo inicio={r.start} fim={r.end} unidade={filterUnidade} setor={filterSetor} />;
       })()}
 
-      {/* Summary Cards */}
       {dreError && <p role="alert" className="text-destructive">Não foi possível calcular o DRE: {String(dreError.message)}</p>}
-      <p className="text-sm text-muted-foreground">Cadastros e distribuições abaixo usam a data original do lançamento, sem cancelados. As margens e o DRE usam o regime selecionado e somente dados explicitamente classificados e datados.</p>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Receitas cadastradas</p><p className="text-2xl font-bold text-success">{formatCurrency(totalReceitas)}</p></div><ArrowUpCircle className="h-8 w-8 text-success opacity-60" /></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Despesas</p><p className="text-2xl font-bold text-destructive">{formatCurrency(totalDespesas)}</p></div><ArrowDownCircle className="h-8 w-8 text-destructive opacity-60" /></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Saldo dos cadastros</p><p className={`text-2xl font-bold ${saldo >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(saldo)}</p></div><Wallet className="h-8 w-8 text-primary opacity-60" /></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Contribuição — DRE</p><p className={`text-2xl font-bold ${margemBruta >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(margemBruta)}</p><p className="text-xs text-muted-foreground">{margemBrutaPct == null ? '—' : margemBrutaPct.toFixed(1) + '%'}</p></div><TrendingUp className="h-8 w-8 text-success opacity-60" /></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Resultado líquido — DRE</p><p className={`text-2xl font-bold ${margemLiquida >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(margemLiquida)}</p><p className="text-xs text-muted-foreground">{margemLiquidaPct == null ? '—' : margemLiquidaPct.toFixed(1) + '%'}</p></div><TrendingDown className="h-8 w-8 text-primary opacity-60" /></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Receitas a Receber</p><p className="text-2xl font-bold text-warning">{formatCurrency(receitasAReceber)}</p></div><Clock className="h-8 w-8 text-warning opacity-60" /></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Despesas a Pagar</p><p className="text-2xl font-bold text-warning">{formatCurrency(despesasAPagar)}</p></div><CreditCard className="h-8 w-8 text-warning opacity-60" /></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Despesas Atrasadas</p><p className="text-2xl font-bold text-destructive">{formatCurrency(despesasAtrasadas)}</p></div><AlertTriangle className="h-8 w-8 text-destructive opacity-60" /></div></CardContent></Card>
-        <Card><CardContent className="pt-6"><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Ticket Médio Recebido</p><p className="text-2xl font-bold text-success">{formatCurrency(ticketMedio)}</p><p className="text-xs text-muted-foreground">{propostasComRecebimento} proposta(s) com recebimento</p></div><TrendingUp className="h-8 w-8 text-success opacity-60" /></div></CardContent></Card>
-      </div>
 
       {/* Comparativo Mensal */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Comparativo Mensal — Caixa efetivamente realizado (toda a unidade)</CardTitle><p className="text-xs text-muted-foreground">Sem data efetiva, o lançamento não entra no comparativo. Setor não se aplica a este gráfico.</p></CardHeader>
-        <CardContent>
-          {monthlyData.length > 0 ? (
+      <Card className="overflow-hidden rounded-md shadow-sm">
+        <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
+          <div><CardTitle className="font-heading text-base">Comparativo mensal — caixa realizado</CardTitle><p className="mt-1 text-xs text-muted-foreground">Ano completo · sem data efetiva, o lançamento não entra · setor não se aplica.</p></div>
+          <div className="flex shrink-0 items-center gap-1 rounded-md border bg-card p-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Ver ano anterior" onClick={() => setComparisonYear(value => value - 1)}><ChevronLeft className="h-4 w-4" /></Button>
+            <span className="min-w-16 text-center text-sm font-semibold tabular-nums">{comparisonYear}</span>
+            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Ver próximo ano" onClick={() => setComparisonYear(value => value + 1)}><ChevronRight className="h-4 w-4" /></Button>
+          </div>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <div className="min-w-[920px]">
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={monthlyData}>
-                <CartesianGrid strokeDasharray="3 3" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="mes" />
                 <YAxis tickFormatter={(v: number) => `R$${(v / 1000).toFixed(0)}k`} />
                 <Tooltip formatter={(val: number) => formatCurrency(val)} />
                 <Legend />
-                <Bar dataKey="receitas" name="Receitas" fill="hsl(142, 71%, 45%)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="despesas" name="Despesas" fill="hsl(0, 72%, 51%)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="receitas" name="Receitas" fill="hsl(var(--success))" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="despesas" name="Despesas" fill="hsl(var(--destructive))" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          ) : (
-            <p className="text-muted-foreground text-center py-12">Sem dados para exibir</p>
-          )}
+          </div>
         </CardContent>
       </Card>
 
@@ -334,6 +304,8 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      <QualidadeFinanceira />
     </div>
   );
 }
