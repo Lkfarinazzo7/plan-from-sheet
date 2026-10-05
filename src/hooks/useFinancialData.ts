@@ -567,17 +567,15 @@ export function useBulkCreateDespesa() {
   });
 }
 
-export function useMonthlyComparison(unidade?: string) {
+export function useMonthlyComparison(unidade?: string, year = new Date().getFullYear()) {
   return useQuery({
-    queryKey: ['monthly-comparison', unidade || 'all'],
+    queryKey: ['monthly-comparison', unidade || 'all', year],
     queryFn: async () => {
-      const now = new Date();
       const lancamentos = await carregarLancamentosRelatorio(supabase);
-      return Array.from({ length: 6 }, (_, i) => {
-        const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
-        const y = d.getFullYear(), m = d.getMonth();
-        const caixa = calcularFluxoCaixa(lancamentos, { inicio: toDateStr(y, m, 1), fim: toDateStr(y, m, new Date(y, m + 1, 0).getDate()), filtros: { unidade } });
-        return { mes: d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }), receitas: caixa.entradas_realizadas, despesas: caixa.saidas_realizadas };
+      return Array.from({ length: 12 }, (_, month) => {
+        const caixa = calcularFluxoCaixa(lancamentos, { inicio: toDateStr(year, month, 1), fim: toDateStr(year, month, new Date(year, month + 1, 0).getDate()), filtros: { unidade } });
+        const mes = new Date(year, month, 1).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+        return { mes, receitas: caixa.entradas_realizadas, despesas: caixa.saidas_realizadas };
       });
     },
   });

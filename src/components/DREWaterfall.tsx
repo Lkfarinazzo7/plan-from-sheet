@@ -1,6 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/format';
 import type { DREResult } from '@/hooks/useFinancialData';
+import { useState } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface Props { dre: DREResult | null | undefined; isLoading?: boolean; }
 const regimeLabel = { competencia: 'Competência', realizado: 'Caixa realizado', projetado: 'Vencimentos em aberto' };
@@ -9,6 +13,11 @@ const regimeLabel = { competencia: 'Competência', realizado: 'Caixa realizado',
 export function DREWaterfall({ dre, isLoading }: Props) {
   if (isLoading) return <Card><CardContent className="py-8">Carregando DRE…</CardContent></Card>;
   if (!dre) return <Card><CardContent className="py-8">Selecione um período para ver o DRE.</CardContent></Card>;
+  return <DREContent dre={dre} />;
+}
+
+function DREContent({ dre }: { dre: DREResult }) {
+  const [open, setOpen] = useState(false);
   const d = dre.detalhe;
   const rows: [string, number, boolean?][] = [
     ['Receita operacional bruta', d.receita_bruta],
@@ -27,12 +36,22 @@ export function DREWaterfall({ dre, isLoading }: Props) {
     ['Resultado líquido', d.resultado_liquido, true],
   ];
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">DRE — {regimeLabel[d.regime]}</CardTitle>
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <Card className="overflow-hidden shadow-none">
+        <CardHeader className="flex-row items-center justify-between space-y-0 py-4">
+          <div>
+            <CardTitle className="text-base">DRE — {regimeLabel[d.regime]}</CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">Resultado líquido: {formatCurrency(d.resultado_liquido)} · Margem de contribuição: {formatCurrency(d.margem_contribuicao)}</p>
+          </div>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="icon" aria-label={open ? 'Recolher DRE' : 'Expandir DRE'}>
+              <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+            </Button>
+          </CollapsibleTrigger>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent className="space-y-4 border-t pt-4">
         <p className="text-xs text-muted-foreground">Margem de contribuição antes das despesas fixas e comerciais. Não inclui principal de empréstimos ou investimentos.</p>
-      </CardHeader>
-      <CardContent className="space-y-4">
         <div role="status" aria-label="Qualidade dos dados do DRE" className="rounded-md border p-3 text-sm space-y-1">
           <p>Cobertura de datas dos lançamentos candidatos: {d.pendencias.cobertura_percentual === null ? 'sem dados' : d.pendencias.cobertura_percentual + '%'}.</p>
           <p>Sem classificação: {d.nao_classificado.quantidade} lançamento(s), {formatCurrency(d.nao_classificado.valor)} fora do resultado.</p>
@@ -50,7 +69,9 @@ export function DREWaterfall({ dre, isLoading }: Props) {
         </table>
         <p className="text-sm">Margem de contribuição: {d.margens.contribuicao === null ? 'não calculável' : d.margens.contribuicao + '%'} da receita líquida. Margem operacional: {d.margens.operacional === null ? 'não calculável' : d.margens.operacional + '%'}. Margem líquida: {d.margens.liquida === null ? 'não calculável' : d.margens.liquida + '%'}.</p>
         <p className="text-xs text-muted-foreground">Movimentações fora do DRE: {d.fora_dre.quantidade} registro(s), {formatCurrency(d.fora_dre.valor)}. Depreciação somente quando houver apropriação explicitamente cadastrada.</p>
-      </CardContent>
-    </Card>
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }
