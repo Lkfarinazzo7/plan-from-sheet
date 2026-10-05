@@ -156,13 +156,14 @@ export function indicadoresPorCorretor(contratos: ContratoCorretor[], receitas: 
   const mapa = new Map<string, any>();
   for (const c of contratos) {
     const k = c.corretor_id ?? 'sem';
-    const a = mapa.get(k) ?? { corretor_id: c.corretor_id, equipe_id: c.equipe_id ?? null, nome: c.corretor_nome ?? 'Sem corretor', contratos: 0, producao: 0, receita: 0, recebida: 0, comissao: 0, comissao_paga: 0 };
+    const a = mapa.get(k) ?? { corretor_id: c.corretor_id, equipe_id: c.equipe_id ?? null, nome: c.corretor_nome ?? 'Sem corretor', contratos: 0, producao: 0, receita: 0, recebida: 0, comissao: 0, comissao_paga: 0, comissao_corretor: 0, comissao_supervisor: 0 };
     const rec = recPorContrato.get(c.id) ?? { gerada: 0, recebida: 0 };
     a.contratos += 1; a.producao += Number(c.valor_contrato); a.receita += rec.gerada; a.recebida += rec.recebida;
-    for (const s of c.slots) {
+    c.slots.forEach((s, i) => {
       const v = comissaoSlot(s, Number(c.valor_contrato));
       a.comissao += v; if (s.pago) a.comissao_paga += v;
-    }
+      if (i === 0) a.comissao_corretor += v; else a.comissao_supervisor += v;
+    });
     mapa.set(k, a);
   }
   return [...mapa.values()].map(a => {
@@ -182,9 +183,9 @@ export type EquipeInfo = { id: string; nome: string };
 export function indicadoresPorEquipe(corretores: ReturnType<typeof indicadoresPorCorretor>, equipes: EquipeInfo[]) {
   return [...equipes, { id: '__sem', nome: 'Sem equipe' }].map(e => {
     const membros = corretores.filter(c => (c.equipe_id ?? '__sem') === e.id);
-    const s = (k: 'receita' | 'producao' | 'comissao' | 'contratos') => r2(membros.reduce((a, c) => a + Number(c[k]), 0));
+    const s = (k: 'receita' | 'producao' | 'comissao' | 'contratos' | 'comissao_corretor' | 'comissao_supervisor') => r2(membros.reduce((a, c) => a + Number(c[k]), 0));
     const receita = s('receita'), comissao = s('comissao');
     const contribuicao = r2(receita - comissao);
-    return { ...e, corretores: membros, contratos: s('contratos'), producao: s('producao'), receita, comissao, contribuicao, margem_pct: pct(contribuicao, receita) };
+    return { ...e, corretores: membros, comissao_corretor: s('comissao_corretor'), comissao_supervisor: s('comissao_supervisor'), contratos: s('contratos'), producao: s('producao'), receita, comissao, contribuicao, margem_pct: pct(contribuicao, receita) };
   }).filter(e => e.id !== '__sem' || e.corretores.length > 0);
 }
