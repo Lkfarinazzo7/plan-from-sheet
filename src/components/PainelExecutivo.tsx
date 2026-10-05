@@ -9,15 +9,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatCurrency } from '@/lib/format';
 import { carregarLancamentosRelatorio, fetchAllRows } from '@/lib/financialReporting';
 import {
-  calcularPainel, periodoAnterior, qualidadeFinanceira, indicadoresPorCorretor, indicadoresPorEquipe, METAS_PADRAO,
+  calcularPainel, periodoAnterior, indicadoresPorCorretor, indicadoresPorEquipe, METAS_PADRAO,
   type LancamentoExec, type Metas, type StatusMeta,
 } from '@/lib/painelExecutivo';
-import { Settings2 } from 'lucide-react';
+import { Settings2, ChartNoAxesCombined } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from 'sonner';
-import { dataLocal } from '@/lib/financialReporting';
-import { ChevronDown, ChartNoAxesCombined } from 'lucide-react';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 type Props = { inicio: string; fim: string; unidade: string; setor: string };
 
