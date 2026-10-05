@@ -34,6 +34,11 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
+    --dashboard-surface: 210 20% 98%;
+    --dashboard-ink: 215 25% 27%;
+    --dashboard-accent: 175 78% 26%;
+    --dashboard-warm: 21 71% 41%;
+
     --border: 214 25% 90%;
     --input: 214 25% 90%;
     --ring: 215 80% 48%;
@@ -71,6 +76,10 @@
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 40%;
     --warning-foreground: 0 0% 100%;
+    --dashboard-surface: 215 25% 11%;
+    --dashboard-ink: 210 20% 92%;
+    --dashboard-accent: 173 58% 45%;
+    --dashboard-warm: 24 85% 58%;
     --border: 220 20% 20%;
     --input: 220 20% 20%;
     --ring: 215 80% 55%;

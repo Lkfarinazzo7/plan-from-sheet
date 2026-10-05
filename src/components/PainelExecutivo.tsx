@@ -160,10 +160,10 @@ export function PainelExecutivo({ inicio, fim, unidade, setor }: Props) {
           <div className="grid grid-cols-3 gap-3 border-t pt-3 text-xs"><div><p className="text-muted-foreground">Fixos</p><p className="mt-1 font-semibold tabular-nums">{formatCurrency(p.custos.fixos)}</p></div><div><p className="text-muted-foreground">Variáveis</p><p className="mt-1 font-semibold tabular-nums">{formatCurrency(p.custos.variaveis)}</p></div><div><p className="text-muted-foreground">Comerciais</p><p className="mt-1 font-semibold tabular-nums">{formatCurrency(p.custos.comerciais)}</p></div></div>
         </CardContent></Card>
 
-        <Card className="overflow-hidden rounded-md border-primary/20 bg-secondary shadow-md"><CardContent className="space-y-4 p-5">
-          <div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase text-muted-foreground">Resultado</p><ChartNoAxesCombined className="h-5 w-5 text-primary" /></div>
-          <div><p className={`text-3xl font-bold tabular-nums ${p.resultado.liquido >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(p.resultado.liquido)}</p><p className="mt-1 text-xs text-muted-foreground">Resultado líquido</p></div>
-          <div className="grid grid-cols-2 gap-4 border-t pt-3"><div><p className="text-xs text-muted-foreground">Margem líquida</p><p className="font-semibold tabular-nums">{fp(p.resultado.liquido_pct)}</p></div><div className="text-right"><p className="text-xs text-muted-foreground">Variação</p><Delta pp atual={p.resultado.liquido_pct} anterior={a.resultado.liquido_pct} /></div></div>
+        <Card className="overflow-hidden rounded-md border-dashboard-ink/20 bg-dashboard-ink text-primary-foreground shadow-md"><CardContent className="space-y-4 p-5">
+          <div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase text-primary-foreground/70">Resultado</p><ChartNoAxesCombined className="h-5 w-5 text-dashboard-accent" /></div>
+          <div><p className={`text-3xl font-bold tabular-nums ${p.resultado.liquido >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(p.resultado.liquido)}</p><p className="mt-1 text-xs text-primary-foreground/70">Resultado líquido</p></div>
+          <div className="grid grid-cols-2 gap-4 border-t border-primary-foreground/15 pt-3"><div><p className="text-xs text-primary-foreground/70">Margem líquida</p><p className="font-semibold tabular-nums">{fp(p.resultado.liquido_pct)}</p></div><div className="text-right"><p className="text-xs text-primary-foreground/70">Variação</p><Delta pp atual={p.resultado.liquido_pct} anterior={a.resultado.liquido_pct} /></div></div>
         </CardContent></Card>
 
         <Card className="overflow-hidden rounded-md shadow-sm transition-shadow hover:shadow-md"><CardContent className="space-y-4 p-5">
