@@ -132,7 +132,6 @@ export function PainelExecutivo({ inicio, fim, unidade, setor }: Props) {
     }));
   const corretores = indicadoresPorCorretor(contratosPeriodo, base.receitas as any);
   const porEquipe = indicadoresPorEquipe(corretores, fEquipe === 'all' ? equipesAtivas : equipesAtivas.filter(e => e.id === fEquipe));
-  const nomeSerie = new Map<string, any>((base.series as any[]).map(x => [x.id, x]));
 
   return (
     <div className="space-y-4">
