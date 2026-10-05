@@ -9,13 +9,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatCurrency } from '@/lib/format';
 import { carregarLancamentosRelatorio, fetchAllRows } from '@/lib/financialReporting';
 import {
-  calcularPainel, periodoAnterior, qualidadeFinanceira, indicadoresPorCorretor, indicadoresPorEquipe, METAS_PADRAO,
+  calcularPainel, periodoAnterior, indicadoresPorCorretor, indicadoresPorEquipe, METAS_PADRAO,
   type LancamentoExec, type Metas, type StatusMeta,
 } from '@/lib/painelExecutivo';
-import { Settings2 } from 'lucide-react';
+import { Settings2, ChartNoAxesCombined } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from 'sonner';
-import { dataLocal } from '@/lib/financialReporting';
 
 type Props = { inicio: string; fim: string; unidade: string; setor: string };
 
@@ -69,18 +67,9 @@ function MetasEditor({ metas }: { metas: Metas }) {
 }
 
 export function PainelExecutivo({ inicio, fim, unidade, setor }: Props) {
-  const qc = useQueryClient();
   const [fEquipe, setFEquipe] = useState('all');
   const [fSup, setFSup] = useState('all');
   const [fCorretor, setFCorretor] = useState('all');
-  const encerrar = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('series_recorrencia').update({ ativa: false, encerrada_em: dataLocal(new Date()), motivo_encerramento: 'Série duplicada (painel de qualidade)' }).eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['painel-base'] }); toast.success('Série encerrada. Nada foi apagado.'); },
-    onError: (e: any) => toast.error(e.message),
-  });
   const { data: metas = METAS_PADRAO } = useQuery({
     queryKey: ['metas-financeiras'],
     queryFn: async (): Promise<Metas> => {
@@ -94,16 +83,15 @@ export function PainelExecutivo({ inicio, fim, unidade, setor }: Props) {
   const { data: base } = useQuery({
     queryKey: ['painel-base'],
     queryFn: async () => {
-      const [lancs, series, contratos, receitas, equipes, vendedores, supervisores] = await Promise.all([
+      const [lancs, contratos, receitas, equipes, vendedores, supervisores] = await Promise.all([
         carregarLancamentosRelatorio(supabase) as Promise<LancamentoExec[]>,
-        fetchAllRows((f, t) => supabase.from('series_recorrencia').select('id,nome,tipo,ativa').order('id').range(f, t)),
         fetchAllRows((f, t) => supabase.from('contratos').select('id,valor_contrato,data_implantacao,unidade_negocio,corretor_id,corretor_valor,corretor_percentual,corretor_pago,supervisor_a_id,supervisor_a_valor,supervisor_a_percentual,supervisor_a_pago,supervisor_b_id,supervisor_b_valor,supervisor_b_percentual,supervisor_b_pago,vendedores(nome)').order('id').range(f, t)),
         fetchAllRows((f, t) => supabase.from('receitas').select('id,contrato_id,valor,status,cancelado').not('contrato_id', 'is', null).order('id').range(f, t)),
         fetchAllRows((f, t) => supabase.from('equipes' as any).select('id,nome,supervisor_id,ativo').order('id').range(f, t)),
         fetchAllRows((f, t) => supabase.from('vendedores').select('id,nome,ativo,equipe_id' as any).order('id').range(f, t)),
         fetchAllRows((f, t) => supabase.from('supervisores').select('id,nome,ativo').order('id').range(f, t)),
       ]);
-      return { lancs, series, contratos, receitas, equipes: equipes as any[], vendedores: vendedores as any[], supervisores: supervisores as any[] };
+      return { lancs, contratos, receitas, equipes: equipes as any[], vendedores: vendedores as any[], supervisores: supervisores as any[] };
     },
   });
 
@@ -112,8 +100,6 @@ export function PainelExecutivo({ inicio, fim, unidade, setor }: Props) {
   const p = calcularPainel(base.lancs, inicio, fim, filtros, metas);
   const ant = periodoAnterior(inicio, fim);
   const a = calcularPainel(base.lancs, ant.inicio, ant.fim, filtros, metas);
-  const q = qualidadeFinanceira(base.lancs, base.series as any);
-
   const equipeDe = new Map<string, string | null>(base.vendedores.map(v => [v.id, v.equipe_id]));
   const equipesAtivas = base.equipes.filter(e => e.ativo);
   const contratosPeriodo = (base.contratos as any[])
@@ -152,69 +138,47 @@ export function PainelExecutivo({ inicio, fim, unidade, setor }: Props) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Receita</CardTitle></CardHeader><CardContent>
-          <Linha rotulo="Receita bruta" valor={formatCurrency(p.receita.bruta)} extra={<Delta atual={p.receita.bruta} anterior={a.receita.bruta} />} />
-          <Linha rotulo="Recebida (da competência)" valor={formatCurrency(p.receita.recebida)} />
-          <Linha rotulo="A receber (da competência)" valor={formatCurrency(p.receita.a_receber)} />
+        <Card className="overflow-hidden rounded-md shadow-sm transition-shadow hover:shadow-md"><CardContent className="space-y-4 p-5">
+          <div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase text-muted-foreground">Receita</p><span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-semibold text-secondary-foreground">COMPETÊNCIA</span></div>
+          <div><p className="text-3xl font-bold tabular-nums">{formatCurrency(p.receita.bruta)}</p><Delta atual={p.receita.bruta} anterior={a.receita.bruta} /></div>
+          <div className="grid grid-cols-2 gap-4 border-t pt-3"><div><p className="text-xs text-muted-foreground">Recebida</p><p className="mt-1 font-semibold tabular-nums text-success">{formatCurrency(p.receita.recebida)}</p></div><div className="text-right"><p className="text-xs text-muted-foreground">A receber</p><p className="mt-1 font-semibold tabular-nums text-warning">{formatCurrency(p.receita.a_receber)}</p></div></div>
         </CardContent></Card>
 
-        <Card><CardHeader className="pb-2 flex-row items-center justify-between"><CardTitle className="text-sm">Margem</CardTitle><Badge s={p.status.margem} /></CardHeader><CardContent>
-          <Linha rotulo="Margem de contribuição" valor={formatCurrency(p.margem.contribuicao)} extra={<Delta atual={p.margem.contribuicao} anterior={a.margem.contribuicao} />} />
-          <Linha rotulo="Margem de contribuição %" valor={fp(p.margem.contribuicao_pct)} extra={<Delta pp atual={p.margem.contribuicao_pct} anterior={a.margem.contribuicao_pct} />} />
+        <Card className="overflow-hidden rounded-md shadow-sm transition-shadow hover:shadow-md"><CardContent className="space-y-4 p-5">
+          <div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase text-muted-foreground">Margem</p><Badge s={p.status.margem} /></div>
+          <div className="flex items-end justify-between gap-4"><div><p className="text-3xl font-bold tabular-nums">{fp(p.margem.contribuicao_pct)}</p><Delta pp atual={p.margem.contribuicao_pct} anterior={a.margem.contribuicao_pct} /></div><div className="text-right"><p className="text-xs text-muted-foreground">Contribuição</p><p className="font-semibold tabular-nums">{formatCurrency(p.margem.contribuicao)}</p></div></div>
           <div className="mt-2 h-2 rounded bg-muted relative overflow-hidden">
             <div className="h-full bg-primary" style={{ width: `${Math.max(0, Math.min(100, p.margem.contribuicao_pct ?? 0))}%` }} />
             <div className="absolute top-0 h-full w-0.5 bg-foreground" style={{ left: `${metas.margem_contribuicao_min}%` }} title="Meta mínima" />
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Meta mínima: {metas.margem_contribuicao_min}%</p>
+          <p className="text-xs text-muted-foreground">Meta mínima: {metas.margem_contribuicao_min}%</p>
         </CardContent></Card>
 
-        <Card><CardHeader className="pb-2 flex-row items-center justify-between"><CardTitle className="text-sm">Custos</CardTitle><Badge s={p.status.custoFixo} /></CardHeader><CardContent>
-          <Linha rotulo="Custos variáveis" valor={formatCurrency(p.custos.variaveis)} />
-          <Linha rotulo="… dos quais comissões" valor={formatCurrency(p.custos.comissoes)} />
-          <Linha rotulo="Despesas comerciais" valor={formatCurrency(p.custos.comerciais)} />
-          <Linha rotulo="Custos fixos" valor={formatCurrency(p.custos.fixos)} extra={<span className="text-xs text-muted-foreground">{fp(p.custos.fixo_pct)} da receita (meta ≤ {metas.custo_fixo_max}%)</span>} />
+        <Card className="overflow-hidden rounded-md shadow-sm transition-shadow hover:shadow-md"><CardContent className="space-y-4 p-5">
+          <div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase text-muted-foreground">Custos</p><Badge s={p.status.custoFixo} /></div>
+          <div><p className="text-3xl font-bold tabular-nums">{formatCurrency(p.custos.variaveis + p.custos.comerciais + p.custos.fixos)}</p><p className="mt-1 text-xs text-destructive">Fixos: {fp(p.custos.fixo_pct)} da receita · meta ≤ {metas.custo_fixo_max}%</p></div>
+          <div className="grid grid-cols-3 gap-3 border-t pt-3 text-xs"><div><p className="text-muted-foreground">Fixos</p><p className="mt-1 font-semibold tabular-nums">{formatCurrency(p.custos.fixos)}</p></div><div><p className="text-muted-foreground">Variáveis</p><p className="mt-1 font-semibold tabular-nums">{formatCurrency(p.custos.variaveis)}</p></div><div><p className="text-muted-foreground">Comerciais</p><p className="mt-1 font-semibold tabular-nums">{formatCurrency(p.custos.comerciais)}</p></div></div>
         </CardContent></Card>
 
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Resultado</CardTitle></CardHeader><CardContent>
-          <Linha rotulo="Resultado operacional" valor={formatCurrency(p.resultado.operacional)} extra={<Delta atual={p.resultado.operacional} anterior={a.resultado.operacional} />} />
-          <Linha rotulo="Margem operacional" valor={fp(p.resultado.operacional_pct)} />
-          <Linha rotulo="Resultado líquido" valor={formatCurrency(p.resultado.liquido)} />
-          <Linha rotulo="Margem líquida" valor={fp(p.resultado.liquido_pct)} extra={<Delta pp atual={p.resultado.liquido_pct} anterior={a.resultado.liquido_pct} />} />
+        <Card className="overflow-hidden rounded-md border-dashboard-ink/20 bg-dashboard-ink text-primary-foreground shadow-md"><CardContent className="space-y-4 p-5">
+          <div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase text-primary-foreground/70">Resultado</p><ChartNoAxesCombined className="h-5 w-5 text-dashboard-accent" /></div>
+          <div><p className={`text-3xl font-bold tabular-nums ${p.resultado.liquido >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(p.resultado.liquido)}</p><p className="mt-1 text-xs text-primary-foreground/70">Resultado líquido</p></div>
+          <div className="grid grid-cols-2 gap-4 border-t border-primary-foreground/15 pt-3"><div><p className="text-xs text-primary-foreground/70">Margem líquida</p><p className="font-semibold tabular-nums">{fp(p.resultado.liquido_pct)}</p></div><div className="text-right"><p className="text-xs text-primary-foreground/70">Variação</p><Delta pp atual={p.resultado.liquido_pct} anterior={a.resultado.liquido_pct} /></div></div>
         </CardContent></Card>
 
-        <Card><CardHeader className="pb-2 flex-row items-center justify-between"><CardTitle className="text-sm">Caixa realizado</CardTitle><Badge s={p.status.caixa} /></CardHeader><CardContent>
-          <Linha rotulo="Entradas" valor={formatCurrency(p.geracaoCaixa.entradas)} />
-          <Linha rotulo="Saídas" valor={formatCurrency(p.geracaoCaixa.saidas)} />
-          <Linha rotulo="Geração de caixa" valor={formatCurrency(p.geracaoCaixa.geracao)} />
-          <Linha rotulo="Geração de caixa %" valor={fp(p.geracaoCaixa.pct)} extra={<span className="text-xs text-muted-foreground">meta ≥ {metas.geracao_caixa_min}%</span>} />
+        <Card className="overflow-hidden rounded-md shadow-sm transition-shadow hover:shadow-md"><CardContent className="space-y-4 p-5">
+          <div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase text-muted-foreground">Caixa realizado</p><Badge s={p.status.caixa} /></div>
+          <div><p className={`text-3xl font-bold tabular-nums ${p.geracaoCaixa.geracao >= 0 ? 'text-success' : 'text-destructive'}`}>{formatCurrency(p.geracaoCaixa.geracao)}</p><p className="mt-1 text-xs text-muted-foreground">Fluxo líquido do período · {fp(p.geracaoCaixa.pct)}</p></div>
+          <div className="grid grid-cols-2 gap-4 border-t pt-3"><div><p className="text-xs text-success">Entradas</p><p className="font-semibold tabular-nums">{formatCurrency(p.geracaoCaixa.entradas)}</p></div><div className="text-right"><p className="text-xs text-destructive">Saídas</p><p className="font-semibold tabular-nums">{formatCurrency(p.geracaoCaixa.saidas)}</p></div></div>
         </CardContent></Card>
 
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Break-even</CardTitle></CardHeader><CardContent>
-          <Linha rotulo="Break-even do período" valor={p.breakEven.valor == null ? '—' : formatCurrency(p.breakEven.valor)} />
-          <Linha rotulo="Falta para atingir" valor={p.breakEven.falta == null ? '—' : formatCurrency(p.breakEven.falta)} />
-          <Linha rotulo="Atingido" valor={fp(p.breakEven.atingido_pct)} />
-          <p className="text-xs text-muted-foreground mt-1">(Fixas + comerciais) ÷ margem de contribuição %</p>
+        <Card className="overflow-hidden rounded-md shadow-sm transition-shadow hover:shadow-md"><CardContent className="space-y-4 p-5">
+          <div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase text-muted-foreground">Break-even</p><span className="text-xs font-semibold text-warning">{fp(p.breakEven.atingido_pct)} atingido</span></div>
+          <div><p className="text-3xl font-bold tabular-nums">{p.breakEven.valor == null ? '—' : formatCurrency(p.breakEven.valor)}</p><p className="mt-1 text-xs text-muted-foreground">Ponto de equilíbrio do período</p></div>
+          <div className="h-2 overflow-hidden rounded bg-muted"><div className="h-full bg-warning" style={{ width: `${Math.max(0, Math.min(100, p.breakEven.atingido_pct ?? 0))}%` }} /></div>
+          <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">Falta para atingir</span><span className="font-semibold tabular-nums">{p.breakEven.falta == null ? '—' : formatCurrency(p.breakEven.falta)}</span></div>
         </CardContent></Card>
       </div>
-
-      <Card><CardHeader className="pb-2 flex-row items-center justify-between"><CardTitle className="text-sm">Qualidade financeira</CardTitle><span className="text-sm font-semibold">Cobertura {fp(q.cobertura_pct)}</span></CardHeader><CardContent className="grid md:grid-cols-2 gap-x-8">
-        <Linha rotulo="Sem competência" valor={String(q.itens.sem_competencia.quantidade)} />
-        <Linha rotulo="Pagos/recebidos sem data efetiva" valor={String(q.itens.liquidados_sem_data_efetiva.quantidade)} />
-        <Linha rotulo="Abertos sem vencimento" valor={String(q.itens.abertos_sem_vencimento.quantidade)} />
-        <Linha rotulo="Sem grupo DRE" valor={String(q.itens.sem_grupo_dre.quantidade)} />
-        <Linha rotulo="Datas preenchidas por regra de legado" valor={String(q.itens.datas_de_legado.quantidade)} />
-        <Linha rotulo="Séries recorrentes possivelmente duplicadas" valor={String(q.seriesDuplicadas.length)} />
-        <Linha rotulo="Séries com 2+ lançamentos no mesmo mês" valor={String(q.ocorrenciasRepetidas.length)} />
-        {q.seriesDuplicadas.length > 0 && <div className="md:col-span-2 pt-3">
-          <p className="text-xs text-muted-foreground mb-2">Despesas recorrentes com o mesmo nome ativas ao mesmo tempo — podem gerar a mesma despesa duas vezes por mês. Encerrar só para de gerar meses futuros; nada já lançado é apagado.</p>
-          <Table><TableHeader><TableRow><TableHead>Série</TableHead><TableHead className="text-right">Último valor</TableHead><TableHead>Último mês</TableHead><TableHead></TableHead></TableRow></TableHeader>
-            <TableBody>{q.seriesDuplicadas.flatMap(g => g.series).map(x => (
-              <TableRow key={x.id}><TableCell>{x.nome}</TableCell><TableCell className="text-right">{x.valor == null ? '—' : formatCurrency(x.valor)}</TableCell>
-                <TableCell>{x.ultimo_mes ? x.ultimo_mes.split('-').reverse().join('/') : '—'}</TableCell>
-                <TableCell className="text-right"><Button size="sm" variant="outline" disabled={encerrar.isPending} onClick={() => { if (confirm(`Encerrar a série "${x.nome}"? Os lançamentos já feitos continuam.`)) encerrar.mutate(x.id); }}>Encerrar esta série</Button></TableCell></TableRow>
-            ))}</TableBody></Table>
-        </div>}
-      </CardContent></Card>
 
       <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Indicadores por corretor (contratos implantados no período)</CardTitle></CardHeader><CardContent className="overflow-x-auto">
         {corretores.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum contrato implantado no período.</p> : (
