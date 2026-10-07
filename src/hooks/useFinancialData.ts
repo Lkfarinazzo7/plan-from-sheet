@@ -229,7 +229,7 @@ export function useCreateDespesa() {
       const { error } = await supabase.from('despesas').insert({ ...despesa, user_id: user!.id } as any);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['despesas'] }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['despesas'] }); queryClient.invalidateQueries({ queryKey: ['contratos'] }); },
   });
 }
 
@@ -240,7 +240,7 @@ export function useUpdateDespesa() {
       const { error } = await supabase.from('despesas').update(updates as any).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['despesas'] }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['despesas'] }); queryClient.invalidateQueries({ queryKey: ['contratos'] }); },
   });
 }
 
@@ -251,7 +251,7 @@ export function useDeleteDespesa() {
       const { error } = await supabase.from('despesas').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['despesas'] }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['despesas'] }); queryClient.invalidateQueries({ queryKey: ['contratos'] }); },
   });
 }
 
@@ -535,7 +535,7 @@ export function useBulkUpdateDespesa() {
       const { error } = await supabase.from('despesas').update(updates as any).in('id', ids);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['despesas'] }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['despesas'] }); queryClient.invalidateQueries({ queryKey: ['contratos'] }); },
   });
 }
 
@@ -546,7 +546,7 @@ export function useBulkDeleteDespesa() {
       const { error } = await supabase.from('despesas').delete().in('id', ids);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['despesas'] }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['despesas'] }); queryClient.invalidateQueries({ queryKey: ['contratos'] }); },
   });
 }
 
@@ -563,7 +563,7 @@ export function useBulkCreateDespesa() {
       const { error } = await supabase.from('despesas').insert(payload);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['despesas'] }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['despesas'] }); queryClient.invalidateQueries({ queryKey: ['contratos'] }); },
   });
 }
 
