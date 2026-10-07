@@ -180,7 +180,9 @@ export type Database = {
           cancelado: boolean
           cancelado_em: string | null
           categoria_id: string
+          comissao_papel: string | null
           competencia: string | null
+          contrato_id: string | null
           created_at: string
           data: string
           data_pagamento: string | null
@@ -209,7 +211,9 @@ export type Database = {
           cancelado?: boolean
           cancelado_em?: string | null
           categoria_id: string
+          comissao_papel?: string | null
           competencia?: string | null
+          contrato_id?: string | null
           created_at?: string
           data: string
           data_pagamento?: string | null
@@ -238,7 +242,9 @@ export type Database = {
           cancelado?: boolean
           cancelado_em?: string | null
           categoria_id?: string
+          comissao_papel?: string | null
           competencia?: string | null
+          contrato_id?: string | null
           created_at?: string
           data?: string
           data_pagamento?: string | null
@@ -270,6 +276,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "categorias_despesa"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "despesas_contrato_id_fkey"
+            columns: ["contrato_id"]
+            isOneToOne: false
+            referencedRelation: "contratos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "despesas_contrato_id_fkey"
+            columns: ["contrato_id"]
+            isOneToOne: false
+            referencedRelation: "contratos_financeiro"
+            referencedColumns: ["contrato_id"]
           },
           {
             foreignKeyName: "despesas_serie_id_fkey"
