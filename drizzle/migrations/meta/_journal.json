@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791381982831,
+      "tag": "0000_comissoes_geram_despesas",
+      "breakpoints": true
+    }
+  ]
+}
