@@ -632,7 +632,7 @@ export function useCreateContrato() {
       });
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contratos'] }),
+    onSuccess: () => queryClient.invalidateQueries(),
   });
 }
 
@@ -643,7 +643,7 @@ export function useUpdateContrato() {
       const { error } = await (supabase as any).from('contratos').update(updates).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contratos'] }),
+    onSuccess: () => queryClient.invalidateQueries(),
   });
 }
 
@@ -654,7 +654,7 @@ export function useDeleteContrato() {
       const { error } = await (supabase as any).from('contratos').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contratos'] }),
+    onSuccess: () => queryClient.invalidateQueries(),
   });
 }
 
@@ -665,7 +665,7 @@ export function useBulkUpdateContrato() {
       const { error } = await (supabase as any).from('contratos').update(updates).in('id', ids);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contratos'] }),
+    onSuccess: () => queryClient.invalidateQueries(),
   });
 }
 
@@ -676,7 +676,7 @@ export function useBulkDeleteContrato() {
       const { error } = await (supabase as any).from('contratos').delete().in('id', ids);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contratos'] }),
+    onSuccess: () => queryClient.invalidateQueries(),
   });
 }
 
@@ -699,7 +699,7 @@ export function useBulkCreateContrato() {
       const { error } = await (supabase as any).from('contratos').insert(payload);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contratos'] }),
+    onSuccess: () => queryClient.invalidateQueries(),
   });
 }
 
