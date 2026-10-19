@@ -1,0 +1,1 @@
+ALTER TABLE public.receitas ALTER COLUMN categoria_id SET DEFAULT 'ec57aabb-36b0-4063-9d3f-edb138011752'::uuid;
