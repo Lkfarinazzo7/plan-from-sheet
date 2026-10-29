@@ -1,4 +1,4 @@
-import { LayoutDashboard, ArrowUpCircle, ArrowDownCircle, FileSignature, HandCoins, ClipboardList, LogOut, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, ArrowUpCircle, ArrowDownCircle, FileSignature, HandCoins, ClipboardList, LogOut, TrendingUp, Calculator } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsAdmPipelineOnly } from '@/hooks/useUserRole';
@@ -21,6 +21,7 @@ const allMenuItems = [
   { title: 'Receitas', url: '/receitas', icon: ArrowUpCircle },
   { title: 'Despesas', url: '/despesas', icon: ArrowDownCircle },
   { title: 'Fluxo de Caixa', url: '/fluxo-caixa', icon: TrendingUp },
+  { title: 'Calculadora', url: '/calculadora', icon: Calculator },
   { title: 'Contratos', url: '/contratos', icon: FileSignature },
   { title: 'Comissões', url: '/comissoes', icon: HandCoins },
   { title: 'Cadastros', url: '/cadastros', icon: ClipboardList },

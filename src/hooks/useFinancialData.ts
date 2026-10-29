@@ -968,3 +968,26 @@ export function useDFCProjetado(unidade?: string, daysAhead = 90, setor?: string
   });
 }
 
+
+/** Soma das despesas Fixas ativas de um mês (competência; data legada se vazia). month 0-11. */
+export function useCustoFixoMes(year: number, month: number, enabled = true) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['custo_fixo_mes', year, month],
+    enabled: !!user && enabled,
+    queryFn: async () => {
+      const mm = String(month + 1).padStart(2, '0');
+      const ini = `${year}-${mm}-01`;
+      const fim = `${year}-${mm}-${String(new Date(year, month + 1, 0).getDate()).padStart(2, '0')}`;
+      const { data, error } = await supabase
+        .from('despesas')
+        .select('valor, competencia, data')
+        .eq('tipo', 'Fixo')
+        .eq('cancelado', false)
+        .or(`and(competencia.gte.${ini},competencia.lte.${fim}),and(competencia.is.null,data.gte.${ini},data.lte.${fim})`);
+      if (error) throw error;
+      const rows = data ?? [];
+      return { total: rows.reduce((a, r) => a + Number(r.valor), 0), quantidade: rows.length };
+    },
+  });
+}

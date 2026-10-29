@@ -14,6 +14,7 @@ import Comissoes from "./pages/Comissoes";
 import Cadastros from "./pages/Cadastros";
 import NotFound from "./pages/NotFound";
 import FluxoCaixa from "./pages/FluxoCaixa";
+import Calculadora from "./pages/Calculadora";
 import OAuthConsent from "./pages/OAuthConsent";
 import { safeReturnPath } from "@/lib/safeReturn";
 
@@ -72,6 +73,7 @@ const App = () => (
             <Route path="/contratos" element={<ProtectedRoute><Contratos /></ProtectedRoute>} />
             <Route path="/comissoes" element={<ProtectedRoute><Comissoes /></ProtectedRoute>} />
             <Route path="/fluxo-caixa" element={<ProtectedRoute><FluxoCaixa /></ProtectedRoute>} />
+            <Route path="/calculadora" element={<ProtectedRoute><Calculadora /></ProtectedRoute>} />
             <Route path="/cadastros" element={<ProtectedRoute><Cadastros /></ProtectedRoute>} />
             <Route path="/oauth/consent" element={<BareProtectedRoute><OAuthConsent /></BareProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
