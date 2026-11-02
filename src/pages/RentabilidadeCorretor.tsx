@@ -110,7 +110,7 @@ export default function RentabilidadeCorretor() {
             <SelectContent>{[hoje.getFullYear() - 2, hoje.getFullYear() - 1, hoje.getFullYear(), hoje.getFullYear() + 1].map(a => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}</SelectContent>
           </Select></div>
         <div className="space-y-1"><label className="text-xs font-medium text-muted-foreground">Corretor</label>
-          <MultiSelectFilter label="Corretores" options={vendedores.map((v: any) => ({ value: v.id, label: v.nome }))} selected={sel} onChange={setSel} /></div>
+          <MultiSelectFilter label="Corretores" options={vendedores.map((v: any) => ({ value: v.id, label: v.nome }))} value={sel} onChange={setSel} searchable /></div>
         <div className="space-y-1"><label className="text-xs font-medium text-muted-foreground">Visão</label>
           <ToggleGroup type="single" variant="outline" value={modo} onValueChange={v => v && setModo(v as Modo)}>
             <ToggleGroupItem value="competencia">Competência</ToggleGroupItem>
