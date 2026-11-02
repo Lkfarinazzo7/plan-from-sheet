@@ -72,6 +72,7 @@ export default function Despesas() {
   const { data: despesas = [], isLoading } = useDespesas(month, year);
   const { data: categorias = [] } = useCategoriasDespesa();
   const { data: setores = [] } = useSetoresDespesa();
+  const { data: vendedores = [] } = useVendedores();
   const createDespesa = useCreateDespesa();
   const updateDespesa = useUpdateDespesa();
   const deleteDespesa = useDeleteDespesa();
@@ -374,6 +375,16 @@ export default function Despesas() {
                     <label className="text-sm font-medium">Responsável</label>
                     <Input value={form.responsavel} onChange={e => setForm({ ...form, responsavel: e.target.value })} />
                   </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Corretor (opcional)</label>
+                  <Select value={form.vendedor_id} onValueChange={v => setForm({ ...form, vendedor_id: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {vendedores.map((v: any) => <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
