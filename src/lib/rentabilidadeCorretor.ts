@@ -6,7 +6,7 @@ export type CustoRegra = {
   valor: number; frequencia: 'mensal' | 'semanal' | 'unica'; mes_referencia?: string | null;
   inicio?: string | null; fim?: string | null; ativo: boolean; categoria_id?: string | null; termo_match?: string | null;
 };
-export type ItemCusto = { vendedor_id: string; mes: string; nome: string; valor: number; origem: 'regra' | 'despesa'; substituida?: boolean };
+export type ItemCusto = { vendedor_id: string; mes: string; nome: string; valor: number; origem: 'regra' | 'despesa'; substituida?: boolean; regra_id?: string };
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 const pct = (n: number, d: number) => (d > 0 ? r2((n / d) * 100) : null);
@@ -113,7 +113,7 @@ export function calcularRentabilidade(args: {
       if (!regraVale(r, mes)) continue;
       const valor = valorRegra(r, mes, prodMes.get(`${r.vendedor_id}|${mes}`) ?? 0);
       const substituida = despCorretor.some(d => d.vendedor_id === r.vendedor_id && ym(dataDesp(d)) === mes && casa(r, d));
-      itens.push({ vendedor_id: r.vendedor_id, mes, nome: r.nome, valor, origem: 'regra', substituida });
+      itens.push({ vendedor_id: r.vendedor_id, mes, nome: r.nome, valor, origem: 'regra', substituida, regra_id: r.id });
       if (!substituida && valor) linha(r.vendedor_id).custos += valor;
     }
   }
