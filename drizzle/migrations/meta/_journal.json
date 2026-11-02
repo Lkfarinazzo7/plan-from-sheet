@@ -15,6 +15,13 @@
       "when": 1792420710148,
       "tag": "0001_receitas_default_categoria",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793652987970,
+      "tag": "0002_custos_corretor",
+      "breakpoints": true
     }
   ]
 }

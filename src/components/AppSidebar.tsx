@@ -1,4 +1,4 @@
-import { LayoutDashboard, ArrowUpCircle, ArrowDownCircle, FileSignature, HandCoins, ClipboardList, LogOut, TrendingUp, Calculator } from 'lucide-react';
+import { LayoutDashboard, ArrowUpCircle, ArrowDownCircle, FileSignature, HandCoins, ClipboardList, LogOut, TrendingUp, Calculator, Trophy } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsAdmPipelineOnly } from '@/hooks/useUserRole';
@@ -24,6 +24,7 @@ const allMenuItems = [
   { title: 'Calculadora', url: '/calculadora', icon: Calculator },
   { title: 'Contratos', url: '/contratos', icon: FileSignature },
   { title: 'Comissões', url: '/comissoes', icon: HandCoins },
+  { title: 'Rentabilidade', url: '/rentabilidade', icon: Trophy },
   { title: 'Cadastros', url: '/cadastros', icon: ClipboardList },
 ];
 

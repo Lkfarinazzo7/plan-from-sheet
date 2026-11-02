@@ -175,6 +175,72 @@ export type Database = {
           },
         ]
       }
+      custos_corretor: {
+        Row: {
+          ativo: boolean
+          categoria_id: string | null
+          created_at: string
+          fim: string | null
+          frequencia: string
+          id: string
+          inicio: string | null
+          mes_referencia: string | null
+          nome: string
+          termo_match: string | null
+          tipo: string
+          updated_at: string
+          valor: number
+          vendedor_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          categoria_id?: string | null
+          created_at?: string
+          fim?: string | null
+          frequencia?: string
+          id?: string
+          inicio?: string | null
+          mes_referencia?: string | null
+          nome: string
+          termo_match?: string | null
+          tipo: string
+          updated_at?: string
+          valor?: number
+          vendedor_id: string
+        }
+        Update: {
+          ativo?: boolean
+          categoria_id?: string | null
+          created_at?: string
+          fim?: string | null
+          frequencia?: string
+          id?: string
+          inicio?: string | null
+          mes_referencia?: string | null
+          nome?: string
+          termo_match?: string | null
+          tipo?: string
+          updated_at?: string
+          valor?: number
+          vendedor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custos_corretor_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_despesa"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custos_corretor_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       despesas: {
         Row: {
           cancelado: boolean
@@ -205,6 +271,7 @@ export type Database = {
           user_id: string
           valor: number
           vencimento: string | null
+          vendedor_id: string | null
           versao: number
         }
         Insert: {
@@ -236,6 +303,7 @@ export type Database = {
           user_id: string
           valor?: number
           vencimento?: string | null
+          vendedor_id?: string | null
           versao?: number
         }
         Update: {
@@ -267,6 +335,7 @@ export type Database = {
           user_id?: string
           valor?: number
           vencimento?: string | null
+          vendedor_id?: string | null
           versao?: number
         }
         Relationships: [
@@ -317,6 +386,13 @@ export type Database = {
             columns: ["subcategoria_id"]
             isOneToOne: false
             referencedRelation: "subcategorias_despesa"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "despesas_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
             referencedColumns: ["id"]
           },
         ]

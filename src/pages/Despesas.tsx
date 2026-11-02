@@ -10,7 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa, useBulkUpdateDespesa, useBulkDeleteDespesa, useSetoresDespesa } from '@/hooks/useFinancialData';
+import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa, useBulkUpdateDespesa, useBulkDeleteDespesa, useSetoresDespesa, useVendedores } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName, todayStr } from '@/lib/format';
 import { Plus, Trash2, RotateCcw, Pencil, Upload, Check, Copy, Download, X, StickyNote, Repeat } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
@@ -34,6 +34,7 @@ const emptyForm = {
   unidade_negocio: 'none' as string,
   setor_id: 'none' as string,
   observacoes: '',
+  vendedor_id: 'none' as string,
 };
 
 // Calcula segunda e domingo (BR) da semana atual em YYYY-MM-DD local
@@ -71,6 +72,7 @@ export default function Despesas() {
   const { data: despesas = [], isLoading } = useDespesas(month, year);
   const { data: categorias = [] } = useCategoriasDespesa();
   const { data: setores = [] } = useSetoresDespesa();
+  const { data: vendedores = [] } = useVendedores();
   const createDespesa = useCreateDespesa();
   const updateDespesa = useUpdateDespesa();
   const deleteDespesa = useDeleteDespesa();
@@ -222,6 +224,7 @@ export default function Despesas() {
       unidade_negocio: d.unidade_negocio || 'none',
       setor_id: d.setor_id || 'none',
       observacoes: (d as any).observacoes || '',
+      vendedor_id: (d as any).vendedor_id || 'none',
     });
     setOpen(true);
   };
@@ -236,6 +239,7 @@ export default function Despesas() {
         unidade_negocio: form.unidade_negocio === 'none' ? null : form.unidade_negocio,
         setor_id: form.setor_id === 'none' ? null : form.setor_id,
         observacoes: form.observacoes?.trim() || null,
+        vendedor_id: form.vendedor_id !== 'none' ? form.vendedor_id : (vendedores.find((v: any) => v.nome.trim().toLowerCase() === form.responsavel.trim().toLowerCase())?.id ?? null),
       };
       if (editId) {
         await updateDespesa.mutateAsync({ id: editId, ...payload });
@@ -371,6 +375,16 @@ export default function Despesas() {
                     <label className="text-sm font-medium">Responsável</label>
                     <Input value={form.responsavel} onChange={e => setForm({ ...form, responsavel: e.target.value })} />
                   </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Corretor (opcional)</label>
+                  <Select value={form.vendedor_id} onValueChange={v => setForm({ ...form, vendedor_id: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {vendedores.map((v: any) => <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
