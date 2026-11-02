@@ -71,6 +71,7 @@ export function calcularRentabilidade(args: {
     if (!linhas.has(id)) linhas.set(id, { vendedor_id: id, nome: vendedores.find(v => v.id === id)?.nome ?? 'Sem corretor', producao: 0, contratos: 0, receita: 0, comissoes: 0, custos: 0 });
     return linhas.get(id);
   };
+  for (const v of vendedores as any[]) if (v.ativo !== false) linha(v.id);
   const itens: ItemCusto[] = [];
   const prodMes = new Map<string, number>();
 
