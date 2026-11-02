@@ -34,7 +34,7 @@ function LinhaCusto({ r, calculado, mesPadrao }: { r: CustoRegra; calculado: num
 
   return (
     <div className={`grid grid-cols-12 gap-2 items-center py-1.5 border-b last:border-0 ${r.ativo ? '' : 'opacity-50'}`}>
-      <Input className="col-span-4 h-9" value={nome} onChange={e => { setNome(e.target.value); if (e.target.value.trim()) adiar({ nome: e.target.value.trim() }); }} />
+      <Input className="col-span-3 h-9" value={nome} onChange={e => { setNome(e.target.value); if (e.target.value.trim()) adiar({ nome: e.target.value.trim() }); }} />
       <Select value={r.tipo} onValueChange={v => mudarTipo(v as any)}>
         <SelectTrigger className="col-span-2 h-9"><SelectValue /></SelectTrigger>
         <SelectContent><SelectItem value="fixo">Fixo</SelectItem><SelectItem value="percentual">Percentual</SelectItem><SelectItem value="pontual">Pontual</SelectItem></SelectContent>
@@ -49,7 +49,7 @@ function LinhaCusto({ r, calculado, mesPadrao }: { r: CustoRegra; calculado: num
       ) : r.tipo === 'pontual' ? (
         <Input type="month" className="col-span-2 h-9 px-2" value={r.mes_referencia?.slice(0, 7) ?? ''} onChange={e => e.target.value && gravar({ mes_referencia: `${e.target.value}-01` })} />
       ) : <span className="col-span-2 text-xs text-muted-foreground">% da produção</span>}
-      <span className="col-span-1 text-right text-sm font-medium tabular-nums">{formatCurrency(calculado)}</span>
+      <span className="col-span-2 text-right text-sm font-medium tabular-nums">{formatCurrency(calculado)}</span>
       <div className="col-span-1 flex items-center justify-end gap-1">
         <Switch checked={r.ativo} onCheckedChange={v => gravar({ ativo: v })} />
         <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => excluir.mutate(r.id)}><Trash2 className="h-4 w-4" /></Button>
@@ -95,8 +95,8 @@ export function CalculadoraCorretor({ vendedores, vendedorId, onVendedor, regras
           <div className="grid lg:grid-cols-3 gap-5">
             <div className="lg:col-span-2 space-y-3">
               <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground px-0.5">
-                <span className="col-span-4">Custo</span><span className="col-span-2">Tipo</span><span className="col-span-2 text-right">Valor (R$ ou %)</span>
-                <span className="col-span-2">Frequência</span><span className="col-span-1 text-right">No período</span><span className="col-span-1 text-right">Ativo</span>
+                <span className="col-span-3">Custo</span><span className="col-span-2">Tipo</span><span className="col-span-2 text-right">Valor (R$ ou %)</span>
+                <span className="col-span-2">Frequência</span><span className="col-span-2 text-right">No período</span><span className="col-span-1 text-right">Ativo</span>
               </div>
               {!minhas.length && <p className="text-sm text-muted-foreground py-2">Nenhum custo cadastrado. Adicione abaixo.</p>}
               {minhas.map(r => <LinhaCusto key={r.id} r={r} calculado={porRegra(r.id)} mesPadrao={mesPadrao} />)}
