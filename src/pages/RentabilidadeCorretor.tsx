@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { CalculadoraCorretor } from '@/components/CalculadoraCorretor';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -27,7 +27,6 @@ const COLS: [Col, string][] = [
   ['resultado', 'Resultado gerencial'], ['margem_gerencial_pct', 'Margem gerencial'],
 ];
 
-const vazio = { tipo: 'fixo', frequencia: 'mensal', nome: '', valor: '', inicio: '', fim: '', mes_referencia: '', categoria_id: 'none', termo_match: '' };
 
 export default function RentabilidadeCorretor() {
   const hoje = new Date();
@@ -37,16 +36,11 @@ export default function RentabilidadeCorretor() {
   const [sel, setSel] = useState<string[]>([]);
   const [ord, setOrd] = useState<{ col: Col; asc: boolean }>({ col: 'resultado', asc: false });
   const [aberto, setAberto] = useState<string | null>(null);
-  const [form, setForm] = useState<any>(vazio);
-  const [editId, setEditId] = useState<string | null>(null);
 
   const { data: base, isLoading } = useBaseRentabilidade();
   const { data: regras = [] } = useCustosCorretor();
   const { data: categorias = [] } = useCategoriasDespesa();
-  const salvar = useSalvarCusto();
-  const excluir = useExcluirCusto();
-  const { toast } = useToast();
-
+  
   const inicio = mes === 'all' ? `${ano}-01-01` : `${ano}-${String(mes).padStart(2, '0')}-01`;
   const fim = mes === 'all' ? `${ano}-12-31` : `${ano}-${String(mes).padStart(2, '0')}-${ultimoDia(ano, mes)}`;
 
@@ -62,35 +56,6 @@ export default function RentabilidadeCorretor() {
   const tot = linhas.reduce((a, l) => ({ producao: a.producao + l.producao, receita: a.receita + l.receita, comissoes: a.comissoes + l.comissoes, custos: a.custos + l.custos, resultado: a.resultado + l.resultado }), { producao: 0, receita: 0, comissoes: 0, custos: 0, resultado: 0 });
 
   const vendedores = base?.vendedores ?? [];
-  const nomeAberto = vendedores.find((v: any) => v.id === aberto)?.nome;
-  const regrasAberto = regras.filter(r => r.vendedor_id === aberto);
-  const itensAberto = calc.itens.filter(i => i.vendedor_id === aberto);
-
-  const editar = (r: CustoRegra) => {
-    setEditId(r.id);
-    setForm({ ...r, valor: String(r.valor), inicio: r.inicio ?? '', fim: r.fim ?? '', mes_referencia: r.mes_referencia ?? '', categoria_id: r.categoria_id ?? 'none', termo_match: r.termo_match ?? '' });
-  };
-  const enviar = async () => {
-    const valor = parseFloat(String(form.valor).replace(',', '.'));
-    if (!form.nome.trim() || !isFinite(valor)) return toast({ title: 'Informe nome e valor', variant: 'destructive' });
-    if (form.tipo === 'pontual' && !form.mes_referencia) return toast({ title: 'Informe o mês do custo pontual', variant: 'destructive' });
-    try {
-      await salvar.mutateAsync({
-        ...(editId ? { id: editId } : { vendedor_id: aberto!, ativo: true }),
-        nome: form.nome.trim(), tipo: form.tipo, valor,
-        frequencia: form.tipo === 'pontual' ? 'unica' : form.tipo === 'percentual' ? 'mensal' : form.frequencia,
-        mes_referencia: form.tipo === 'pontual' ? `${form.mes_referencia}-01` : null,
-        inicio: form.inicio ? `${form.inicio}-01` : null, fim: form.fim ? `${form.fim}-01` : null,
-        categoria_id: form.categoria_id === 'none' ? null : form.categoria_id, termo_match: form.termo_match.trim() || null,
-      } as any);
-      setForm(vazio); setEditId(null);
-      toast({ title: 'Custo salvo' });
-    } catch (e: any) { toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' }); }
-  };
-
-  const descricaoRegra = (r: CustoRegra) =>
-    r.tipo === 'percentual' ? `${r.valor}% da produção` : r.tipo === 'pontual' ? `${formatCurrency(r.valor)} em ${r.mes_referencia?.slice(5, 7)}/${r.mes_referencia?.slice(0, 4)}` : `${formatCurrency(r.valor)}/${r.frequencia === 'semanal' ? 'semana' : 'mês'}`;
-
   return (
     <div className="space-y-6">
       <div>
@@ -123,6 +88,10 @@ export default function RentabilidadeCorretor() {
           : 'Apenas o que foi recebido e pago de fato, pela data do pagamento. Regras estimadas não entram.'} A produção sempre usa a data de implantação.
       </p>
 
+      <CalculadoraCorretor vendedores={vendedores.filter((v: any) => v.ativo !== false)} vendedorId={aberto} onVendedor={setAberto}
+        regras={regras} linha={calc.linhas.find((l: any) => l.vendedor_id === aberto)} itens={calc.itens}
+        mesPadrao={inicio.slice(0, 7)} />
+
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         {[['Produção', tot.producao], ['Receita', tot.receita], ['Comissões', tot.comissoes], ['Custos adicionais', tot.custos], ['Resultado gerencial', tot.resultado]].map(([t, v]) => (
           <Card key={t as string}><CardContent className="p-4"><p className="text-xs text-muted-foreground">{t}</p>
@@ -142,7 +111,7 @@ export default function RentabilidadeCorretor() {
             {isLoading && <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-8">Carregando...</TableCell></TableRow>}
             {!isLoading && !linhas.length && <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-8">Nenhum dado no período.</TableCell></TableRow>}
             {linhas.map(l => (
-              <TableRow key={l.vendedor_id} className="cursor-pointer" onClick={() => { setAberto(l.vendedor_id); setForm(vazio); setEditId(null); }}>
+              <TableRow key={l.vendedor_id} className="cursor-pointer" onClick={() => { setAberto(l.vendedor_id); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
                 <TableCell className="font-medium">{l.nome}</TableCell>
                 <TableCell className="text-right">{formatCurrency(l.producao)}</TableCell>
                 <TableCell className="text-right">{l.contratos}</TableCell>
@@ -159,77 +128,8 @@ export default function RentabilidadeCorretor() {
           </TableBody>
         </Table>
       </CardContent></Card>
-      <p className="text-xs text-muted-foreground">Clique num corretor para ver os custos e cadastrar regras.</p>
+      <p className="text-xs text-muted-foreground">Clique num corretor para abri-lo na calculadora.</p>
 
-      <Sheet open={!!aberto} onOpenChange={o => !o && setAberto(null)}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-          <SheetHeader><SheetTitle>{nomeAberto}</SheetTitle></SheetHeader>
-
-          <section className="mt-6 space-y-2">
-            <h3 className="text-sm font-semibold">Custos no período</h3>
-            {!itensAberto.length && <p className="text-sm text-muted-foreground">Nenhum custo adicional.</p>}
-            {itensAberto.map((i, k) => (
-              <div key={k} className={`flex items-center justify-between text-sm py-1 border-b ${i.substituida ? 'opacity-50 line-through' : ''}`}>
-                <span>{i.nome} <span className="text-xs text-muted-foreground">· {i.mes.slice(5)}/{i.mes.slice(0, 4)}</span></span>
-                <span className="flex items-center gap-2"><Badge variant="outline">{i.origem === 'regra' ? 'Regra' : 'Despesa lançada'}</Badge>{formatCurrency(i.valor)}</span>
-              </div>
-            ))}
-            {itensAberto.some(i => i.substituida) && <p className="text-xs text-muted-foreground">Itens riscados foram substituídos por despesa real do mesmo mês.</p>}
-          </section>
-
-          <section className="mt-8 space-y-3">
-            <h3 className="text-sm font-semibold">Regras de custo</h3>
-            {regrasAberto.map(r => (
-              <div key={r.id} className="flex items-center justify-between gap-2 text-sm py-1 border-b">
-                <div className={r.ativo ? '' : 'opacity-50'}><p className="font-medium">{r.nome}</p><p className="text-xs text-muted-foreground">{descricaoRegra(r)}</p></div>
-                <div className="flex items-center gap-1">
-                  <Switch checked={r.ativo} onCheckedChange={v => salvar.mutate({ id: r.id, ativo: v })} />
-                  <Button size="icon" variant="ghost" onClick={() => editar(r)}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" onClick={() => excluir.mutate(r.id)}><Trash2 className="h-4 w-4" /></Button>
-                </div>
-              </div>
-            ))}
-
-            <div className="rounded-md border p-3 space-y-3 bg-muted/30">
-              <p className="text-sm font-medium">{editId ? 'Editar custo' : 'Novo custo'}</p>
-              <Input placeholder="Nome (ex.: DAS, Passagem, Bônus)" value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} />
-              <div className="grid grid-cols-2 gap-2">
-                <Select value={form.tipo} onValueChange={v => setForm({ ...form, tipo: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="fixo">Fixo</SelectItem><SelectItem value="percentual">Percentual</SelectItem><SelectItem value="pontual">Pontual</SelectItem></SelectContent>
-                </Select>
-                <Input placeholder={form.tipo === 'percentual' ? '% da produção' : 'Valor R$'} value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} />
-              </div>
-              {form.tipo === 'fixo' && (
-                <Select value={form.frequencia} onValueChange={v => setForm({ ...form, frequencia: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="mensal">Por mês</SelectItem><SelectItem value="semanal">Por semana</SelectItem></SelectContent>
-                </Select>
-              )}
-              {form.tipo === 'pontual'
-                ? <div className="space-y-1"><label className="text-xs text-muted-foreground">Mês</label><Input type="month" value={form.mes_referencia?.slice(0, 7)} onChange={e => setForm({ ...form, mes_referencia: e.target.value })} /></div>
-                : <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1"><label className="text-xs text-muted-foreground">Início (opcional)</label><Input type="month" value={form.inicio?.slice(0, 7)} onChange={e => setForm({ ...form, inicio: e.target.value })} /></div>
-                    <div className="space-y-1"><label className="text-xs text-muted-foreground">Fim (opcional)</label><Input type="month" value={form.fim?.slice(0, 7)} onChange={e => setForm({ ...form, fim: e.target.value })} /></div>
-                  </div>}
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Evitar duplicidade: se houver despesa lançada do corretor nesta categoria ou com este termo no mês, a regra não é somada</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <Select value={form.categoria_id} onValueChange={v => setForm({ ...form, categoria_id: v })}>
-                    <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
-                    <SelectContent><SelectItem value="none">Sem categoria</SelectItem>{categorias.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
-                  </Select>
-                  <Input placeholder="Termo (ex.: DAS)" value={form.termo_match} onChange={e => setForm({ ...form, termo_match: e.target.value })} />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button onClick={enviar} disabled={salvar.isPending}><Plus className="h-4 w-4 mr-1" />{editId ? 'Salvar' : 'Adicionar'}</Button>
-                {editId && <Button variant="ghost" onClick={() => { setEditId(null); setForm(vazio); }}>Cancelar</Button>}
-              </div>
-            </div>
-          </section>
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }
