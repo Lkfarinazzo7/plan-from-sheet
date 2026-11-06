@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { exportToExcel } from '@/lib/exportHelpers';
 import { ExportPeriodDialog } from '@/components/ExportPeriodDialog';
 import { useToast } from '@/hooks/use-toast';
+import { dataDistanteDeHoje } from '@/lib/dataSuspeita';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
 import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
 import { UNIDADES_NEGOCIO } from '@/lib/unidadesNegocio';
@@ -238,6 +239,7 @@ export default function Despesas() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      if (dataDistanteDeHoje(form.data, todayStr()) && !window.confirm(`A data ${formatDate(form.data)} está a mais de 1 ano de hoje. Confirmar mesmo assim?`)) return;
       const payload = {
         ...form,
         valor: parseFloat(form.valor),
