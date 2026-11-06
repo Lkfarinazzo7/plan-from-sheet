@@ -9,11 +9,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useReceitas, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita, useBulkUpdateReceita, useBulkDeleteReceita, usePropostas, useContratos, normalizeNomeContrato } from '@/hooks/useFinancialData';
+import { useReceitas, fetchReceitasPeriodo, useCreateReceita, useUpdateReceita, useDeleteReceita, useVendedores, useOperadoras, useBulkCreateReceita, useBulkUpdateReceita, useBulkDeleteReceita, usePropostas, useContratos, normalizeNomeContrato } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName, todayStr } from '@/lib/format';
 import { Plus, Trash2, Pencil, Upload, Copy, Download, Sparkles, X, StickyNote, Check } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { exportToExcel } from '@/lib/exportHelpers';
+import { ExportPeriodDialog } from '@/components/ExportPeriodDialog';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
 import { ReceitaPasteDialog } from '@/components/receitas/ReceitaPasteDialog';
@@ -110,7 +111,8 @@ export default function Receitas() {
 
   const [form, setForm] = useState(emptyForm);
 
-  const filtered = receitas.filter(r => {
+  const [exportOpen, setExportOpen] = useState(false);
+  const matchFilters = (r: any) => {
     if (filterVendedor !== 'all' && r.vendedor_id !== filterVendedor) return false;
     if (filterOperadora !== 'all' && r.operadora_id !== filterOperadora) return false;
     if (filterStatus !== 'all' && r.status !== filterStatus) return false;
@@ -119,7 +121,8 @@ export default function Receitas() {
       if (filterUnidade === 'none' ? u !== '' : u !== filterUnidade) return false;
     }
     return true;
-  });
+  };
+  const filtered = receitas.filter(matchFilters);
 
   const total = filtered.reduce((acc, r) => acc + Number(r.valor), 0);
 
@@ -214,8 +217,14 @@ export default function Receitas() {
         <h2 className="text-2xl font-bold">Receitas</h2>
         <div className="flex items-center gap-3">
           <MonthYearPicker month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
-          <Button variant="outline" onClick={() => {
-            const rows = filtered.map(r => ({
+          <Button variant="outline" onClick={() => setExportOpen(true)}>
+            <Download className="h-4 w-4 mr-1" /> Exportar
+          </Button>
+          <ExportPeriodDialog open={exportOpen} onOpenChange={setExportOpen} title="Exportar receitas" month={month} year={year}
+            onExport={async (start, end, label, apply) => {
+              let data = await fetchReceitasPeriodo(start, end);
+              if (apply) data = data.filter(matchFilters);
+              const rows = data.map(r => ({
               Data: formatDate(r.data),
               Descrição: r.descricao,
               Categoria: r.categoria,
@@ -225,10 +234,9 @@ export default function Receitas() {
               Valor: Number(r.valor),
               Status: r.status,
             }));
-            exportToExcel(rows, `Receitas_${getMonthName(month)}_${year}`);
-          }}>
-            <Download className="h-4 w-4 mr-1" /> Exportar
-          </Button>
+              exportToExcel(rows, `Receitas_${label}`);
+              return rows.length;
+            }} />
           <Button variant="outline" onClick={() => setPasteOpen(true)}>
             <Sparkles className="h-4 w-4 mr-1" /> Colar e identificar
           </Button>

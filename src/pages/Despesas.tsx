@@ -10,11 +10,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { useDespesas, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa, useBulkUpdateDespesa, useBulkDeleteDespesa, useSetoresDespesa, useVendedores } from '@/hooks/useFinancialData';
+import { useDespesas, fetchDespesasPeriodo, useCreateDespesa, useUpdateDespesa, useDeleteDespesa, useCategoriasDespesa, useGenerateRecurringDespesas, useBulkCreateDespesa, useBulkUpdateDespesa, useBulkDeleteDespesa, useSetoresDespesa, useVendedores } from '@/hooks/useFinancialData';
 import { formatCurrency, formatDate, getCurrentMonthYear, getMonthName, todayStr } from '@/lib/format';
 import { Plus, Trash2, RotateCcw, Pencil, Upload, Check, Copy, Download, X, StickyNote, Repeat } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { exportToExcel } from '@/lib/exportHelpers';
+import { ExportPeriodDialog } from '@/components/ExportPeriodDialog';
 import { useToast } from '@/hooks/use-toast';
 import { ExcelImportDialog, type ParsedRow } from '@/components/ExcelImportDialog';
 import { parseValorBR, parseDateFlexible } from '@/lib/importHelpers';
@@ -148,7 +149,8 @@ export default function Despesas() {
 
   const [form, setForm] = useState(emptyForm);
 
-  const filtered = useMemo(() => despesas.filter(d => {
+  const [exportOpen, setExportOpen] = useState(false);
+  const matchFilters = (d: any) => {
     if (filterCategoria.length && !filterCategoria.includes(d.categoria_id)) return false;
     if (filterStatus.length && !filterStatus.includes(d.status)) return false;
     if (filterTipo.length && !filterTipo.includes(d.tipo)) return false;
@@ -164,6 +166,9 @@ export default function Despesas() {
       const s = (d as any).setor_id || '__none__';
       if (!filterSetor.includes(s)) return false;
     }
+    return true;
+  };
+  const matchPeriodo = (d: any) => {
     if (filterPeriodo === 'hoje') {
       if (d.data !== todayStr()) return false;
     } else if (filterPeriodo === 'semana') {
@@ -174,7 +179,8 @@ export default function Despesas() {
       if (customEnd && d.data > customEnd) return false;
     }
     return true;
-  }).sort((a, b) => {
+  };
+  const filtered = useMemo(() => despesas.filter(d => matchFilters(d) && matchPeriodo(d)).sort((a, b) => {
     if (a.data !== b.data) return a.data < b.data ? -1 : 1;
     const catA = ((a.categorias_despesa as any)?.nome || '').toLowerCase();
     const catB = ((b.categorias_despesa as any)?.nome || '').toLowerCase();
@@ -310,8 +316,14 @@ export default function Despesas() {
         <h2 className="text-2xl font-bold">Despesas</h2>
         <div className="flex items-center gap-3 flex-wrap">
           <MonthYearPicker month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
-          <Button variant="outline" onClick={() => {
-            const rows = filtered.map(d => ({
+          <Button variant="outline" onClick={() => setExportOpen(true)}>
+            <Download className="h-4 w-4 mr-1" /> Exportar
+          </Button>
+          <ExportPeriodDialog open={exportOpen} onOpenChange={setExportOpen} title="Exportar despesas" month={month} year={year}
+            onExport={async (start, end, label, apply) => {
+              let data = await fetchDespesasPeriodo(start, end);
+              if (apply) data = data.filter(matchFilters);
+              const rows = data.map(d => ({
               Data: formatDate(d.data),
               Descrição: d.descricao,
               Categoria: (d.categorias_despesa as any)?.nome || '',
@@ -324,10 +336,9 @@ export default function Despesas() {
               Recorrente: d.recorrente ? 'Sim' : 'Não',
               Observações: (d as any).observacoes || '',
             }));
-            exportToExcel(rows, `Despesas_${getMonthName(month)}_${year}`);
-          }}>
-            <Download className="h-4 w-4 mr-1" /> Exportar
-          </Button>
+              exportToExcel(rows, `Despesas_${label}`);
+              return rows.length;
+            }} />
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-1" /> Importar Excel
           </Button>

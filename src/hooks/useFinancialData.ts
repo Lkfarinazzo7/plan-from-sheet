@@ -46,6 +46,12 @@ export function useCategoriasDespesa() {
   });
 }
 
+export async function fetchReceitasPeriodo(startDate: string, endDate: string) {
+  const rows = await fetchAllRows<any>((from, to) =>
+    supabase.from('receitas').select('*, vendedores(nome), operadoras(nome)').gte('data', startDate).lte('data', endDate).order('data').order('id').range(from, to));
+  return rows.filter(r => lancamentoAtivo(r, 'receita'));
+}
+
 export function useReceitas(month?: number, year?: number, startDate?: string, endDate?: string) {
   return useQuery({
     queryKey: ['receitas', month, year, startDate, endDate],
@@ -61,6 +67,12 @@ export function useReceitas(month?: number, year?: number, startDate?: string, e
       return rows.filter(r => lancamentoAtivo(r, 'receita'));
     },
   });
+}
+
+export async function fetchDespesasPeriodo(startDate: string, endDate: string) {
+  const rows = await fetchAllRows<any>((from, to) =>
+    supabase.from('despesas').select('*, categorias_despesa(nome), setores_despesa(nome)').gte('data', startDate).lte('data', endDate).order('data').order('id').range(from, to));
+  return rows.filter(r => lancamentoAtivo(r, 'despesa'));
 }
 
 export function useDespesas(month?: number, year?: number, startDate?: string, endDate?: string) {
